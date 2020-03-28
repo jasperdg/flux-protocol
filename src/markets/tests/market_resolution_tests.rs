@@ -89,13 +89,13 @@ fn test_valid_market_payout_calc() {
 	let filled_2_orders = contract.get_filled_orders(0, 2, carol());
 
 	// // uncomment for orderbook state check
-	// println!("open {:?}", 	open_0_orders);
-	// println!("open {:?}", 	open_1_orders);
-	// println!("open {:?}", 	open_2_orders);
+	//println!("open {:?}", 	open_0_orders);
+	//println!("open {:?}", 	open_1_orders);
+	//println!("open {:?}", 	open_2_orders);
 
-	// println!("filled {:?}", filled_0_orders);
-	// println!("filled {:?}", filled_1_orders);
-	// println!("filled {:?}", filled_2_orders);
+	//println!("filled {:?}", filled_0_orders);
+	//println!("filled {:?}", filled_1_orders);
+	//println!("filled {:?}", filled_2_orders);
 
 	let claimable_carol = contract.get_claimable(0, carol());
 	let claimable_alice = contract.get_claimable(0, alice());

@@ -26,14 +26,15 @@ fn test_payout() {
 	let initial_balance_alice = contract.get_fdai_balance(alice());
 	
 	// // print logs
-	// println!("____________CLAIMABLE CAROL____________");
-	// println!("initially claimable: {}", initially_claimable_carol);
-	// println!("initial fdai balance: {}", initial_balance_carol);
-	// println!("");
-	// println!("____________CLAIMABLE ALICE____________");
-	// println!("initially claimable: {}", initially_claimable_alice);
-	// println!("initial fdai balance: {}", initial_balance_alice);
-	// println!("");
+	println!("");
+	println!("____________CLAIMABLE CAROL____________");
+	println!("initially claimable: {}", initially_claimable_carol);
+	println!("initial fdai balance: {}", initial_balance_carol);
+	println!("");
+	println!("____________CLAIMABLE ALICE____________");
+	println!("initially claimable: {}", initially_claimable_alice);
+	println!("initial fdai balance: {}", initial_balance_alice);
+	println!("");
 	contract.claim_earnings(0, carol());
 	testing_env!(get_context(alice()));
 	contract.claim_earnings(0, alice());
@@ -45,14 +46,15 @@ fn test_payout() {
 	let updated_balance_alice = contract.get_fdai_balance(alice());
 
 	// // print logs
-	// println!("____________AFTER CLAIM CAROL____________");
-	// println!("updated claimable: {}", claimable_after_claim_carol);
-	// println!("updated fdai balance: {}", updated_balance_carol);
-	// println!("");
-	// println!("____________AFTER CLAIM ALICE____________");
-	// println!("updated claimable: {}", claimable_after_claim_alice);
-	// println!("updated fdai balance: {}", updated_balance_alice);
-	// println!("");
+	println!("");
+	println!("____________AFTER CLAIM CAROL____________");
+	println!("updated claimable: {}", claimable_after_claim_carol);
+	println!("updated fdai balance: {}", updated_balance_carol);
+	println!("");
+	println!("____________AFTER CLAIM ALICE____________");
+	println!("updated claimable: {}", claimable_after_claim_alice);
+	println!("updated fdai balance: {}", updated_balance_alice);
+	println!("");
 	
 	assert_eq!(claimable_after_claim_carol, 0);
 	assert_eq!(claimable_after_claim_alice, 0);

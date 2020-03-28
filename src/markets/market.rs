@@ -173,10 +173,16 @@ impl Market {
 			}
 		} else {
 			for (_, orderbook) in self.orderbooks.iter() {
+			    // If person not in orderbook, continue
+			    if orderbook.orders_by_user.get(&from).is_none() {
+			        continue;
+			    }
 				claimable += orderbook.get_open_order_value_for(from.to_string());
 			}
 			let winning_orderbook = self.orderbooks.get(&self.winning_outcome.unwrap()).unwrap();
-			claimable += winning_orderbook.calc_claimable_amt(from);
+			if !winning_orderbook.orders_by_user.get(&from).is_none() {
+                claimable += winning_orderbook.calc_claimable_amt(from);
+            }
 		}
 		return claimable;
 	}

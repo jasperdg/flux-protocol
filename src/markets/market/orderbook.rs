@@ -147,15 +147,23 @@ impl Orderbook {
 		for i in 0..orders_by_user_vec.len() {
 		    let order_location: Vec<&str> = orders_by_user_vec[i].rsplit("::").collect();
 		    // Try open orders
-		    let open_order_map = self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).unwrap();
-		    let order = open_order_map.get(&order_location[2].parse::<u128>().unwrap()).unwrap();
-		    claimable += order.shares_filled * 100;
+		    if !self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).is_none() {
+		        let open_order_map = self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).unwrap();
+		        if !open_order_map.get(&order_location[2].parse::<u128>().unwrap()).is_none() {
+		            let order = open_order_map.get(&order_location[2].parse::<u128>().unwrap()).unwrap();
+		            claimable += order.shares_filled * 100;
+		        }
+		    }
 
 		    // Try filled orders
-		    let filled_order_map = self.filled_orders.get(&order_location[1].parse::<u128>().unwrap()).unwrap();
-		    let filled_order = filled_order_map.get(&order_location[2].parse::<u128>().unwrap()).unwrap();
-		    claimable += filled_order.shares_filled * 100;
-		}
+		    if !self.filled_orders.get(&order_location[1].parse::<u128>().unwrap()).is_none() {
+		        let filled_order_map = self.filled_orders.get(&order_location[1].parse::<u128>().unwrap()).unwrap();
+		        if !filled_order_map.get(&order_location[2].parse::<u128>().unwrap()).is_none() {
+		            let filled_order = filled_order_map.get(&order_location[2].parse::<u128>().unwrap()).unwrap();
+                    claimable += filled_order.shares_filled * 100;
+                }
+             }
+        }
 		return claimable;
 	}
 
@@ -206,9 +214,11 @@ impl Orderbook {
         for i in 0..orders_by_user_vec.len() {
             let order_location: Vec<&str> = orders_by_user_vec[i].rsplit("::").collect();
             // Try open orders
-            let open_order_map = self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).unwrap();
-            let order = open_order_map.get(&order_location[2].parse::<u128>().unwrap()).unwrap();
-            claimable += order.shares_filled * 100;
+            if !self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).is_none() {
+                let open_order_map = self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).unwrap();
+                let order = open_order_map.get(&order_location[2].parse::<u128>().unwrap()).unwrap();
+                claimable += order.shares_filled * 100;
+            }
         }
 		return claimable;
 	}
