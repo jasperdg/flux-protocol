@@ -178,11 +178,9 @@ impl Market {
 			        continue;
 			    }
 				claimable += orderbook.get_open_order_value_for(from.to_string());
-				println!("OPEN CLAIMABLE VALUE FOR: {} = {}", from, claimable);
 			}
 			let winning_orderbook = self.orderbooks.get(&self.winning_outcome.unwrap()).unwrap();
 			if !winning_orderbook.orders_by_user.get(&from).is_none() {
-			    println!("WINNING CLAIMABLE VALUE FOR: {} = {}", from, claimable);
                 claimable += winning_orderbook.calc_claimable_amt(from);
             }
 		}
