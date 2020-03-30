@@ -45,7 +45,8 @@ impl Orderbook {
 	pub fn place_order(&mut self, from: String, outcome: u64, spend: u128, amt_of_shares: u128, price_per_share: u128, filled: u128, shares_filled: u128) {
 		let order_id = self.new_order_id();
 		let new_order = Order::new(from.to_string(), outcome, order_id, spend, amt_of_shares, price_per_share, filled, shares_filled);
-		*self.spend_by_user.entry(from.to_string()).or_insert(0) += spend;
+		*self.spend_by_user.entry(from.to_string()).or_insert(0);
+		*self.spend_by_user.get_mut(&from.to_string()).unwrap() += spend;
 
         // If all of spend is filled, state order is fully filled
         let left_to_spend = spend - filled;
@@ -82,7 +83,9 @@ impl Orderbook {
     // Remove order from orderbook -- added price_per_share - if invalid order id passed behaviour undefined
 	pub fn remove_order(&mut self, order_id: u128, price_per_share: u128) -> u128 {
 		// Get orders at price
+		if self.open_orders.get_mut(&price_per_share).is_none() {return 0};
 		let order_map = self.open_orders.get_mut(&price_per_share).unwrap();
+		if order_map.get(&order_id).is_none() {return 0};
         let order = order_map.get(&order_id).unwrap();
         let outstanding_spend = order.spend - order.filled;
         *self.spend_by_user.get_mut(&order.creator).unwrap() -= outstanding_spend;
@@ -169,7 +172,7 @@ impl Orderbook {
 
 	pub fn delete_orders_for(&mut self, from: String) {
 	    let mut to_delete : Vec<(u128, u128)> = vec![];
-        self.spend_by_user.insert(from.to_string(), 0);
+        if self.orders_by_user.get(&from).is_none() {return};
         let orders_by_user_vec = self.orders_by_user.get(&from).unwrap();
 
         for entry in orders_by_user_vec {
@@ -183,11 +186,14 @@ impl Orderbook {
             self.remove_order(entry.0, entry.1);
             self.remove_filled_order(entry.0, entry.1);
         }
+        self.spend_by_user.insert(from.to_string(), 0);
 	}
 
     fn remove_filled_order(&mut self, order_id : u128, price_per_share : u128) {
         // Get filled orders at price
+        if self.filled_orders.get_mut(&price_per_share).is_none() {return};
         let filled_order_map = self.filled_orders.get_mut(&price_per_share).unwrap();
+        if filled_order_map.get(&order_id).is_none() {return};
         let order = filled_order_map.get(&order_id).unwrap();
         // Remove order from user map
         let order_by_user_map = self.orders_by_user.get_mut(&order.creator).unwrap();
@@ -214,11 +220,11 @@ impl Orderbook {
         for i in 0..orders_by_user_vec.len() {
             let order_location: Vec<&str> = orders_by_user_vec[i].rsplit("::").collect();
             // Try open orders
-            if !self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).is_none() {
-                let open_order_map = self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).unwrap();
-                let order = open_order_map.get(&order_location[2].parse::<u128>().unwrap()).unwrap();
-                claimable += order.shares_filled * 100;
-            }
+            if self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).is_none() {continue};
+            let open_order_map = self.open_orders.get(&order_location[1].parse::<u128>().unwrap()).unwrap();
+            if open_order_map.get(&order_location[2].parse::<u128>().unwrap()).is_none() {continue};
+            let order = open_order_map.get(&order_location[2].parse::<u128>().unwrap()).unwrap();
+            claimable += order.spend - order.filled;
         }
 		return claimable;
 	}

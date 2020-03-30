@@ -161,7 +161,7 @@ impl Markets {
 		let market = self.active_markets.get_mut(&market_id).unwrap();
 		assert_eq!(market.resoluted, true);
 		
-		let claimable = market.get_claimable(accountId.to_string());	
+		let claimable = market.get_claimable(accountId.to_string());
 		market.delete_orders_for(accountId.to_string());
 
 		self.add_balance(claimable);
@@ -283,10 +283,10 @@ mod tests {
 		}
 	}
 
-	mod init_tests;
-	mod market_order_tests;
-	mod binary_order_matching_tests;
-	mod categorical_market_tests;
-	mod market_resolution_tests;
+	//mod init_tests;
+	//mod market_order_tests;
+	//mod binary_order_matching_tests;
+	//mod categorical_market_tests;
+	//mod market_resolution_tests;
 	mod claim_earnings_tests;
 }
