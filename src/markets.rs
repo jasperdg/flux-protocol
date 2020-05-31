@@ -110,7 +110,8 @@ impl Markets {
 	}
 
 	pub fn place_order(
-		&mut self, 
+		&mut self,
+		order_type: String,
 		market_id: u64, 
 		outcome: u64, 
 		spend: u128, 
@@ -124,7 +125,7 @@ impl Markets {
 		let amount_of_shares = spend / price;
 		let rounded_spend = amount_of_shares * price;
 		let market = self.active_markets.get_mut(&market_id).unwrap();
-		market.create_order(account_id.to_string(), outcome, amount_of_shares, rounded_spend, price, affiliate_account_id);
+		market.create_order(account_id.to_string(), order_type, outcome, amount_of_shares, rounded_spend, price, affiliate_account_id);
 
 		self.subtract_balance(rounded_spend);
 	}

@@ -16,13 +16,13 @@ fn fee_distribution_test() {
 	testing_env!(get_context(alice(), current_block_timestamp()));
 	contract.claim_fdai();
 
-	contract.place_order(0, 0, 5 * one_dai, 50, None);
-	contract.place_order(0, 1, 5 * one_dai, 50, None);
+	contract.place_order("bid", 0, 0, 5 * one_dai, 50, None);
+	contract.place_order("bid", 0, 1, 5 * one_dai, 50, None);
 
-	contract.place_order(0, 1, 5 * one_dai, 50, None);
-	contract.place_order(0, 1, 5 * one_dai, 50, None);
-	contract.place_order(0, 1, 5 * one_dai, 50, None);
-	contract.place_order(0, 1, 5 * one_dai, 50, None);
+	contract.place_order("bid", 0, 1, 5 * one_dai, 50, None);
+	contract.place_order("bid", 0, 1, 5 * one_dai, 50, None);
+	contract.place_order("bid", 0, 1, 5 * one_dai, 50, None);
+	contract.place_order("bid", 0, 1, 5 * one_dai, 50, None);
 
 	let markets = contract.get_markets_by_id(vec![0]);
 	assert_eq!(markets[&0].filled_volume, 10 * one_dai);

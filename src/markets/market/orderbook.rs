@@ -54,7 +54,8 @@ impl Orderbook {
     // Places order in orderbook
 	pub fn place_order(
 		&mut self, 
-		account_id: String, 
+		account_id: String,
+		order_type: String,
 		outcome: u64, 
 		spend: u128, 
 		amt_of_shares: u128, 
@@ -64,7 +65,7 @@ impl Orderbook {
 		affiliate_account_id: Option<String>
 	) {
 		let order_id = self.new_order_id();
-		let new_order = Order::new(account_id.to_string(), outcome, order_id, spend, amt_of_shares, price, filled, shares_filled, affiliate_account_id);
+		let new_order = Order::new(account_id.to_string(), order_type ,outcome, order_id, spend, amt_of_shares, price, filled, shares_filled, affiliate_account_id);
 		*self.spend_by_user.entry(account_id.to_string()).or_insert(0) += spend;
 		self.orders_by_user.entry(account_id.to_string()).or_insert(Vec::new()).push(order_id);
 

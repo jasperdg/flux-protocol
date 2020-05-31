@@ -8,6 +8,7 @@ use near_sdk::{near_bindgen, env};
 pub struct Order {
 	pub id: u128,
 	pub creator: String,
+	pub order_type: String,
 	pub outcome: u64,
 	pub spend: u128,
 	pub amt_of_shares: u128,
@@ -20,7 +21,8 @@ pub struct Order {
 
 impl Order {
 	pub fn new(
-		creator: String, 
+		creator: String,
+		order_type: String,
 		outcome: u64, 
 		id: u128, 
 		spend:u128, 
@@ -35,6 +37,7 @@ impl Order {
 		Order {
 			id,
 			creator,
+			order_type,
 			outcome,
 			spend,
 			amt_of_shares,

@@ -7,17 +7,17 @@ fn test_invalid_market_payout_calc() {
 	contract.claim_fdai();
 	contract.create_market("Hi!".to_string(), empty_string(), 4, outcome_tags(4), categories(), market_end_timestamp_ms(), 0, 0, "test".to_string());
 
-	contract.place_order(0, 0, 7000, 70, None);
-	contract.place_order(0, 1, 1000, 10, None);
-	contract.place_order(0, 2, 1000, 10, None);
-	contract.place_order(0, 3, 1000, 10, None);
+	contract.place_order("bid", 0, 0, 7000, 70, None);
+	contract.place_order("bid", 0, 1, 1000, 10, None);
+	contract.place_order("bid", 0, 2, 1000, 10, None);
+	contract.place_order("bid", 0, 3, 1000, 10, None);
 
 	testing_env!(get_context(alice(), current_block_timestamp()));
 	contract.claim_fdai();
 
-	contract.place_order(0, 0, 6000, 60, None);
-	contract.place_order(0, 1, 2000, 20, None);
-	contract.place_order(0, 2, 2000, 20, None);
+	contract.place_order("bid", 0, 0, 6000, 60, None);
+	contract.place_order("bid", 0, 1, 2000, 20, None);
+	contract.place_order("bid", 0, 2, 2000, 20, None);
 
 	testing_env!(get_context(carol(), market_end_timestamp_ns()));
 	contract.resolute_market(0, None, to_dai(5));
@@ -56,12 +56,12 @@ fn test_valid_market_payout_calc() {
 	contract.claim_fdai();
 	contract.create_market("Hi!".to_string(), empty_string(), 4, outcome_tags(4), categories(), market_end_timestamp_ms(), 0, 0, "test".to_string());
 
-	contract.place_order(0, 0, 7000, 70, None);
+	contract.place_order("bid", 0, 0, 7000, 70, None);
 
 	testing_env!(get_context(alice(), current_block_timestamp()));
 	contract.claim_fdai();
-	contract.place_order(0, 1, 1000, 10, None);
-	contract.place_order(0, 2, 2000, 20, None);
+	contract.place_order("bid", 0, 1, 1000, 10, None);
+	contract.place_order("bid", 0, 2, 2000, 20, None);
 
 	testing_env!(get_context(carol(), market_end_timestamp_ns()));
 	contract.resolute_market(0, Some(1), to_dai(5));

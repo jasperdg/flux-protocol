@@ -7,13 +7,13 @@ fn test_payout() {
 	contract.claim_fdai();
 	contract.create_market("Hi!".to_string(), empty_string(), 4, outcome_tags(4), categories(), market_end_timestamp_ms(), 0, 0, "test".to_string());
 
-	contract.place_order(0, 0, 10000, 70, None);
-	contract.place_order(0, 3, 1000, 10, None);
+	contract.place_order("bid", 0, 0, 10000, 70, None);
+	contract.place_order("bid", 0, 3, 1000, 10, None);
 
 	testing_env!(get_context(alice(), current_block_timestamp()));
 	contract.claim_fdai();
-	contract.place_order(0, 1, 1000, 10, None);
-	contract.place_order(0, 2, 1000, 10, None);
+	contract.place_order("bid", 0, 1, 1000, 10, None);
+	contract.place_order("bid", 0, 2, 1000, 10, None);
 
 	testing_env!(get_context(carol(), market_end_timestamp_ns()));
 	contract.resolute_market(0, None, to_dai(5));

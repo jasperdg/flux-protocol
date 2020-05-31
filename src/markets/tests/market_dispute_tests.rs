@@ -12,13 +12,13 @@ fn init_tests() -> Markets {
 fn test_dispute_valid() {
 	let mut contract = init_tests();
 
-	contract.place_order(0, 0, to_dai(10), 70, None);
-	contract.place_order(0, 3, to_dai(1), 10, None);
+	contract.place_order("bid", 0, 0, to_dai(10), 70, None);
+	contract.place_order("bid", 0, 3, to_dai(1), 10, None);
 
 	testing_env!(get_context(alice(), current_block_timestamp()));
 	contract.claim_fdai();
-	contract.place_order(0, 1, to_dai(1), 10, None);
-	contract.place_order(0, 2, to_dai(1), 10, None);
+	contract.place_order("bid", 0, 1, to_dai(1), 10, None);
+	contract.place_order("bid", 0, 2, to_dai(1), 10, None);
 
 	testing_env!(get_context(carol(), market_end_timestamp_ns()));
     contract.resolute_market(0, Some(0), to_dai(5));
@@ -162,8 +162,8 @@ fn test_insufficient_balance() {
 #[should_panic(expected = "creator already claimed fees")]
 fn test_fee_claim() {
 	let mut contract = init_tests();
-	contract.place_order(0, 0, to_dai(1), 10, None);
-	contract.place_order(0, 1, to_dai(9), 90, None);
+	contract.place_order("bid", 0, 0, to_dai(1), 10, None);
+	contract.place_order("bid", 0, 1, to_dai(9), 90, None);
 	testing_env!(get_context(carol(), market_end_timestamp_ns()));
 	contract.resolute_market(0, Some(0), to_dai(5));
 	testing_env!(get_context(carol(), market_end_timestamp_ns() + 1800000000000));
@@ -184,8 +184,8 @@ fn test_fee_claim() {
 fn test_cancel_dispute_participation() {
 	let mut contract = init_tests();
 
-	contract.place_order(0, 0, to_dai(10), 70, None);
-	contract.place_order(0, 3, to_dai(1), 10, None);
+	contract.place_order("bid", 0, 0, to_dai(10), 70, None);
+	contract.place_order("bid", 0, 3, to_dai(1), 10, None);
 
 	testing_env!(get_context(alice(), market_end_timestamp_ns()));
 	contract.claim_fdai();

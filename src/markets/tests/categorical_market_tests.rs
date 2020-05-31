@@ -7,19 +7,19 @@ fn test_categorical_market_automated_matcher() {
 	contract.create_market("Hi!".to_string(), empty_string(), 3, outcome_tags(3), categories(),  market_end_timestamp_ms(), 0, 0, "test".to_string());
 
 	// best prices - market price = 10
-	contract.place_order(0, 0, 3000, 30, None);
-	contract.place_order(0, 1, 6000, 60, None);
+	contract.place_order("bid", 0, 0, 3000, 30, None);
+	contract.place_order("bid", 0, 1, 6000, 60, None);
 
 	// worse prices - market price = 25
-	contract.place_order(0, 0, 2500, 25, None);
-	contract.place_order(0, 1, 5000, 50, None);
+	contract.place_order("bid", 0, 0, 2500, 25, None);
+	contract.place_order("bid", 0, 1, 5000, 50, None);
 
 	testing_env!(get_context(alice(), current_block_timestamp()));
 
 	contract.claim_fdai();
 
 	// alice fills all orders
-	contract.place_order(0, 2, 3500, 25, None);
+	contract.place_order("bid", 0, 2, 3500, 25, None);
 
 	let open_0_orders = contract.get_open_orders(0, 0);
     let open_1_orders = contract.get_open_orders(0, 1);

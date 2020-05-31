@@ -7,13 +7,13 @@ fn test_bst_additions() {
 	contract.claim_fdai();
 	contract.create_market("Hi!".to_string(), empty_string(), 3, outcome_tags(3), categories(), 100010101001010);
 	
-	contract.place_order(0, 0, 100000, 50, None);
-	contract.place_order(0, 0, 100000, 30);
-	contract.place_order(0, 0, 100000, 60);
-	contract.place_order(0, 0, 100000, 70);
-	contract.place_order(0, 0, 100000, 55);
-	contract.place_order(0, 0, 100000, 35);
-	contract.place_order(0, 0, 100000, 50, None);
+	contract.place_order("bid", 0, 0, 100000, 50, None);
+	contract.place_order("bid", 0, 0, 100000, 30);
+	contract.place_order("bid", 0, 0, 100000, 60);
+	contract.place_order("bid", 0, 0, 100000, 70);
+	contract.place_order("bid", 0, 0, 100000, 55);
+	contract.place_order("bid", 0, 0, 100000, 35);
+	contract.place_order("bid", 0, 0, 100000, 50, None);
 
 
 	let open_orders = &contract.get_market(0).orderbooks.get(&0).as_ref().unwrap().open_orders;
@@ -77,12 +77,12 @@ fn test_bst_removal() {
 	let mut contract = Markets::default();
 	contract.claim_fdai();
 	contract.create_market("Hi!".to_string(), empty_string(), 2, outcome_tags(0), categories(), market_creation_timestamp());
-	contract.place_order(0, 0, 100000, 50, None);
-	contract.place_order(0, 0, 100000, 30);
-	contract.place_order(0, 0, 100000, 60);
-	contract.place_order(0, 0, 100000, 70);
-	contract.place_order(0, 0, 100000, 55);
-	contract.place_order(0, 0, 100000, 35);
+	contract.place_order("bid", 0, 0, 100000, 50, None);
+	contract.place_order("bid", 0, 0, 100000, 30);
+	contract.place_order("bid", 0, 0, 100000, 60);
+	contract.place_order("bid", 0, 0, 100000, 70);
+	contract.place_order("bid", 0, 0, 100000, 55);
+	contract.place_order("bid", 0, 0, 100000, 35);
 	contract.cancel_order(0, 0, 0);
 	contract.cancel_order(0, 0, 1);
 

@@ -105,7 +105,8 @@ impl Market {
 
 	pub fn create_order(
 		&mut self, 
-		account_id: String, 
+		account_id: String,
+		order_type: String,
 		outcome: u64, 
 		amt_of_shares: u128, 
 		spend: u128, 
@@ -120,7 +121,7 @@ impl Market {
 		let total_spend = spend - spend_left;
 		self.filled_volume += shares_filled * 100;
 		let orderbook = self.orderbooks.get_mut(&outcome).unwrap();
-		orderbook.place_order(account_id, outcome, spend, amt_of_shares, price, total_spend, shares_filled, affiliate_account_id);
+		orderbook.place_order(account_id, order_type, outcome, spend, amt_of_shares, price, total_spend, shares_filled, affiliate_account_id);
 	}
 
 	fn fill_matches(
