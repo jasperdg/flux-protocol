@@ -193,22 +193,28 @@ impl Orderbook {
 		account_id: String
 	) {
 		let orders_by_user = self.orders_by_user.get(&account_id).unwrap();
-		let mut shares_left = shares;
-		println!("filled orders {:?}", self.filled_orders);
-		println!("");
-		println!("open orders {:?}", self.open_orders);
-		println!("");
-		println!("");
-
+		let mut shares_to_subtract = shares;
+		let mut to_remove = vec![];
+		let mut order_to_alter = None;
 		for order_id in orders_by_user {
-			let order = self.open_orders
-			.get(&order_id)
-			.unwrap_or_else(| | {
-				return  self.filled_orders.get(&order_id).expect("order with this id doesn't seem to exist")
-			});
-			println!("order {:?}", order);
-			println!("");
-			// balance -= order.shares_filled;
+			if shares_to_subtract > 0 {
+				let order = self.open_orders
+				.get(&order_id)
+				.unwrap_or_else(| | {
+					return  self.filled_orders.get(&order_id).expect("order with this id doesn't seem to exist")
+				});
+
+				if shares_to_subtract > order.shares_filled {
+					shares_to_subtract -= order.shares_filled;
+					to_remove.push(order.id);
+				} else {
+					shares_to_subtract = 0;
+					order_to_alter = Some(order);
+				}
+
+			} else {
+				continue;
+			}
 		}
 	}
 
