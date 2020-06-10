@@ -343,7 +343,7 @@ impl Markets {
 	) {
 		assert!(shares > 0, "can't sell no shares");
 		let market = self.markets.get_mut(&market_id).expect("non existent market");
-		let earnings = market.market_sell(outcome, shares);
+		let earnings = market.dynamic_market_sell(outcome, shares);
 		// Add earnings
 	}
 
@@ -527,7 +527,7 @@ mod tests {
 			block_timestamp: block_timestamp,
 			account_locked_balance: 0,
             attached_deposit: 0,
-            prepaid_gas: 10u64.pow(11),
+            prepaid_gas: 10u64.pow(12),
             random_seed: vec![0, 1, 2],
             output_data_receivers: vec![],
 		}
@@ -535,11 +535,11 @@ mod tests {
 
 	// mod init_tests;
 	// mod market_order_tests;
-	// mod binary_order_matching_tests;
+	mod binary_order_matching_tests;
 	// mod categorical_market_tests;
 	// mod market_depth_tests;
 	// mod claim_earnings_tests;
 	// mod market_dispute_tests;
 	// mod market_resolution_tests;
-	mod fee_payout_tests;
+	// mod fee_payout_tests;
 }

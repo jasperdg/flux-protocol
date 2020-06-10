@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::cmp;
 use borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::{near_bindgen};
+use near_sdk::{near_bindgen, env};
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
@@ -189,33 +189,75 @@ impl Orderbook {
 
 	pub fn subtract_shares(
 		&mut self, 
-		shares: u128, 
-		account_id: String
+		shares: u128,
+		sell_price: u128,
 	) {
-		let orders_by_user = self.orders_by_user.get(&account_id).unwrap();
-		let mut shares_to_subtract = shares;
+		println!("selling {} shares at {}c", shares, sell_price);
+		let orders_by_user = self.orders_by_user.get(&env::predecessor_account_id()).unwrap();
+		let mut shares_sold = shares;
 		let mut to_remove = vec![];
 		let mut order_to_alter = None;
 		for order_id in orders_by_user {
-			if shares_to_subtract > 0 {
+			if shares_sold > 0 && order_to_alter.is_none() {
 				let order = self.open_orders
 				.get(&order_id)
 				.unwrap_or_else(| | {
 					return  self.filled_orders.get(&order_id).expect("order with this id doesn't seem to exist")
 				});
 
-				if shares_to_subtract > order.shares_filled {
-					shares_to_subtract -= order.shares_filled;
+				println!("shares sold: {}", shares_sold);
+
+				println!("shares asked: {}", order.shares_filled);
+				println!("");
+
+				if shares_sold >= order.shares_filled {
+					shares_sold -= order.shares_filled;
 					to_remove.push(order.id);
 				} else {
-					shares_to_subtract = 0;
-					order_to_alter = Some(order);
+					shares_sold = cmp::min(shares_sold, order.shares_filled);
+					order_to_alter = Some(order.id);
 				}
 
 			} else {
 				continue;
 			}
 		}
+
+
+		if order_to_alter.is_some() {
+			let open_order = self.open_orders.get_mut(&order_to_alter.unwrap());
+			let mut order;
+			if open_order.is_none() {
+				order = self.filled_orders.get_mut(&order_to_alter.unwrap()).expect("Order doesn't exist");
+			} else {
+				order = open_order.unwrap();
+			}
+			order.spend -= shares_sold * order.price;
+			order.filled -= shares_sold * order.price;
+			order.amt_of_shares -= shares_sold;
+			order.shares_filled -= shares_sold;
+			println!("order after alter {:?}",  self.filled_orders.get_mut(&order_to_alter.unwrap()))
+		}
+
+		// // Remove the shares and adjust balances
+		// for order_id in to_remove {
+		// 	let open_order = self.open_orders.get_mut(order_to_alter.unwrap());
+		// 	let mut order;
+		// 	if open_order.is_none() {
+		// 		order = self.filled_orders.get_mut(order_to_alter.unwrap()).expect("Order doesn't exist").clone();
+		// 		self.remove_filled_order(order_id);
+		// 	} else {
+		// 		order = open_order.unwrap().clone();
+		// 		self.remove_order(order_id);
+		// 	}
+		// 	// if order buy_price > sell_price 
+		// 		// add delta buy_price - sell_price * amt of shares to claimable_if_valid
+		// 		// subtract spend_by_user -= spend
+		// 	// else if buy_price < sell_price
+		// 		// subtract spend_by_user -= sell_price * shares_to_sell
+		// }
+
+		
 	}
 
 	pub fn calc_claimable_amt(
@@ -338,7 +380,6 @@ impl Orderbook {
 		return balance;
 	}
 
-	// TODO test if decrements on order fill
 	pub fn get_liquidity_at_price(
 		&self, 
 		price: u128

@@ -49,19 +49,19 @@ fn simple_binary_order_sale() {
 	contract.claim_fdai();
 	contract.create_market("Hi!".to_string(), empty_string(), 2, outcome_tags(0), categories(), market_end_timestamp_ms(), 0, 0, "test".to_string());
 
-	contract.place_order(0, 0, 10000, 50);
-	contract.place_order(0, 1, 5000, 50);
-	contract.place_order(0, 1, 5000, 50);
-	contract.place_order(0, 1, 2750, 49);
-	contract.place_order(0, 1, 2750, 50);
+	contract.place_order(0, 0, 10000, 50, None);
+	contract.place_order(0, 1, 5000, 50, None);
+	contract.place_order(0, 1, 5000, 50, None);
+	contract.place_order(0, 1, 4900, 49, None);
+	contract.place_order(0, 1, 2500, 50, None);
 
 	let share_balance = contract.get_outcome_share_balance(0, 1, carol());
 	assert_eq!(200, share_balance);
 	let (sell_depth, shares_fillable) = contract.get_market_sell_depth(0, 1, 10000);
-	assert_eq!(111, shares_fillable);
-	assert_eq!(5494, sell_depth);
+	assert_eq!(150, shares_fillable);
+	assert_eq!(7400, sell_depth);
 
-	contract.dynamic_market_sell(0, 1, share_balance);
+	contract.dynamic_market_sell(0, 1, share_balance - 5);
 	
 	// let (sell_depth, shares_fillable) = contract.get_market_sell_depth(0, 1, 10000);
 	// assert_eq!(0, shares_fillable);
