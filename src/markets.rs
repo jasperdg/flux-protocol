@@ -344,7 +344,7 @@ impl Markets {
 		assert!(shares > 0, "can't sell no shares");
 		let market = self.markets.get_mut(&market_id).expect("non existent market");
 		let earnings = market.dynamic_market_sell(outcome, shares);
-		// Add earnings
+		self.add_balance(earnings, env::predecessor_account_id());
 	}
 
 	fn get_market_sell_depth(

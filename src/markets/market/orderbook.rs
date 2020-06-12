@@ -76,7 +76,6 @@ impl Orderbook {
 			return;
 		}
 
-
         // If there is a remaining order, set this new order as the new market rate
 		self.set_best_price(price);
 
@@ -187,12 +186,12 @@ impl Orderbook {
 		}
 	}
 
+	// Returns claimable_if_valid
 	pub fn subtract_shares(
 		&mut self, 
 		shares: u128,
 		sell_price: u128,
-	) {
-		println!("selling {} shares at {}c", shares, sell_price);
+	) -> u128 {
 		let orders_by_user = self.orders_by_user.get(&env::predecessor_account_id()).unwrap();
 		let mut shares_sold = shares;
 		let mut to_remove = vec![];
@@ -204,11 +203,6 @@ impl Orderbook {
 				.unwrap_or_else(| | {
 					return  self.filled_orders.get(&order_id).expect("order with this id doesn't seem to exist")
 				});
-
-				println!("shares sold: {}", shares_sold);
-
-				println!("shares asked: {}", order.shares_filled);
-				println!("");
 
 				if shares_sold >= order.shares_filled {
 					shares_sold -= order.shares_filled;
@@ -223,7 +217,6 @@ impl Orderbook {
 			}
 		}
 
-
 		if order_to_alter.is_some() {
 			let open_order = self.open_orders.get_mut(&order_to_alter.unwrap());
 			let mut order;
@@ -236,28 +229,33 @@ impl Orderbook {
 			order.filled -= shares_sold * order.price;
 			order.amt_of_shares -= shares_sold;
 			order.shares_filled -= shares_sold;
-			println!("order after alter {:?}",  self.filled_orders.get_mut(&order_to_alter.unwrap()))
 		}
 
-		// // Remove the shares and adjust balances
-		// for order_id in to_remove {
-		// 	let open_order = self.open_orders.get_mut(order_to_alter.unwrap());
-		// 	let mut order;
-		// 	if open_order.is_none() {
-		// 		order = self.filled_orders.get_mut(order_to_alter.unwrap()).expect("Order doesn't exist").clone();
-		// 		self.remove_filled_order(order_id);
-		// 	} else {
-		// 		order = open_order.unwrap().clone();
-		// 		self.remove_order(order_id);
-		// 	}
-		// 	// if order buy_price > sell_price 
-		// 		// add delta buy_price - sell_price * amt of shares to claimable_if_valid
-		// 		// subtract spend_by_user -= spend
-		// 	// else if buy_price < sell_price
-		// 		// subtract spend_by_user -= sell_price * shares_to_sell
-		// }
+		let mut claimable_if_valid = 0;
+		// Remove the shares and adjust balances
+		for order_id in to_remove {
+			let open_order = self.open_orders.get_mut(&order_to_alter.unwrap());
+			let mut order;
+			if open_order.is_none() {
+				order = self.filled_orders.get_mut(&order_to_alter.unwrap()).expect("Order doesn't exist").clone();
+				self.remove_filled_order(order_id);
+			} else {
+				order = open_order.unwrap().clone();
+				self.remove_order(order_id);
+			}
 
-		
+			let spend_by_user = self.spend_by_user.get_mut(&env::predecessor_account_id()).expect("user doens't have any spend left");
+			if order.price > sell_price {
+				claimable_if_valid += (order.price - sell_price) * order.shares_filled;
+				*spend_by_user -= order.spend;
+			} else if order.price < sell_price {
+				*spend_by_user -= (sell_price - order.price) * order.shares_filled;
+			} else {
+				*spend_by_user -= order.spend;
+			}
+		}
+
+		return claimable_if_valid;
 	}
 
 	pub fn calc_claimable_amt(

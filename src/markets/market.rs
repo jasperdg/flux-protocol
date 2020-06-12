@@ -41,6 +41,7 @@ pub struct Market {
 	pub creator_fee_percentage: u128,
 	pub resolution_fee_percentage: u128,
 	pub affiliate_fee_percentage: u128,
+	pub claimable_if_valid: HashMap<String, u128>,
 	pub api_source: String,
 	pub resolution_windows: Vec<ResolutionWindow>
 }
@@ -98,23 +99,10 @@ impl Market {
 			creator_fee_percentage,
 			resolution_fee_percentage,
 			affiliate_fee_percentage,
+			claimable_if_valid: HashMap::new(),
 			api_source,
 			resolution_windows: vec![base_resolution_window]
 		}
-	}
-
-	pub fn market_sell(
-		&mut self,
-		outcome: u64,
-		shares_to_sell: u128
-	) -> u128 {
-		let (to_market_fill, shares_to_fill) = self.get_dynamic_market_sell_offer(outcome, shares_to_sell);
-		let orderbook = self.orderbooks.get_mut(&outcome).unwrap();
-		let user_balance = orderbook.get_share_balance(env::predecessor_account_id());
-		assert!(user_balance >= shares_to_sell, "user doesn't hold enough shares to sell");
-		// orderbook.subtract_shares(shares_to_fill, env::predecessor_account_id());
-		// orderbook.fill_best_orders(shares_to_fill);
-		return to_market_fill;
 	}
 
 	pub fn dynamic_market_sell(
@@ -124,6 +112,7 @@ impl Market {
 	) -> u128 {
 		let orderbook = self.orderbooks.get_mut(&outcome).unwrap();
 		let share_balance = orderbook.get_share_balance(env::predecessor_account_id());
+		let mut claimable_if_valid = 0 ;
 		assert!(shares_to_sell <= share_balance, "user doesn't have enough balance to sell these shares");
 		let mut best_price = orderbook.best_price.unwrap_or(0);
 		
@@ -136,18 +125,26 @@ impl Market {
 			let shares_sought = liq_at_price / best_price;
 			if shares_sought > shares_fillable {
 				spendable += shares_fillable * best_price;
-				orderbook.subtract_shares(shares_fillable, best_price);
+				claimable_if_valid += orderbook.subtract_shares(shares_fillable, best_price);
 				return spendable;
 			} else {
 				shares_fillable -= shares_sought;
 				spendable += liq_at_price;
-				orderbook.subtract_shares(shares_sought, best_price);
+				claimable_if_valid += orderbook.subtract_shares(shares_sought, best_price);
 			}
 			
 			let (next_price, liq_at_next_price) = orderbook.liquidity_by_price.range(0..best_price).next_back().unwrap_or((&0, &0));
 			best_price = *next_price;
 			liq_at_price = liq_at_next_price;
 		}
+
+		self.claimable_if_valid
+		.entry(env::predecessor_account_id())
+		.and_modify(|claimable| {
+			*claimable += claimable_if_valid;
+		})
+		.or_insert(claimable_if_valid);
+
 		return spendable;
 	}
 
