@@ -45,4 +45,8 @@ impl Order {
 			affiliate_account_id
 		}
 	}
+
+	pub fn is_filled(&self) -> bool {
+		return self.amt_of_shares == self.shares_filled;
+	}
 }

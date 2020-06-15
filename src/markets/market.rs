@@ -126,7 +126,7 @@ impl Market {
 			if shares_sought > shares_fillable {
 				spendable += shares_fillable * best_price;
 				claimable_if_valid += orderbook.subtract_shares(shares_fillable, best_price);
-				return spendable;
+				orderbook.fill_best_orders(shares_to_sell);
 			} else {
 				shares_fillable -= shares_sought;
 				spendable += liq_at_price;
@@ -145,7 +145,8 @@ impl Market {
 		})
 		.or_insert(claimable_if_valid);
 
-		return spendable;
+		orderbook.fill_best_orders(shares_to_sell - shares_fillable);
+		return spendable - claimable_if_valid;
 	}
 
 	pub fn get_dynamic_market_sell_offer(

@@ -535,7 +535,8 @@ mod tests {
 
 	// mod init_tests;
 	// mod market_order_tests;
-	mod binary_order_matching_tests;
+	// mod binary_order_matching_tests;
+	mod order_sale_tests;
 	// mod categorical_market_tests;
 	// mod market_depth_tests;
 	// mod claim_earnings_tests;
