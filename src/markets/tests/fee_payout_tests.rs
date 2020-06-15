@@ -46,8 +46,6 @@ fn fee_distribution_test() {
 	let expected_claimable_trader_excl_fees = 30 * one_dai;
 	let fees = 10 * one_dai * market.resolution_fee_percentage / 100 + 10 * one_dai * market.creator_fee_percentage / 100;
 
-	println!("trader claimable: {}", claimable_trader);
-
 	contract.claim_earnings(0, alice());
 	contract.claim_earnings(0, bob());
 	contract.claim_earnings(0, affiliate());

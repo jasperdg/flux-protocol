@@ -456,7 +456,7 @@ impl Market {
 				in_open_orders += orderbook.get_open_order_value_for(account_id.to_string());
 			}
 
-			let winning_orderbook = self.orderbooks.get(&self.winning_outcome.unwrap()).unwrap();
+			let winning_orderbook = self.orderbooks.get(&self.to_numerical_outcome(self.winning_outcome)).unwrap();
 			let (winning_value, affiliate_map) = winning_orderbook.calc_claimable_amt(account_id.to_string());
 			affiliates = affiliate_map;
 			winnings += winning_value;
@@ -507,7 +507,7 @@ impl Market {
 
 				// Calculate how much the total fee payout will be 
 				let total_resolution_fee = self.resolution_fee_percentage * self.filled_volume / 100;
-
+				println!("{} {}", self.resolution_fee_percentage, self.filled_volume);
 				// Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome
 				if self.winning_outcome == window.outcome {
 					// check if the user participated in this outcome
@@ -518,18 +518,19 @@ impl Market {
 						let correct_outcome_participation = window.participants_to_outcome_to_stake
 						.get(&account_id)
 						.unwrap()
-						.get(&self.winning_outcome.unwrap())
+						.get(&self.to_numerical_outcome(self.winning_outcome))
 						.unwrap_or(&0);
 
 						if correct_outcome_participation > &0 {
 							// calculate his relative share of the total_resolution_fee relative to his participation
+							println!("total res fee {}", total_resolution_fee);
 							resolution_reward += total_resolution_fee * correct_outcome_participation * 100 / window.required_bond_size / 100 + correct_outcome_participation;
 						}
 						
 					} 
 				} else {
 					// If the initial resolution bond wasn't staked on the correct outcome, devide the resolution fee amongst disputors
-					total_correctly_staked += total_resolution_fee;
+					total_incorrectly_staked += total_resolution_fee + window.required_bond_size;
 				}
 			} else {
 				// If it isn't the first round calculate according to escalation game
@@ -557,8 +558,10 @@ impl Market {
 			}
 		}
 
-		if total_correctly_staked == 0 {return resolution_reward}
+		println!("resolution reward: {}", resolution_reward);
 
+		if total_correctly_staked == 0 {return resolution_reward}
+		
         return user_correctly_staked * 100 / total_correctly_staked * total_incorrectly_staked / 100 + resolution_reward;
 	}
 

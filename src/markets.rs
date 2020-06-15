@@ -301,8 +301,6 @@ impl Markets {
 		market.reset_balances_for(account_id.to_string());
 		market.delete_resolution_for(account_id.to_string());
 
-		println!("claiming for: {} winnings:{} , left in pen orders:  {} | governance earnigns: {} ", account_id, winnings, left_in_open_orders, governance_earnings);
-
 		for (affiliate_account_id, amount_owed) in affiliates {
 			let affiliate_owed = amount_owed * affiliate_fee_percentage * creator_fee_percentage / 10000;
 			paid_to_affiliates += affiliate_owed;
@@ -551,7 +549,7 @@ mod tests {
 	// mod categorical_market_tests;
 	// mod market_depth_tests;
 	// mod claim_earnings_tests;
-	// mod market_dispute_tests;
+	mod market_dispute_tests;
 	// mod market_resolution_tests;
-	mod fee_payout_tests;
+	// mod fee_payout_tests;
 }
