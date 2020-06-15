@@ -87,6 +87,7 @@ impl Markets {
 		assert!(end_time > env::block_timestamp() / 1000000);
 		assert!(categories.len() < 6);
 		assert!(creator_fee_percentage <= self.max_fee_percentage);
+		assert!(affiliate_fee_percentage <= 100);
 
 		if outcomes == 2 {assert!(outcome_tags.len() == 0)}
 		// TODO check if end_time hasn't happened yet
@@ -224,9 +225,10 @@ impl Markets {
 		amount: u128,
 		account_id: String
 	) {
-		let balance = self.fdai_balances.get(&account_id).unwrap();
-		let new_balance = *balance + amount;
-		self.fdai_balances.insert(account_id, new_balance);
+		let one_dai = self.dai_token();
+		self.fdai_balances.entry(account_id).and_modify(|balance| {
+			*balance += amount;
+		}).or_insert(100 * one_dai + amount);
 
 		// For monitoring supply - just for testnet
 		self.fdai_outside_escrow = self.fdai_outside_escrow + amount as u128;
@@ -292,13 +294,14 @@ impl Markets {
 		
 		let (winnings, left_in_open_orders, governance_earnings, affiliates) = market.get_claimable_for(account_id.to_string());
 		let mut market_creator_fee = winnings * market.creator_fee_percentage / 100;
+		let creator_fee_percentage = market.creator_fee_percentage;
 		let resolution_fee = winnings * market.resolution_fee_percentage / 100;
 		let affiliate_fee_percentage = market.affiliate_fee_percentage;
 		market.reset_balances_for(account_id.to_string());
 		market.delete_resolution_for(account_id.to_string());
 
 		for (affiliate_account_id, amount_owed) in affiliates {
-			let affiliate_owed = amount_owed * affiliate_fee_percentage / 100;
+			let affiliate_owed = amount_owed * affiliate_fee_percentage * creator_fee_percentage / 10000;
 			market_creator_fee -= affiliate_owed;
 			self.add_balance(affiliate_owed, affiliate_account_id);
 		}
@@ -464,6 +467,10 @@ mod tests {
 		return "flux-dev".to_string();
 	}
 
+	fn affiliate() -> String {
+		return "affiliate".to_string();
+	}
+
 	fn alice() -> String {
 		return "alice.near".to_string();
 	}
@@ -536,11 +543,11 @@ mod tests {
 	// mod init_tests;
 	// mod market_order_tests;
 	// mod binary_order_matching_tests;
-	mod order_sale_tests;
+	// mod order_sale_tests;
 	// mod categorical_market_tests;
 	// mod market_depth_tests;
 	// mod claim_earnings_tests;
 	// mod market_dispute_tests;
 	// mod market_resolution_tests;
-	// mod fee_payout_tests;
+	mod fee_payout_tests;
 }
