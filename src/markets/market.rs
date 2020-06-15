@@ -507,7 +507,6 @@ impl Market {
 
 				// Calculate how much the total fee payout will be 
 				let total_resolution_fee = self.resolution_fee_percentage * self.filled_volume / 100;
-				println!("{} {}", self.resolution_fee_percentage, self.filled_volume);
 				// Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome
 				if self.winning_outcome == window.outcome {
 					// check if the user participated in this outcome
@@ -523,7 +522,6 @@ impl Market {
 
 						if correct_outcome_participation > &0 {
 							// calculate his relative share of the total_resolution_fee relative to his participation
-							println!("total res fee {}", total_resolution_fee);
 							resolution_reward += total_resolution_fee * correct_outcome_participation * 100 / window.required_bond_size / 100 + correct_outcome_participation;
 						}
 						
@@ -557,8 +555,6 @@ impl Market {
 
 			}
 		}
-
-		println!("resolution reward: {}", resolution_reward);
 
 		if total_correctly_staked == 0 {return resolution_reward}
 		
