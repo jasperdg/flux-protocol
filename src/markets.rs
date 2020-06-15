@@ -52,12 +52,11 @@ impl Markets {
 	pub fn claim_fdai(
 		&mut self
 	) {
-		let account_id = env::predecessor_account_id();
-		let can_claim = self.fdai_balances.get(&account_id).is_none();
+		let can_claim = self.fdai_balances.get(&env::predecessor_account_id()).is_none();
 		assert!(can_claim, "user has already claimed fdai");
 
 		let claim_amount = 100 * self.dai_token();
-		self.fdai_balances.insert(account_id, claim_amount);
+		self.fdai_balances.insert(env::predecessor_account_id(), claim_amount);
 
 		// Monitoring total supply - just for testnet
 		self.fdai_circulation = self.fdai_circulation + claim_amount as u128;
@@ -297,16 +296,21 @@ impl Markets {
 		let creator_fee_percentage = market.creator_fee_percentage;
 		let resolution_fee = winnings * market.resolution_fee_percentage / 100;
 		let affiliate_fee_percentage = market.affiliate_fee_percentage;
+		let mut paid_to_affiliates = 0;
+		
 		market.reset_balances_for(account_id.to_string());
 		market.delete_resolution_for(account_id.to_string());
 
+		println!("claiming for: {} winnings:{} , left in pen orders:  {} | governance earnigns: {} ", account_id, winnings, left_in_open_orders, governance_earnings);
+
 		for (affiliate_account_id, amount_owed) in affiliates {
 			let affiliate_owed = amount_owed * affiliate_fee_percentage * creator_fee_percentage / 10000;
+			paid_to_affiliates += affiliate_owed;
 			market_creator_fee -= affiliate_owed;
 			self.add_balance(affiliate_owed, affiliate_account_id);
 		}
 		
-		self.add_balance(winnings - market_creator_fee - resolution_fee + governance_earnings + left_in_open_orders, account_id);
+		self.add_balance(winnings - market_creator_fee - paid_to_affiliates - resolution_fee + governance_earnings + left_in_open_orders, account_id);
 		self.add_balance(market_creator_fee, market_creator);
 	}
 
