@@ -19,13 +19,15 @@ fn test_invalid_market_payout_calc() {
 	contract.place_order(0, 1, 2000, 20, None);
 	contract.place_order(0, 2, 2000, 20, None);
 
-	testing_env!(get_context(carol(), market_end_timestamp_ns()));
+	testing_env!(get_context(bob(), market_end_timestamp_ns()));
+	contract.claim_fdai();
 	contract.resolute_market(0, None, to_dai(5));
+	testing_env!(get_context(carol(), market_end_timestamp_ns()));
 
 	let claimable_carol = contract.get_claimable(0, carol());
 	let claimable_alice = contract.get_claimable(0, alice());
-	assert_eq!(claimable_carol, 10000 + to_dai(5));
-	assert_eq!(claimable_alice, 10000);
+	assert_eq!(claimable_carol, 10000 - 100);
+	assert_eq!(claimable_alice, 10000 - 100);
 
 	let open_orders_0 = contract.get_open_orders(0, 0);
 	let open_orders_1 = contract.get_open_orders(0, 1);
@@ -63,8 +65,10 @@ fn test_valid_market_payout_calc() {
 	contract.place_order(0, 1, 1000, 10, None);
 	contract.place_order(0, 2, 2000, 20, None);
 
-	testing_env!(get_context(carol(), market_end_timestamp_ns()));
+	testing_env!(get_context(bob(), market_end_timestamp_ns()));
+	contract.claim_fdai();
 	contract.resolute_market(0, Some(1), to_dai(5));
+	testing_env!(get_context(carol(), market_end_timestamp_ns()));
 
 	let open_orders_0 = contract.get_open_orders(0, 0);
 	let open_orders_1 = contract.get_open_orders(0, 1);
@@ -85,6 +89,6 @@ fn test_valid_market_payout_calc() {
 	let claimable_carol = contract.get_claimable(0, carol()) ;
 	let claimable_alice = contract.get_claimable(0, alice()) ;
 
-	assert_eq!(claimable_carol, to_dai(5));
-	assert_eq!(claimable_alice, 10000);
+	assert_eq!(claimable_carol, 0);
+	assert_eq!(claimable_alice, 10000 - 100);
 }
