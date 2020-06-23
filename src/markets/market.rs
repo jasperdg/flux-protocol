@@ -696,3 +696,9 @@ impl Market {
 		}
 	}
 }
+
+impl Default for Market {
+    fn default() -> Self {
+        panic!("Flux protocol hould be initialized before usage")
+    }
+}
