@@ -1,4 +1,5 @@
-use near_sdk::{near_bindgen, env};
+use near_sdk::{near_bindgen, env, ext_contract, callback, Promise, PromiseOrValue, PromiseResult};
+use near_sdk::json_types::{U128, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::collections::{BTreeMap, HashMap};
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,28 @@ struct Markets {
 	creation_bond: u128,
 }
 
+const SINGLE_CALL_GAS: u64 = 200000000000000;
+
+#[ext_contract(fun_token)]
+pub trait FunToken {
+    fn transfer_from(&mut self, owner_id: String, new_owner_id: String, amount: U128);
+    fn transfer(&mut self, new_owner_id: String, amount: U128);
+    fn get_total_supply(&self) -> u128;
+    fn get_balance(&self, owner_id: AccountId) -> u128;
+}
+
+#[ext_contract]
+pub trait FluxProtocol {
+    fn proceed_order_placement(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
+    // fn grant_fdai(&mut self, from: String);
+    // fn check_sufficient_balance(&mut self, spend: U128);
+    // fn update_fdai_metrics_claim(&mut self);
+    // fn update_fdai_metrics_subtract(&mut self, amount: u128);
+    // fn update_fdai_metrics_add(&mut self, amount: u128);
+    // fn purchase_shares(&mut self, from: String, market_id: u64, outcome: u64, spend: U128, price: U128);
+    // fn resolute_approved(&mut self, market_id: u64, winning_outcome: Option<u64>, stake: U128);
+}
+
 #[near_bindgen]
 impl Markets {
 
@@ -31,6 +54,12 @@ impl Markets {
 	) -> u128 {
 		let base: u128 = 10;
 		return base.pow(17)
+	}
+
+	fn fun_token_account_id(
+		&self
+	) -> String {
+		return "fun_token".to_string();
 	}
 
 	// This is a demo method, it mints a currency to interact with markets until we have NDAI
@@ -72,14 +101,19 @@ impl Markets {
 		&mut self, 
 		description: String, 
 		extra_info: String, 
-		outcomes: u64,
+		outcomes: U64,
 		outcome_tags: Vec<String>,
 		categories: Vec<String>,
-		end_time: u64,
-		creator_fee_percentage: u128,
-		affiliate_fee_percentage: u128,
+		end_time: U64,
+		creator_fee_percentage: U128,
+		affiliate_fee_percentage: U128,
 		api_source: String
 	) -> u64 {
+		let outcomes: u64 = outcomes.into();
+		let end_time: u64 = end_time.into();
+		let creator_fee_percentage: u128 = creator_fee_percentage.into();
+		let affiliate_fee_percentage: u128 = affiliate_fee_percentage.into();
+
 		assert!(outcomes > 1);
 		assert!(outcomes == 2 || outcomes == outcome_tags.len() as u64);
 		assert!(outcomes < 20); // up for change
@@ -111,38 +145,88 @@ impl Markets {
 
 	pub fn place_order(
 		&mut self, 
-		market_id: u64, 
-		outcome: u64, 
-		spend: u128, 
-		price: u128,
+		market_id: U64, 
+		outcome: U64, 
+		spend: U128, 
+		price: U128,
 		affiliate_account_id: Option<String>
-	) {
-		let account_id = env::predecessor_account_id();
-		let balance = self.get_fdai_balance(account_id.to_string());
-		assert!(balance >= spend, "insufficient balance");
+	) -> Promise {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		let spend: u128 = spend.into();
+		let price: u128 = price.into();
 
+		let market = self.markets.get(&market_id).expect("market doesn't exist");
+		
+		assert!(spend > 0, "order must be valued at > 0");
+		assert!(price > 0 && price < 100, "price can only be between 0 - 100");
+		assert!(outcome < market.outcomes, "invalid outcome");
+		assert_eq!(market.resoluted, false, "market has already been resoluted");
+		assert!(env::block_timestamp() / 1000000 < market.end_time, "market has already ended");
+		
 		let amount_of_shares = spend / price;
 		let rounded_spend = amount_of_shares * price;
-		let market = self.markets.get_mut(&market_id).unwrap();
-		market.create_order(account_id.to_string(), outcome, amount_of_shares, rounded_spend, price, affiliate_account_id);
 
-		self.subtract_balance(rounded_spend);
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
+		.then(
+			flux_protocol::proceed_order_placement( 
+				env::predecessor_account_id(),
+				market_id,
+				outcome,
+				amount_of_shares,
+				rounded_spend,
+				price,
+				affiliate_account_id,
+				&env::current_account_id(), 
+				0, 
+				SINGLE_CALL_GAS * 3
+			)
+		);
+	}
+
+	pub fn proceed_order_placement(
+		&mut self,
+		sender: String,
+		market_id: u64, 
+		outcome: u64,
+		amount_of_shares: u128,
+		spend: u128, 
+		price: u128,
+		affiliate_account_id: Option<String>,
+	) -> PromiseOrValue<bool> {
+		env::log(format!("Order placement proceeding").as_bytes());
+		
+		assert_eq!(env::current_account_id(), env::predecessor_account_id(), "this method can only be called by the contract itself");
+		
+		let transfer_succeeded = self.is_promise_success();
+		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", spend, env::current_account_id()); }
+		
+		env::log(format!("transfer success, order placement succeeded").as_bytes());
+
+		let market = self.markets.get_mut(&market_id).unwrap();
+		market.create_order(sender, outcome, amount_of_shares, spend, price, affiliate_account_id);
+		return PromiseOrValue::Value(true);
 	}
 
 	pub fn cancel_order(
 		&mut self, 
-		market_id: u64, 
-		outcome: u64, 
-		order_id: u128
-	) {
-		let account_id = env::predecessor_account_id();
+		market_id: U64, 
+		outcome: U64, 
+		order_id: U128
+	) -> Promise {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		let order_id: u128 = order_id.into();
+
 		let market = self.markets.get_mut(&market_id).unwrap();
 		assert_eq!(market.resoluted, false);
 		let mut orderbook = market.orderbooks.get_mut(&outcome).unwrap();
 		let order = orderbook.open_orders.get(&order_id).unwrap();
-		assert!(account_id == order.creator);
+		assert!(env::predecessor_account_id() == order.creator);
+
 		let to_return = orderbook.remove_order(order_id);
-		self.add_balance(to_return, account_id);
+		env::log(format!("canceled order, refunding: {}", to_return).as_bytes());
+		return fun_token::transfer(env::predecessor_account_id(), to_return.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
     }
 
 	pub fn resolute_market(
@@ -434,6 +518,18 @@ impl Markets {
 		return (self.fdai_circulation, self.fdai_in_protocol, self.fdai_outside_escrow, self.user_count);
 	}
 
+	pub fn is_promise_success(&self) -> bool {
+		assert_eq!(
+			env::promise_results_count(),
+			1,
+			"Contract expected a result on the callback"
+		);
+		match env::promise_result(0) {
+			PromiseResult::Successful(_) => true,
+			_ => false,
+		}
+	}
+	
 }
 
 impl Default for Markets {
@@ -456,13 +552,21 @@ impl Default for Markets {
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {
-    use super::*;
+	use super::*;
+	mod utils;
+	use utils::{ntoy, ExternalUser, init_markets_contract};
     use near_sdk::MockedBlockchain;
     use near_sdk::{VMContext, testing_env};
+	use near_runtime_standalone::{RuntimeStandalone};
+	use near_primitives::transaction::ExecutionStatus;
 
 	fn to_dai(amt: u128) -> u128 {
 		let base = 10 as u128;
 		return amt * base.pow(17);
+	}
+
+	fn flux_protocol() -> String {
+		return "flux_protocol".to_string();
 	}
 
 	fn judge() -> String {
@@ -542,14 +646,35 @@ mod tests {
 		}
 	}
 
-	mod init_tests;
+	fn init_runtime_env() -> (RuntimeStandalone, ExternalUser, Vec<ExternalUser>) {
+		let (mut runtime, root) = init_markets_contract();
+
+
+		let mut accounts: Vec<ExternalUser> = vec![];
+		for acc_no in 0..2 {
+			let acc = if let Ok(acc) =
+				root.create_external(&mut runtime, format!("account_{}", acc_no), ntoy(30))
+			{
+				acc
+			} else {
+				break;
+			};
+			accounts.push(acc);
+		}
+
+		root.deploy_fun_token(&mut runtime, accounts[0].get_account_id(), U128(ntoy(30))).unwrap();
+
+		return (runtime, root, accounts);
+	}
+
+	// mod init_tests;
 	mod market_order_tests;
-	mod binary_order_matching_tests;
-	mod order_sale_tests;
-	mod categorical_market_tests;
-	mod market_depth_tests;
-	mod claim_earnings_tests;
-	mod market_dispute_tests;
-	mod market_resolution_tests;
-	mod fee_payout_tests;
+	// mod binary_order_matching_tests;
+	// mod order_sale_tests;
+	// mod categorical_market_tests;
+	// mod market_depth_tests;
+	// mod claim_earnings_tests;
+	// mod market_dispute_tests;
+	// mod market_resolution_tests;
+	// mod fee_payout_tests;
 }

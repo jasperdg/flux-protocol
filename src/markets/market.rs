@@ -188,15 +188,11 @@ impl Market {
 		price: u128,
 		affiliate_account_id: Option<String>
 	) {
-		assert!(spend > 0);
-		assert!(price > 0 && price < 100);
-		assert_eq!(self.resoluted, false);
-		assert!(env::block_timestamp() / 1000000 < self.end_time);
 		let (spend_left, shares_filled) = self.fill_matches(outcome, spend, price);
 		let total_spend = spend - spend_left;
 		self.filled_volume += shares_filled * 100;
 		let orderbook = self.orderbooks.get_mut(&outcome).unwrap();
-		orderbook.place_order(account_id, outcome, spend, amt_of_shares, price, total_spend, shares_filled, affiliate_account_id);
+		return orderbook.place_order(account_id, outcome, spend, amt_of_shares, price, total_spend, shares_filled, affiliate_account_id);
 	}
 
 	fn fill_matches(
@@ -694,5 +690,11 @@ impl Market {
 			})
 			.or_insert(0);
 		}
+	}
+}
+
+impl Default for Market {
+	fn default() -> Self {
+		panic!("No default state available init with ::new");
 	}
 }
