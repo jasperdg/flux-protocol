@@ -22,11 +22,12 @@ struct Markets {
 	user_count: u64,
 	max_fee_percentage: u128,
 	creation_bond: u128,
+	affiliate_earnings: HashMap<String, u128>
 }
 
 const SINGLE_CALL_GAS: u64 = 200000000000000;
 
-#[ext_contract(fun_token)]
+#[ext_contract]
 pub trait FunToken {
     fn transfer_from(&mut self, owner_id: String, new_owner_id: String, amount: U128);
     fn transfer(&mut self, new_owner_id: String, amount: U128);
@@ -37,6 +38,7 @@ pub trait FunToken {
 #[ext_contract]
 pub trait FluxProtocol {
     fn proceed_order_placement(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
+    fn proceed_market_resolution(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
     // fn grant_fdai(&mut self, from: String);
     // fn check_sufficient_balance(&mut self, spend: U128);
     // fn update_fdai_metrics_claim(&mut self);
@@ -60,6 +62,12 @@ impl Markets {
 		&self
 	) -> String {
 		return "fun_token".to_string();
+	}
+
+	fn assert_self(
+		&self
+	) {
+		assert_eq!(env::current_account_id(), env::predecessor_account_id(), "this method can only be called by the contract itself"); 
 	}
 
 	// This is a demo method, it mints a currency to interact with markets until we have NDAI
@@ -195,8 +203,7 @@ impl Markets {
 		affiliate_account_id: Option<String>,
 	) -> PromiseOrValue<bool> {
 		env::log(format!("Order placement proceeding").as_bytes());
-		
-		assert_eq!(env::current_account_id(), env::predecessor_account_id(), "this method can only be called by the contract itself");
+		self.assert_self();
 		
 		let transfer_succeeded = self.is_promise_success();
 		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", spend, env::current_account_id()); }
@@ -231,19 +238,60 @@ impl Markets {
 
 	pub fn resolute_market(
 		&mut self, 
-		market_id: u64, 
-		winning_outcome: Option<u64>,
-		stake: u128
-	) {
-		let account_id = env::predecessor_account_id();
-		let balance = self.get_fdai_balance(account_id.to_string());
-        assert!(balance >= stake, "not enough balance to cover stake");
+		market_id: U64, 
+		winning_outcome: Option<U64>,
+		stake: U128
+	) -> Promise {
+		let market_id: u64 = market_id.into();
+		let winning_outcome: Option<u64> = match winning_outcome {
+			Some(outcome) => Some(outcome.into()),
+			None => None
+		};
+		let stake_u128: u128 = stake.into();
 		let market = self.markets.get_mut(&market_id).expect("market doesn't exist");
-		assert_eq!(market.resoluted, false);
+		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
+		assert_eq!(market.resoluted, false, "market is already resoluted");
+		assert_eq!(market.finalized, false, "market is already finalized");
+		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
+		
+		// this assertion shouldn't ever be needed because of the market.resolution check, 
+		// TODO: confirm in tests
+		// let resolution_window = market.resolution_windows.last_mut().expect("no resolute window exists, something went wrong at creation");
+		// assert_eq!(resolution_window.round, 0, "can only resolute once"); 
 
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
+		.then(
+			flux_protocol::proceed_market_resolution(
+				env::predecessor_account_id(),
+				market_id,
+				winning_outcome,
+				stake_u128,
+				&env::current_account_id(),
+				0,
+				SINGLE_CALL_GAS * 2
+			)
+		);
+	}
 
-		let change = market.resolute(winning_outcome, stake);
-		self.subtract_balance(stake - change);
+	pub fn proceed_market_resolution(
+		&mut self,
+		market_id: u64,
+		winning_outcome: Option<u64>,
+		stake: u128,
+		sender: String
+	) -> PromiseOrValue<bool> {
+		self.assert_self();
+		let transfer_succeeded = self.is_promise_success();
+		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
+		
+		let market = self.markets.get_mut(&market_id).expect("market doesn't exist");
+		let change: u128 = market.resolute(sender.to_string(), winning_outcome, stake).into();
+		if change > 0 {
+			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+			return PromiseOrValue::Promise(prom);
+		} else {
+			return PromiseOrValue::Value(true);
+		}
 	}
 
 	pub fn withdraw_dispute_stake(
@@ -273,11 +321,17 @@ impl Markets {
 
 	pub fn finalize_market(
 		&mut self, 
-		market_id: u64, 
-		winning_outcome: Option<u64>
+		market_id: U64, 
+		winning_outcome: Option<U64>
 	) {
+		let market_id: u64 = market_id.into();
+		let winning_outcome: Option<u64> = match winning_outcome {
+			Some(outcome) => Some(outcome.into()),
+			None => None
+		};
+
 		let market = self.markets.get_mut(&market_id).unwrap();
-		assert_eq!(market.resoluted, true);
+		assert_eq!(market.resoluted, true, "market has to be resoluted before it can be finalized");
 		if market.disputed {
 			assert_eq!(env::predecessor_account_id(), self.creator, "only the judge can resolute disputed markets");
 		} else {
@@ -330,46 +384,54 @@ impl Markets {
 
 	}
 
-	pub fn get_open_orders(
+	pub fn get_open_orders_len(
 		&self, 
-		market_id: u64, 
-		outcome: u64
-	) -> &HashMap<u128, Order> {
+		market_id: U64, 
+		outcome: U64
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+
 		let market = self.markets.get(&market_id).unwrap();
 		let orderbook = market.orderbooks.get(&outcome).unwrap();
-		return &orderbook.open_orders;
+		return U128(orderbook.open_orders.len() as u128);
 	}
 
-	pub fn get_filled_orders(
+	pub fn get_filled_orders_len(
 		&self, 
-		market_id: u64, 
-		outcome: u64
-	) -> &HashMap<u128, Order> {
+		market_id: U64, 
+		outcome: U64
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+
 		let market = self.markets.get(&market_id).unwrap();
 		let orderbook = market.orderbooks.get(&outcome).unwrap();
-		return &orderbook.filled_orders;
+		return U128(orderbook.filled_orders.len() as u128);
 	}
 
 	pub fn get_claimable(
 		&self, 
-		market_id: u64, 
+		market_id: U64, 
 		account_id: String
-	) -> u128 {
-		let market = self.markets.get(&market_id).unwrap();
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+
+		let market = self.markets.get(&market_id).expect("market doesn't exist");
 		let (winnings, left_in_open_orders, governance_earnings, _) = market.get_claimable_for(account_id.to_string());
 		let market_creator_fee = winnings * market.creator_fee_percentage / 100;
 		let resolution_fee = winnings * market.resolution_fee_percentage / 100;
-		return winnings - market_creator_fee - resolution_fee + governance_earnings + left_in_open_orders;
+		return (winnings - market_creator_fee - resolution_fee + governance_earnings + left_in_open_orders).into();
 	}
-
 
 	pub fn claim_earnings(
 		&mut self, 
-		market_id: u64, 
+		market_id: U64, 
 		account_id: String
+	// ) -> Promise {
 	) {
-		let market = self.markets.get_mut(&market_id).unwrap();
-		let market_creator = market.creator.to_string();
+		let market_id: u64 = market_id.into();
+		let market = self.markets.get_mut(&market_id).expect("market doesn't exist");
 		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
 		assert_eq!(market.resoluted, true);
 		assert_eq!(market.finalized, true);
@@ -381,7 +443,7 @@ impl Markets {
 		let resolution_fee = winnings * market.resolution_fee_percentage / 100;
 		let affiliate_fee_percentage = market.affiliate_fee_percentage;
 		let mut paid_to_affiliates = 0;
-		
+
 		market.reset_balances_for(account_id.to_string());
 		market.delete_resolution_for(account_id.to_string());
 
@@ -389,11 +451,37 @@ impl Markets {
 			let affiliate_owed = amount_owed * affiliate_fee_percentage * creator_fee_percentage / 10000;
 			paid_to_affiliates += affiliate_owed;
 			market_creator_fee -= affiliate_owed;
-			self.add_balance(affiliate_owed, affiliate_account_id);
+			self.affiliate_earnings
+			.entry(affiliate_account_id)
+			.and_modify(|balance| {
+				*balance += amount_owed;
+			})
+			.or_insert(amount_owed);
+		}
+
+		
+		let earnings = winnings - market_creator_fee - paid_to_affiliates - resolution_fee + governance_earnings + left_in_open_orders;
+		if earnings == 0 {panic!("can't claim 0 tokens")}
+		// make sure that everything is claimed successfuly in test coverage
+		// Best way to solve this is have both these transfers in batch - if one fails both shoud revert.
+		// If reverted this tx should revert all changes too 
+
+		if market_creator_fee > 0 {
+			fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
+				fun_token::transfer(account_id.to_string(), U128(market_creator_fee), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
+			);
+		} else {
+			fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		}
 		
-		self.add_balance(winnings - market_creator_fee - paid_to_affiliates - resolution_fee + governance_earnings + left_in_open_orders, account_id);
-		self.add_balance(market_creator_fee, market_creator);
+	}
+
+	// TODO
+	pub fn claim_affiliate_earnings(
+		&mut self,
+		account_id: String
+	) {
+
 	}
 
 	pub fn get_all_markets(
@@ -446,39 +534,50 @@ impl Markets {
 		return market.get_dynamic_market_sell_offer(outcome, shares);
 	}
 
-	fn get_outcome_share_balance(
+	pub fn get_outcome_share_balance(
 		&self,
-		market_id: u64,
-		outcome: u64,
-		account_id: String
-	) -> u128 {
+		account_id: String,
+		market_id: U64,
+		outcome: U64,
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+
 		let market = self.markets.get(&market_id).expect("non existent market");
 		let orderbook = market.orderbooks.get(&outcome).expect("non existent outcome");
-		return orderbook.get_share_balance(account_id);
+		return orderbook.get_share_balance(account_id).into();
 	}
-
 
 	pub fn get_depth(
 		&self, 
-		market_id: u64, 
-		outcome: u64, 
-		spend: u128, 
-		price: u128
-	) -> u128 {
+		market_id: U64, 
+		outcome: U64, 
+		spend: U128, 
+		price: U128
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		let spend: u128 = spend.into();
+		let price: u128 = price.into();
+		
 		let market = self.markets.get(&market_id).unwrap();
-		return market.get_liquidity_available(outcome, spend, price);
+		return market.get_liquidity_available(outcome, spend, price).into();
 	}
 
 	pub fn get_liquidity(
 		&self, 
-		market_id: u64, 
-		outcome: u64, 
-		price: u128
-	) -> u128 {
+		market_id: U64, 
+		outcome: U64, 
+		price: U128
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		let price: u128 = price.into();
+
 		let market = self.markets.get(&market_id).unwrap();
 		let orderbook = market.orderbooks.get(&outcome).unwrap();
 
-		return orderbook.get_liquidity_at_price(price);
+		return orderbook.get_liquidity_at_price(price).into();
 	}
 
 	pub fn get_market(
@@ -497,11 +596,14 @@ impl Markets {
 
 	pub fn get_market_price(
 		&self, 
-		market_id: u64, 
-		outcome: u64
-	) -> u128 {
+		market_id: U64, 
+		outcome: U64
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+
 		let market = self.markets.get(&market_id).unwrap();
-		return market.get_market_price_for(outcome);
+		return market.get_market_price_for(outcome).into();
 	}
 
 	pub fn get_best_prices(
@@ -545,6 +647,7 @@ impl Default for Markets {
 			user_count: 0,
 			max_fee_percentage: 5,
 			creation_bond: 0,
+			affiliate_earnings: HashMap::new()
 		}
 	}
 }
@@ -558,7 +661,7 @@ mod tests {
     use near_sdk::MockedBlockchain;
     use near_sdk::{VMContext, testing_env};
 	use near_runtime_standalone::{RuntimeStandalone};
-	use near_primitives::transaction::ExecutionStatus;
+	use near_primitives::transaction::{ExecutionStatus, ExecutionOutcome};
 
 	fn to_dai(amt: u128) -> u128 {
 		let base = 10 as u128;
@@ -668,13 +771,13 @@ mod tests {
 	}
 
 	// mod init_tests;
-	mod market_order_tests;
+	// mod market_order_tests;
 	// mod binary_order_matching_tests;
-	// mod order_sale_tests;
 	// mod categorical_market_tests;
 	// mod market_depth_tests;
-	// mod claim_earnings_tests;
+	mod claim_earnings_tests;
 	// mod market_dispute_tests;
 	// mod market_resolution_tests;
 	// mod fee_payout_tests;
+	// mod order_sale_tests;
 }

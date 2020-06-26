@@ -2,61 +2,61 @@ use super::*;
 
 #[test]
 fn test_liquidity_for_price() {
-	testing_env!(get_context(carol(), current_block_timestamp()));
-	let mut contract = Markets::default();
-	contract.claim_fdai();
-	contract.create_market("Hi!".to_string(), empty_string(), 2, outcome_tags(0), categories(), market_end_timestamp_ms(), 0, 0, "test".to_string());
+	let (mut runtime, root, accounts) = init_runtime_env();
+	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
+	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	contract.place_order(0, 0, 6000, 50, None);
-	contract.place_order(0, 0, 6000, 50, None); 
-	contract.place_order(0, 0, 6000, 20, None);
-	contract.place_order(0, 0, 8000, 20, None);
+	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(110000)).expect("allowance couldn't be set");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(6000), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(6000), U128(50), None).expect("order placement tx failed unexpectedly");
+	
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(6000), U128(20), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(8000), U128(20), None).expect("order placement tx failed unexpectedly");
 
-	let liquidity_60 = contract.get_liquidity(0, 0, 60);
-	let liquidity_50 = contract.get_liquidity(0, 0, 50);
-	let liquidity_20 = contract.get_liquidity(0, 0, 20);
+	let liquidity_60 = accounts[0].get_liquidity(&mut runtime, U64(0), U64(0), U128(60));
+	let liquidity_50 = accounts[0].get_liquidity(&mut runtime, U64(0), U64(0), U128(50));
+	let liquidity_20 = accounts[0].get_liquidity(&mut runtime, U64(0), U64(0), U128(20));
 
-	assert_eq!(liquidity_60, 0);
-	assert_eq!(liquidity_50, 12000 / 50);
-	assert_eq!(liquidity_20, 14000 / 20);
+	assert_eq!(liquidity_60, U128(0));
+	assert_eq!(liquidity_50, U128(12000 / 50));
+	assert_eq!(liquidity_20, U128(14000 / 20));
 
-	contract.cancel_order(0,0,0);
-	contract.cancel_order(0,0,1);
-	contract.cancel_order(0,0,3);
+	accounts[0].cancel_order(&mut runtime, U64(0), U64(0), U128(0)).expect("order cancelation failed");
+	accounts[0].cancel_order(&mut runtime, U64(0), U64(0), U128(1)).expect("order cancelation failed");
+	accounts[0].cancel_order(&mut runtime, U64(0), U64(0), U128(3)).expect("order cancelation failed");
 
-	let liquidity_50 = contract.get_liquidity(0, 0, 50);
-	let liquidity_20 = contract.get_liquidity(0, 0, 20);
+	let liquidity_50 = accounts[0].get_liquidity(&mut runtime, U64(0), U64(0), U128(50));
+	let liquidity_20 = accounts[0].get_liquidity(&mut runtime, U64(0), U64(0), U128(20));
 
-	assert_eq!(liquidity_50, 0);
-	assert_eq!(liquidity_20, 6000 / 20);
+	assert_eq!(liquidity_50, U128(0));
+	assert_eq!(liquidity_20, U128(6000 / 20));
 
-	contract.place_order(0, 1, 8000, 80, None);
+	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(8000), U128(80), None).expect("order placement tx failed unexpectedly");
 
-	let liquidity_20 = contract.get_liquidity(0, 0, 20);
-	let liquidity_80 = contract.get_liquidity(0, 1, 80);
+	let liquidity_20 = accounts[0].get_liquidity(&mut runtime, U64(0), U64(0), U128(20));
+	let liquidity_80 = accounts[0].get_liquidity(&mut runtime, U64(0), U64(0), U128(80));
 
-	assert_eq!(liquidity_20, 4000 / 20);
-	assert_eq!(liquidity_80, 0);
+	assert_eq!(liquidity_20, U128(4000 / 20));
+	assert_eq!(liquidity_80, U128(0));
 }
 
 #[test]
 fn test_valid_binary_market_depth() {
-	testing_env!(get_context(carol(), current_block_timestamp()));
-	let mut contract = Markets::default();
-	contract.claim_fdai();
-	contract.create_market("Hi!".to_string(), empty_string(), 3, outcome_tags(3), categories(), market_end_timestamp_ms(), 0, 0, "test.com".to_string());
+	let (mut runtime, root, accounts) = init_runtime_env();
+	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(3), outcome_tags(3), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
+	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	contract.place_order(0, 0, 5000, 50, None);
-	contract.place_order(0, 0, 6000, 60, None);
+	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(110000)).expect("allowance couldn't be set");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(5000), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(6000), U128(60), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(2000), U128(20), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(3000), U128(30), None).expect("order placement tx failed unexpectedly");
 
-	testing_env!(get_context(alice(), current_block_timestamp()));
-	contract.claim_fdai();
-	contract.place_order(0, 1, 2000, 20, None);
-	contract.place_order(0, 1, 3000, 30, None);
-	let depth_0 = contract.get_depth(0, 2, 10000, 100);
-	let depth_1 = contract.get_depth(0, 1, 1000, 11);
 
-    assert_eq!(depth_0, 4000);
-	assert_eq!(depth_1, 0);
+	let depth_0 = accounts[0].get_depth(&mut runtime, U64(0), U64(2), U128(10000), U128(100));
+	let depth_1 = accounts[0].get_depth(&mut runtime, U64(0), U64(1), U128(1000), U128(11));
+
+    assert_eq!(depth_0, U128(4000));
+	assert_eq!(depth_1, U128(0));
 }
 

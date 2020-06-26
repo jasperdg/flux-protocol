@@ -301,7 +301,8 @@ impl Market {
 	}
 
 	pub fn resolute(
-		&mut self, 
+		&mut self,
+		sender: String,
 		winning_outcome: Option<u64>, 
 		stake: u128
 	) -> u128 {
@@ -323,7 +324,7 @@ impl Market {
 		} 
 
 		resolution_window.participants_to_outcome_to_stake
-		.entry(env::predecessor_account_id())
+		.entry(sender)
 		.or_insert(HashMap::new())
 		.entry(outcome_id)
 		.and_modify(|staked| {*staked += stake - to_return})
@@ -444,9 +445,11 @@ impl Market {
 		// Claiming payouts
 		if invalid {
 			for (_, orderbook) in self.orderbooks.iter() {
-			    let spent = orderbook.get_spend_by(account_id.to_string());
+				in_open_orders += orderbook.get_open_order_value_for(account_id.to_string());
+				let spent = orderbook.get_spend_by(account_id.to_string());
 				winnings += spent; // market creator forfits his fee when market resolutes to invalid
 			}
+			winnings -= in_open_orders;
 		} else {
 			for (_, orderbook) in self.orderbooks.iter() {
 				in_open_orders += orderbook.get_open_order_value_for(account_id.to_string());

@@ -2,42 +2,62 @@ use super::*;
 
 #[test]
 fn test_payout() {
-	testing_env!(get_context(carol(), current_block_timestamp()));
-	let mut contract = Markets::default();
-	contract.claim_fdai();
-	contract.create_market("Hi!".to_string(), empty_string(), 4, outcome_tags(4), categories(), market_end_timestamp_ms(), 0, 0, "test".to_string());
+	let (mut runtime, root, accounts) = init_runtime_env();
+	runtime.current_block().block_timestamp = current_block_timestamp();
+	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(4), outcome_tags(4), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
+	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	contract.place_order(0, 0, 10000, 70, None);
-	contract.place_order(0, 3, 1000, 10, None);
+	let alice = &accounts[0];
+	let carol = &accounts[1];
 
-	testing_env!(get_context(alice(), current_block_timestamp()));
-	contract.claim_fdai();
-	contract.place_order(0, 1, 1000, 10, None);
-	contract.place_order(0, 2, 1000, 10, None);
+	alice.transfer(&mut runtime, carol.get_account_id(), ntoy(10).into()).expect("transfer failed couldn't be set");
+	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(10))).expect("allowance couldn't be set");
+	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(10))).expect("allowance couldn't be set");
+	
+	carol.place_order(&mut runtime, U64(0), U64(0), U128(10000), U128(70), None).expect("tx failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(3), U128(1000), U128(10), None).expect("tx failed unexpectedly");
+	
+	alice.place_order(&mut runtime, U64(0), U64(1), U128(1000), U128(10), None).expect("tx failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(2), U128(1000), U128(10), None).expect("tx failed unexpectedly");
 
-	testing_env!(get_context(carol(), market_end_timestamp_ns()));
-	contract.resolute_market(0, None, to_dai(5));
+	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
+	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();
+	
+	println!("alice  {:?}", initial_balance_alice);
+	println!("carol  {:?}", initial_balance_carol);
 
-	let initially_claimable_carol = contract.get_claimable(0, carol());
-	let initially_claimable_alice = contract.get_claimable(0, alice());
+	runtime.current_block().block_timestamp = market_end_timestamp_ns();
+	println!("tx res resolution: {:?}", tx_res);
+	
+	let tx_res = carol.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5))).expect("tx failed unexpectedly");
+	let initially_claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
+	let initially_claimable_carol: u128 = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id()).into();
+	
+	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
+	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();
+	
+	// skip to after dispute window closed
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
 
-	let initial_balance_carol = contract.get_fdai_balance(carol());
-	let initial_balance_alice = contract.get_fdai_balance(alice());
-	testing_env!(get_context(carol(), market_end_timestamp_ns() + 1800000000000));
+	alice.finalize_market(&mut runtime, U64(0), None).expect("market finalization failed unexpectedly");
+	
+	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	println!("carol: {:?}", tx_res);
+	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	println!("alice: {:?}", tx_res);
 
-    contract.finalize_market(0, Some(0));
-	contract.claim_earnings(0, carol());
-	contract.claim_earnings(0, alice());
+	let updated_claimable_alice = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id());
+	let updated_claimable_carol = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id());
 
-	let claimable_after_claim_carol = contract.get_claimable(0, carol());
-	let claimable_after_claim_alice = contract.get_claimable(0, alice());
+	let updated_balance_alice = alice.get_balance(&mut runtime, alice.get_account_id());
+	let updated_balance_carol = alice.get_balance(&mut runtime, carol.get_account_id());
 
-	let updated_balance_carol = contract.get_fdai_balance(carol());
-	let updated_balance_alice = contract.get_fdai_balance(alice());
+	println!("alice {:?}  {:?}  {:?}", updated_balance_alice, initially_claimable_alice, initial_balance_alice);
+	println!("carol {:?}  {:?}  {:?}", updated_balance_carol, initially_claimable_carol, initial_balance_carol);
 
-	assert_eq!(updated_balance_carol, initially_claimable_carol + initial_balance_carol);
-	assert_eq!(updated_balance_alice, initially_claimable_alice + initial_balance_alice);
+	assert_eq!(updated_balance_alice, U128(initially_claimable_alice + initial_balance_alice));
+	assert_eq!(updated_balance_carol, U128(initially_claimable_carol + initial_balance_carol));
 
-	assert_eq!(claimable_after_claim_carol, 0);
-	assert_eq!(claimable_after_claim_alice, 0);
+	assert_eq!(updated_claimable_alice, U128(0));
+	assert_eq!(updated_claimable_carol, U128(0));
 }

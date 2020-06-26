@@ -63,11 +63,11 @@ impl ExternalUser {
         let args = json!({}).to_string().as_bytes().to_vec();
 
         let tx = self
-            .new_tx(runtime, flux_protocol())
-            .create_account()
-            .transfer(99994508400000000000000000)
-            .deploy_contract(MARKETS_BYTES.to_vec())
-            .sign(&self.signer);
+        .new_tx(runtime, flux_protocol())
+        .create_account()
+        .transfer(99994508400000000000000000)
+        .deploy_contract(MARKETS_BYTES.to_vec())
+        .sign(&self.signer);
         let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
         let ans = outcome_into_result(res);
@@ -82,12 +82,12 @@ impl ExternalUser {
         }).to_string().as_bytes().to_vec();
 
         let tx = self
-			.new_tx(runtime, fun_token())
-			.create_account()
-            .transfer(99994508400000000000000000)
-            .deploy_contract(FUNGIBLE_TOKEN_BYTES.to_vec())
-            .function_call("new".into(), args, GAS_STANDARD, 0)
-            .sign(&self.signer);
+        .new_tx(runtime, fun_token())
+        .create_account()
+        .transfer(99994508400000000000000000)
+        .deploy_contract(FUNGIBLE_TOKEN_BYTES.to_vec())
+        .function_call("new".into(), args, GAS_STANDARD, 0)
+        .sign(&self.signer);
         let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
         let ans = outcome_into_result(res);
@@ -96,10 +96,10 @@ impl ExternalUser {
 
     fn new_tx(&self, runtime: &RuntimeStandalone, receiver_id: AccountId) -> Transaction {
         let nonce = runtime
-            .view_access_key(&self.account_id, &self.signer.public_key())
-            .unwrap()
-            .nonce
-            + 1;
+        .view_access_key(&self.account_id, &self.signer.public_key())
+        .unwrap()
+        .nonce
+        + 1;
         Transaction::new(
             self.account_id.clone(),
             self.signer.public_key(),
@@ -115,14 +115,14 @@ impl ExternalUser {
         new_account_id: AccountId,
         amount: Balance,
     ) -> Result<ExternalUser, ExecutionOutcome> {
-        let new_signer =
-            InMemorySigner::from_seed(&new_account_id, KeyType::ED25519, &new_account_id);
+        let new_signer = InMemorySigner::from_seed(&new_account_id, KeyType::ED25519, &new_account_id);
         let tx = self
-            .new_tx(runtime, new_account_id.clone())
-            .create_account()
-            .add_key(new_signer.public_key(), AccessKey::full_access())
-            .transfer(amount)
-            .sign(&self.signer);
+        .new_tx(runtime, new_account_id.clone())
+        .create_account()
+        .add_key(new_signer.public_key(), AccessKey::full_access())
+        .transfer(amount)
+        .sign(&self.signer);
+
         let res = runtime.resolve_tx(tx);
 
         // TODO: this temporary hack, must be rewritten
@@ -170,13 +170,13 @@ impl ExternalUser {
             "affiliate_fee_percentage": affiliate_fee_percentage,
             "api_source": api_source,
         })
-            .to_string()
-            .as_bytes()
-            .to_vec();
+        .to_string()
+        .as_bytes()
+        .to_vec();
         let tx = self
-            .new_tx(runtime, flux_protocol())
-            .function_call("create_market".into(), args, GAS_STANDARD, 0)
-            .sign(&self.signer);
+        .new_tx(runtime, flux_protocol())
+        .function_call("create_market".into(), args, GAS_STANDARD, 0)
+        .sign(&self.signer);
         let res = runtime.resolve_tx(tx).expect("resolving tx failed");
         runtime.process_all().expect("processing tx failed");
         let ans = outcome_into_result(res);
@@ -199,14 +199,14 @@ impl ExternalUser {
 			"price": price,
 			"affiliate_account_id": affiliate_account_id
         })
-            .to_string()
-            .as_bytes()
-			.to_vec();
+        .to_string()
+        .as_bytes()
+        .to_vec();
 			
         let tx = self
-            .new_tx(runtime, flux_protocol())
-            .function_call("place_order".into(), args, 10000000000000000, 0)
-			.sign(&self.signer);
+        .new_tx(runtime, flux_protocol())
+        .function_call("place_order".into(), args, 10000000000000000, 0)
+        .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
@@ -226,14 +226,14 @@ impl ExternalUser {
             "outcome": outcome,
             "order_id": order_id,
         })
-            .to_string()
-            .as_bytes()
-			.to_vec();
-			
+        .to_string()
+        .as_bytes()
+        .to_vec();
+        
         let tx = self
-            .new_tx(runtime, flux_protocol())
-            .function_call("cancel_order".into(), args, 10000000000000000, 0)
-			.sign(&self.signer);
+        .new_tx(runtime, flux_protocol())
+        .function_call("cancel_order".into(), args, 10000000000000000, 0)
+        .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
@@ -241,50 +241,279 @@ impl ExternalUser {
         return ans;
     }
 
-    pub fn get_market_price(&self, runtime: &RuntimeStandalone, market_id: u64, outcome: u64) -> u128 {
+    pub fn resolute_market(
+        &self,
+        runtime: &mut RuntimeStandalone,
+        market_id: U64,
+        winning_outcome: Option<U64>,
+        stake: U128
+    ) -> TxResult {
+        let args = json!({
+            "market_id": market_id,
+            "winning_outcome": winning_outcome,
+            "stake": stake,
+        })
+        .to_string()
+        .as_bytes()
+        .to_vec();
+        
+        let tx = self
+        .new_tx(runtime, flux_protocol())
+        .function_call("resolute_market".into(), args, 10000000000000000, 0)
+        .sign(&self.signer);
+		
+		let res = runtime.resolve_tx(tx).unwrap();
+        runtime.process_all().unwrap();
+        let ans = outcome_into_result(res);
+        return ans;
+    }
+
+    pub fn finalize_market(
+        &self,
+        runtime: &mut RuntimeStandalone,
+        market_id: U64,
+        winning_outcome: Option<U64>,
+    ) -> TxResult {
+        let args = json!({
+            "market_id": market_id,
+            "winning_outcome": winning_outcome,
+        })
+        .to_string()
+        .as_bytes()
+        .to_vec();
+        
+        let tx = self
+        .new_tx(runtime, flux_protocol())
+        .function_call("finalize_market".into(), args, 10000000000000000, 0)
+        .sign(&self.signer);
+		
+		let res = runtime.resolve_tx(tx).unwrap();
+        runtime.process_all().unwrap();
+        let ans = outcome_into_result(res);
+        return ans;
+    }
+
+    pub fn claim_earnings(
+        &self,
+        runtime: &mut RuntimeStandalone,
+		market_id: U64, 
+		account_id: String
+    ) -> TxResult {
+        let args = json!({
+            "market_id": market_id,
+            "account_id": account_id,
+        })
+        .to_string()
+        .as_bytes()
+        .to_vec();
+        
+        let tx = self
+        .new_tx(runtime, flux_protocol())
+        .function_call("claim_earnings".into(), args, 10000000000000000, 0)
+        .sign(&self.signer);
+		
+		let res = runtime.resolve_tx(tx).unwrap();
+        runtime.process_all().unwrap();
+        let ans = outcome_into_result(res);
+        return ans;
+    }
+
+    pub fn get_market_price(
+        &self, 
+        runtime: &RuntimeStandalone, 
+        market_id: U64, 
+        outcome: U64
+    ) -> U128 {
         let market_price_json = runtime
-            .view_method_call(
-                &(flux_protocol()),
-                "get_market_price",
-                json!({"market_id": market_id, "outcome": outcome})
-                    .to_string()
-                    .as_bytes(),
-            )
-            .unwrap()
-            .0;
+        .view_method_call(
+            &(flux_protocol()),
+            "get_market_price",
+            json!({"market_id": market_id, "outcome": outcome})
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let market_price: u128 = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+        let market_price = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
 
         return market_price;
     }
 
+    pub fn get_outcome_share_balance(
+        &self, 
+        runtime: &RuntimeStandalone, 
+        account_id: String, 
+        market_id: U64, 
+        outcome: U64
+    ) -> U128 {
+        let market_price_json = runtime
+        .view_method_call(
+            &(flux_protocol()),
+            "get_outcome_share_balance",
+            json!({
+                "account_id": account_id,
+                "market_id": market_id, 
+                "outcome": outcome,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
 
-	
+        //TODO: UPDATE THIS CASTING
+        let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
+        let share_balance = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return share_balance;
+    }
+
+    // Methods for unit tests
+    pub fn get_open_orders_len(
+        &self, 
+        runtime: &RuntimeStandalone,  
+        market_id: U64, 
+        outcome: U64
+    ) -> U128 {
+        let market_price_json = runtime
+        .view_method_call(
+            &(flux_protocol()),
+            "get_open_orders_len",
+            json!({
+                "market_id": market_id, 
+                "outcome": outcome,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
+
+        //TODO: UPDATE THIS CASTING
+        let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
+        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return res;
+    }
+    pub fn get_filled_orders_len(
+        &self, 
+        runtime: &RuntimeStandalone,  
+        market_id: U64, 
+        outcome: U64
+    ) -> U128 {
+        let market_price_json = runtime
+        .view_method_call(
+            &(flux_protocol()),
+            "get_filled_orders_len",
+            json!({
+                "market_id": market_id, 
+                "outcome": outcome,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
+
+        //TODO: UPDATE THIS CASTING
+        let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
+        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return res;
+    }
+
+    pub fn get_liquidity(
+        &self, 
+        runtime: &RuntimeStandalone,  
+        market_id: U64, 
+        outcome: U64,
+        price: U128
+    ) -> U128 {
+        let market_price_json = runtime
+        .view_method_call(
+            &(flux_protocol()),
+            "get_liquidity",
+            json!({
+                "market_id": market_id, 
+                "outcome": outcome,
+                "price": price,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
+
+        //TODO: UPDATE THIS CASTING
+        let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
+        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return res;
+    }
+
+    pub fn get_depth(
+        &self, 
+        runtime: &RuntimeStandalone,  
+        market_id: U64, 
+        outcome: U64,
+        spend: U128,
+        price: U128
+    ) -> U128 {
+        let market_price_json = runtime
+        .view_method_call(
+            &(flux_protocol()),
+            "get_depth",
+            json!({
+                "market_id": market_id, 
+                "outcome": outcome,
+                "spend": spend,
+                "price": price,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
+
+        //TODO: UPDATE THIS CASTING
+        let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
+        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return res;
+    }
+
+    pub fn get_claimable(
+        &self,
+        runtime: &mut RuntimeStandalone,
+        market_id: U64, 
+		account_id: String
+    ) -> U128 {
+        let market_price_json = runtime
+        .view_method_call(
+            &(flux_protocol()),
+            "get_claimable",
+            json!({
+                "market_id": market_id, 
+                "account_id": account_id,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
+
+        //TODO: UPDATE THIS CASTING
+        let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
+        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return res;
+    }
+
 
     // external token runtime helper methods
-
-	pub fn get_balance(
-		&self,
-		runtime: &mut RuntimeStandalone,
-		owner_id: String
-	) -> TxResult {
-		let args = json!({
-            "owner_id": owner_id
-        })
-			.to_string()
-			.as_bytes()
-			.to_vec();
-		
-		let tx = self.new_tx(runtime, fun_token())
-			.function_call("get_balance".into(), args, GAS_STANDARD, 0)
-			.sign(&self.signer);
-
-		let res = runtime.resolve_tx(tx).expect("processing get balance tx failed");
-		let ans = outcome_into_result(res);
-		return ans;
-    }
     
     pub fn set_allowance(
 		&self,
@@ -296,19 +525,66 @@ impl ExternalUser {
             "escrow_account_id": escrow_account_id,
             "allowance": allowance
         })
-			.to_string()
-			.as_bytes()
-			.to_vec();
+        .to_string()
+        .as_bytes()
+        .to_vec();
 		
 		let tx = self.new_tx(runtime, fun_token())
-			.function_call("set_allowance".into(), args, GAS_STANDARD, 0)
-			.sign(&self.signer);
+        .function_call("set_allowance".into(), args, GAS_STANDARD, 0)
+        .sign(&self.signer);
 
-		let res = runtime.resolve_tx(tx).expect("processing get balance tx failed");
+		let res = runtime.resolve_tx(tx).expect("processing tx failed");
 		let ans = outcome_into_result(res);
 		return ans;
-	}
+    }
+    
+    pub fn transfer(
+		&self,
+		runtime: &mut RuntimeStandalone,
+        new_owner_id: AccountId, 
+        amount: U128
+	) -> TxResult {
+		let args = json!({
+            "new_owner_id": new_owner_id,
+            "amount": amount
+        })
+        .to_string()
+        .as_bytes()
+        .to_vec();
+		
+		let tx = self.new_tx(runtime, fun_token())
+        .function_call("transfer".into(), args, GAS_STANDARD, 0)
+        .sign(&self.signer);
 
+		let res = runtime.resolve_tx(tx).expect("processing tx failed");
+		let ans = outcome_into_result(res);
+		return ans;
+    }
+    
+
+    pub fn get_balance(
+        &self,
+        runtime: &mut RuntimeStandalone,
+        account_id: String,
+    ) -> U128 {
+        let market_price_json = runtime
+        .view_method_call(
+            &(fun_token()),
+            "get_balance",
+            json!({
+                "owner_id": account_id
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
+
+        let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
+        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return res;
+    }
 
 }
 
