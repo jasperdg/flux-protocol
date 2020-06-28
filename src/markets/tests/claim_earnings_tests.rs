@@ -22,12 +22,8 @@ fn test_payout() {
 
 	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();
-	
-	println!("alice  {:?}", initial_balance_alice);
-	println!("carol  {:?}", initial_balance_carol);
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
-	println!("tx res resolution: {:?}", tx_res);
 	
 	let tx_res = carol.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5))).expect("tx failed unexpectedly");
 	let initially_claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
@@ -42,18 +38,13 @@ fn test_payout() {
 	alice.finalize_market(&mut runtime, U64(0), None).expect("market finalization failed unexpectedly");
 	
 	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
-	println!("carol: {:?}", tx_res);
 	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
-	println!("alice: {:?}", tx_res);
 
 	let updated_claimable_alice = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id());
 	let updated_claimable_carol = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id());
 
 	let updated_balance_alice = alice.get_balance(&mut runtime, alice.get_account_id());
 	let updated_balance_carol = alice.get_balance(&mut runtime, carol.get_account_id());
-
-	println!("alice {:?}  {:?}  {:?}", updated_balance_alice, initially_claimable_alice, initial_balance_alice);
-	println!("carol {:?}  {:?}  {:?}", updated_balance_carol, initially_claimable_carol, initial_balance_carol);
 
 	assert_eq!(updated_balance_alice, U128(initially_claimable_alice + initial_balance_alice));
 	assert_eq!(updated_balance_carol, U128(initially_claimable_carol + initial_balance_carol));

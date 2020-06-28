@@ -39,6 +39,7 @@ pub trait FunToken {
 pub trait FluxProtocol {
     fn proceed_order_placement(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
     fn proceed_market_resolution(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
+    fn proceed_market_dispute(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
     // fn grant_fdai(&mut self, from: String);
     // fn check_sufficient_balance(&mut self, spend: U128);
     // fn update_fdai_metrics_claim(&mut self);
@@ -281,8 +282,10 @@ impl Markets {
 		sender: String
 	) -> PromiseOrValue<bool> {
 		self.assert_self();
+		env::log(b"attempting to proceed market resolution");
 		let transfer_succeeded = self.is_promise_success();
 		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
+		env::log(format!("parent promise (transfer) was succesfull {}", stake).as_bytes());
 		
 		let market = self.markets.get_mut(&market_id).expect("market doesn't exist");
 		let change: u128 = market.resolute(sender.to_string(), winning_outcome, stake).into();
@@ -296,28 +299,83 @@ impl Markets {
 
 	pub fn withdraw_dispute_stake(
 		&mut self, 
-		market_id: u64,
-		dispute_round: u64,
-		outcome: Option<u64>
-	) {
+		market_id: U64,
+		dispute_round: U64,
+		outcome: Option<U64>
+	) -> Promise {
+		let market_id: u64 = market_id.into();
+		let dispute_round: u64 = dispute_round.into();
+		let outcome: Option<u64> = match outcome {
+			Some(outcome) => Some(outcome.into()),
+			None => None
+		};
+
 		let market = self.markets.get_mut(&market_id).expect("invalid market");
 		let to_return = market.cancel_dispute_participation(dispute_round, outcome);
-		self.add_balance(to_return, env::predecessor_account_id());
+		if to_return > 0 {
+			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+		} else {
+			panic!("user has no participation in this dispute");
+		}
 	}
 
 	pub fn dispute_market(
 		&mut self, 
-		market_id: u64, 
-		winning_outcome: Option<u64>,
-		stake: u128
-	) {
-	    let account_id = env::predecessor_account_id();
+		market_id: U64, 
+		winning_outcome: Option<U64>,
+		stake: U128
+	) -> Promise {
+		let market_id: u64 = market_id.into();
+		let winning_outcome: Option<u64> = match winning_outcome {
+			Some(outcome) => Some(outcome.into()),
+			None => None
+		};
+		let stake_u128: u128 = stake.into();
         let market = self.markets.get_mut(&market_id).expect("market doesn't exist");
-		let balance = self.fdai_balances.get(&account_id).unwrap_or(&0);
-		assert!(balance >= &stake, "not enough balance to cover stake");
-		let change = market.dispute(winning_outcome, stake);
-        self.subtract_balance(stake - change);
+
+		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
+		assert_eq!(market.finalized, false, "market is already finalized");
+        assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
+        assert!(winning_outcome != market.winning_outcome, "same oucome as last resolution");
+		let resolution_window = market.resolution_windows.last_mut().expect("Invalid dispute window unwrap");
+		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
+		assert!(env::block_timestamp() / 1000000 <= resolution_window.end_time, "dispute window is closed, market can be finalized");
+
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
+			flux_protocol::proceed_market_dispute(
+				env::predecessor_account_id(),
+				market_id,
+				winning_outcome,
+				stake_u128,
+				&env::current_account_id(), 
+				0, 
+				SINGLE_CALL_GAS * 2
+			)
+		)
+
 	}
+
+	pub fn proceed_market_dispute(		
+		&mut self,
+		market_id: u64,
+		winning_outcome: Option<u64>,
+		stake: u128,
+		sender: String
+	) -> PromiseOrValue<bool> {
+		self.assert_self();
+		let transfer_succeeded = self.is_promise_success();
+		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
+        let market = self.markets.get_mut(&market_id).expect("market doesn't exist");
+
+		let change = market.dispute(sender.to_string(), winning_outcome, stake);
+
+		if change > 0 {
+			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS));
+		} else {
+			return PromiseOrValue::Value(true);
+		}
+	}
+		
 
 	pub fn finalize_market(
 		&mut self, 
@@ -756,7 +814,7 @@ mod tests {
 		let mut accounts: Vec<ExternalUser> = vec![];
 		for acc_no in 0..2 {
 			let acc = if let Ok(acc) =
-				root.create_external(&mut runtime, format!("account_{}", acc_no), ntoy(30))
+				root.create_external(&mut runtime, format!("account_{}", acc_no), ntoy(100))
 			{
 				acc
 			} else {
@@ -765,7 +823,7 @@ mod tests {
 			accounts.push(acc);
 		}
 
-		root.deploy_fun_token(&mut runtime, accounts[0].get_account_id(), U128(ntoy(30))).unwrap();
+		root.deploy_fun_token(&mut runtime, accounts[0].get_account_id(), U128(ntoy(100))).unwrap();
 
 		return (runtime, root, accounts);
 	}
@@ -775,8 +833,8 @@ mod tests {
 	// mod binary_order_matching_tests;
 	// mod categorical_market_tests;
 	// mod market_depth_tests;
-	mod claim_earnings_tests;
-	// mod market_dispute_tests;
+	// mod claim_earnings_tests;
+	mod market_dispute_tests;
 	// mod market_resolution_tests;
 	// mod fee_payout_tests;
 	// mod order_sale_tests;

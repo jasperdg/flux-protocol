@@ -267,6 +267,33 @@ impl ExternalUser {
         let ans = outcome_into_result(res);
         return ans;
     }
+    
+    pub fn dispute_market(
+        &self,
+        runtime: &mut RuntimeStandalone,
+        market_id: U64,
+        winning_outcome: Option<U64>,
+        stake: U128
+    ) -> TxResult {
+        let args = json!({
+            "market_id": market_id,
+            "winning_outcome": winning_outcome,
+            "stake": stake,
+        })
+        .to_string()
+        .as_bytes()
+        .to_vec();
+        
+        let tx = self
+        .new_tx(runtime, flux_protocol())
+        .function_call("dispute_market".into(), args, 10000000000000000, 0)
+        .sign(&self.signer);
+		
+		let res = runtime.resolve_tx(tx).unwrap();
+        runtime.process_all().unwrap();
+        let ans = outcome_into_result(res);
+        return ans;
+    }
 
     pub fn finalize_market(
         &self,
@@ -310,6 +337,33 @@ impl ExternalUser {
         let tx = self
         .new_tx(runtime, flux_protocol())
         .function_call("claim_earnings".into(), args, 10000000000000000, 0)
+        .sign(&self.signer);
+		
+		let res = runtime.resolve_tx(tx).unwrap();
+        runtime.process_all().unwrap();
+        let ans = outcome_into_result(res);
+        return ans;
+    }
+
+    pub fn withdraw_dispute_stake(
+        &self,
+        runtime: &mut RuntimeStandalone,
+        market_id: U64,
+        dispute_round: U64,
+        outcome: Option<U64>
+    ) -> TxResult {
+        let args = json!({
+            "market_id": market_id,
+            "dispute_round": dispute_round,
+            "outcome": outcome,
+        })
+        .to_string()
+        .as_bytes()
+        .to_vec();
+        
+        let tx = self
+        .new_tx(runtime, flux_protocol())
+        .function_call("withdraw_dispute_stake".into(), args, 10000000000000000, 0)
         .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
@@ -589,8 +643,8 @@ impl ExternalUser {
 }
 
 pub fn init_markets_contract() -> (RuntimeStandalone, ExternalUser) {
-    let (mut runtime, signer) = init_runtime_and_signer(&"root".into());
-    let root = ExternalUser::new("root".into(), signer);
+    let (mut runtime, signer) = init_runtime_and_signer(&"flux-dev".into());
+    let root = ExternalUser::new("flux-dev".into(), signer);
 
     root.deploy_flux_protocol(&mut runtime).unwrap();
     

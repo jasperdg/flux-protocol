@@ -17,7 +17,7 @@ fn test_runtime_init() {
 fn test_external_token() {
 	let (mut runtime, root, accounts) = init_runtime_env();
 	let tx_res = accounts[0].get_balance(&mut runtime, accounts[0].get_account_id());
-	assert_eq!(tx_res, U128(ntoy(30)));
+	assert_eq!(tx_res, U128(ntoy(100)));
 }
 
 #[test]
