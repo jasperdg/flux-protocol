@@ -293,7 +293,7 @@ impl Market {
 		return orderbooks;
 	}
 
-	fn to_numerical_outcome(
+	pub fn to_numerical_outcome(
 		&self, 
 		outcome: Option<u64>, 
 	) -> u64 {
@@ -353,19 +353,13 @@ impl Market {
 
 	pub fn dispute(
 		&mut self, 
+		sender: String,
 		winning_outcome: Option<u64>,
 		stake: u128
 	) -> u128 {
-		assert_eq!(self.resoluted, true, "market isn't resoluted yet");
-		assert_eq!(self.finalized, false, "market is already finalized");
-        assert!(winning_outcome == None || winning_outcome.unwrap() < self.outcomes, "invalid winning outcome");
-        assert!(winning_outcome != self.winning_outcome, "same oucome as last resolution");
-	
+
 		let outcome_id = self.to_numerical_outcome(winning_outcome);
 		let resolution_window = self.resolution_windows.last_mut().expect("Invalid dispute window unwrap");
-		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
-		assert!(env::block_timestamp() / 1000000 <= resolution_window.end_time, "dispute window is closed, market can be finalized");
-
 		let full_bond_size = resolution_window.required_bond_size;
 		let mut bond_filled = false;
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(&0);
@@ -380,7 +374,7 @@ impl Market {
 
 		// Add to disputors stake
 		resolution_window.participants_to_outcome_to_stake
-		.entry(env::predecessor_account_id())
+		.entry(sender)
 		.or_insert(HashMap::new())
 		.entry(outcome_id)
 		.and_modify(|staked| { *staked += stake - to_return })
@@ -474,7 +468,6 @@ impl Market {
 		let outcome_id = self.to_numerical_outcome(outcome);
 		let resolution_window = self.resolution_windows.get_mut(round as usize).expect("dispute round doesn't exist");
 		assert_ne!(outcome, resolution_window.outcome, "you cant cancel dispute stake for bonded outcome");
-		assert_ne!(outcome, self.winning_outcome, "you cant cancel dispute stake for winning outcome");
 		let mut to_return = 0;
 		resolution_window.participants_to_outcome_to_stake
 		.entry(env::predecessor_account_id())
@@ -533,31 +526,28 @@ impl Market {
 				// If it isn't the first round calculate according to escalation game
 				let empty_map = HashMap::new();
 				let window_outcome_id = self.to_numerical_outcome(window.outcome);
-				let round_participation = window.participants_to_outcome_to_stake
-				.get(&account_id)
-				.unwrap_or(&empty_map)
-				.get(&winning_outcome_id)
-				.unwrap_or(&0);
-				
-				let correct_stake = window.staked_per_outcome
-				.get(&winning_outcome_id)
-				.unwrap_or(&0);
 
+				if window_outcome_id == winning_outcome_id {
+					let round_participation = window.participants_to_outcome_to_stake
+					.get(&account_id)
+					.unwrap_or(&empty_map)
+					.get(&winning_outcome_id)
+					.unwrap_or(&0);
 
-				let incorrect_stake = window.staked_per_outcome
-				.get(&window_outcome_id)
-				.unwrap_or(&0);
-
-				user_correctly_staked += round_participation;
-				total_correctly_staked += correct_stake;
-				total_incorrectly_staked += incorrect_stake;
-
+					user_correctly_staked += round_participation;
+					total_correctly_staked += window.required_bond_size;
+				} else if window.outcome.is_some() {
+					total_incorrectly_staked += window.required_bond_size;
+				 
+				}
 			}
 		}
 
 		if total_correctly_staked == 0 {return resolution_reward}
-		
-        return user_correctly_staked * 100 / total_correctly_staked * total_incorrectly_staked / 100 + resolution_reward;
+	
+		let percentage_earnigns = user_correctly_staked * 100 / total_correctly_staked;
+		let profit = percentage_earnigns * total_incorrectly_staked / 100;
+		return profit + user_correctly_staked + resolution_reward;
 	}
 
     // Updates the best price for an order once initial best price is filled
