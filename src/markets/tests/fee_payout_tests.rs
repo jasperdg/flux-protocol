@@ -56,14 +56,11 @@ fn fee_distribution_test() {
 	assert_eq!(after_balance_carol, initial_balance_carol + 2 * to_dai(10) / 100);
 	assert_eq!(after_balance_root, initial_balance_root + 1 * to_dai(10) / 100 + to_dai(5));
 	
-	println!("contract balance {:?} ", alice.get_balance(&mut runtime, flux_protocol()));
-
 	alice.claim_affiliate_earnings(&mut runtime, carol.get_account_id()).expect("affiliate claim failed unexpectedly");
 	let after_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into(); // creator / affiliate
 	assert_eq!(after_balance_carol, initial_balance_carol + 4 * to_dai(10) / 100);
 	
 	let tx_res = alice.claim_affiliate_earnings(&mut runtime, carol.get_account_id()).expect("affiliate claim failed unexpectedly"); // should fail
-	println!("{:?}", tx_res);
 }
 
 // TODO: test coverage for crowdsourced pariticipation on winning outcome that isn;t bonded - this shouldnt be added to the users pariticpation
