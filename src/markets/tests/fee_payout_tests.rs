@@ -1,68 +1,69 @@
 use super::*;
 
-fn init_tests() -> Markets {
-	testing_env!(get_context(carol(), current_block_timestamp()));
-	let mut contract = Markets::default();
-	contract.claim_fdai();
-	contract.create_market("Hi!".to_string(), empty_string(), 4, outcome_tags(4), categories(), market_end_timestamp_ms(), 4, 50, "test".to_string());
-	testing_env!(get_context(affiliate(), market_end_timestamp_ns()));
-	contract.claim_fdai();
-	return contract;
-}
-
 #[test]
+#[should_panic(expected = "affiliate claim failed unexpectedly")]
 fn fee_distribution_test() {
-	let mut contract = init_tests();
-	let one_dai = to_dai(1);
+	let (mut runtime, root, accounts) = init_runtime_env();
+	let tx_res = accounts[1].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(4), U128(50), "test".to_string()).unwrap();
+	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	testing_env!(get_context(alice(), current_block_timestamp()));
-	contract.claim_fdai();
-
-	contract.place_order(0, 0, 5 * one_dai, 50, Some(affiliate()));
-	contract.place_order(0, 1, 5 * one_dai, 50, Some(affiliate()));
-
-	contract.place_order(0, 1, 5 * one_dai, 50, Some(affiliate()));
-	contract.place_order(0, 1, 5 * one_dai, 50, Some(affiliate()));
-	contract.place_order(0, 1, 5 * one_dai, 50, Some(affiliate()));
-	contract.place_order(0, 1, 5 * one_dai, 50, Some(affiliate()));
-
-	let markets = contract.get_markets_by_id(vec![0]);
-	assert_eq!(markets[&0].filled_volume, 10 * one_dai);
-
-	testing_env!(get_context(bob(), market_end_timestamp_ns()));
-	contract.claim_fdai();
-	contract.resolute_market(0, Some(1), 5 * one_dai);
-	testing_env!(get_context(bob(), market_end_timestamp_ns() + 1800000000000));
-	contract.finalize_market(0, Some(1));
-
-	testing_env!(get_context(alice(), market_end_timestamp_ns() + 1800000000000));
-	let market = contract.get_markets_by_id(vec![0])[&0];
-
-	let creator_balance_before_claim = contract.get_fdai_balance(carol());
-	let resolutor_balance_before_claim = contract.get_fdai_balance(bob());
-	let trader_balance_before_claim = contract.get_fdai_balance(alice());
-	let affiliate_balance_before_claim = contract.get_fdai_balance(affiliate());
-	let claimable_trader = contract.get_claimable(0, alice());
-	let expected_claimable_trader_excl_fees = 30 * one_dai;
-	let fees = 10 * one_dai * market.resolution_fee_percentage / 100 + 10 * one_dai * market.creator_fee_percentage / 100;
-
-	contract.claim_earnings(0, alice());
-	contract.claim_earnings(0, bob());
-	contract.claim_earnings(0, affiliate());
-	contract.claim_earnings(0, carol());
-
-	let creator_balance_after_claim = contract.get_fdai_balance(carol());
-	let resolutor_balance_after_claim = contract.get_fdai_balance(bob());
-	let trader_balance_after_claim = contract.get_fdai_balance(alice());
-	let affiliate_balance_after_claim = contract.get_fdai_balance(affiliate());
-
-	let market = contract.get_markets_by_id(vec![0])[&0];
-	assert_eq!(creator_balance_after_claim, creator_balance_before_claim + 10 * one_dai * (market.creator_fee_percentage / 2) / 100);
-	assert_eq!(affiliate_balance_after_claim, affiliate_balance_before_claim + 10 * one_dai * (market.creator_fee_percentage / 2) / 100);
-	assert_eq!(resolutor_balance_after_claim, resolutor_balance_before_claim + 10 * one_dai * market.resolution_fee_percentage / 100 + 5 * one_dai);
-	assert_eq!(trader_balance_after_claim, trader_balance_before_claim + expected_claimable_trader_excl_fees - fees);
+	let alice = &accounts[0];
+	let carol = &accounts[1];
 
 
+	alice.transfer(&mut runtime, root.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
+	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+
+	alice.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(5)), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5)), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	
+	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5)), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5)), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5)), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5)), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+
+	let filled_volume: u128 = alice.get_market_volume(&mut runtime, U64(0)).into();
+	assert_eq!(filled_volume, to_dai(10));
+	
+	runtime.current_block().block_timestamp = market_end_timestamp_ns();
+	root.resolute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly");
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	root.finalize_market(&mut runtime, U64(0), Some(U64(1))).expect("market resolution failed unexpectedly");
+
+	let resolution_fee_percentage = 1;
+
+	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into(); // trader
+	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into(); // creator / affiliate
+	let initial_balance_root: u128 = alice.get_balance(&mut runtime, root.get_account_id()).into(); // resolutor
+	
+	let claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
+	let expected_claimable_alice_excl_fees = to_dai(30);
+	let claimable_root: u128 = alice.get_claimable(&mut runtime, U64(0), root.get_account_id()).into();
+	let fees = 5 * to_dai(10) / 100;
+
+	assert_eq!(claimable_alice, expected_claimable_alice_excl_fees - fees);
+	assert_eq!(claimable_root, 1 * to_dai(10) / 100 + to_dai(5));
+ 
+	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	let tx_res = root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+
+	let after_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into(); // trader
+	let after_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into(); // creator / affiliate
+	let after_balance_root: u128 = alice.get_balance(&mut runtime, root.get_account_id()).into(); // resolutor
+	
+	assert_eq!(after_balance_alice, initial_balance_alice + expected_claimable_alice_excl_fees - fees);
+	assert_eq!(after_balance_carol, initial_balance_carol + 2 * to_dai(10) / 100);
+	assert_eq!(after_balance_root, initial_balance_root + 1 * to_dai(10) / 100 + to_dai(5));
+	
+	println!("contract balance {:?} ", alice.get_balance(&mut runtime, flux_protocol()));
+
+	alice.claim_affiliate_earnings(&mut runtime, carol.get_account_id()).expect("affiliate claim failed unexpectedly");
+	let after_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into(); // creator / affiliate
+	assert_eq!(after_balance_carol, initial_balance_carol + 4 * to_dai(10) / 100);
+	
+	let tx_res = alice.claim_affiliate_earnings(&mut runtime, carol.get_account_id()).expect("affiliate claim failed unexpectedly"); // should fail
+	println!("{:?}", tx_res);
 }
 
 // TODO: test coverage for crowdsourced pariticipation on winning outcome that isn;t bonded - this shouldnt be added to the users pariticpation

@@ -241,6 +241,33 @@ impl ExternalUser {
         return ans;
     }
 
+    pub fn dynamic_market_sell(
+        &self,
+        runtime: &mut RuntimeStandalone,
+        market_id: U64,
+        outcome: U64,
+        shares: U128
+    ) -> TxResult {
+        let args = json!({
+            "market_id": market_id,
+            "outcome": outcome,
+            "shares": shares,
+        })
+        .to_string()
+        .as_bytes()
+        .to_vec();
+        
+        let tx = self
+        .new_tx(runtime, flux_protocol())
+        .function_call("dynamic_market_sell".into(), args, 10000000000000000, 0)
+        .sign(&self.signer);
+		
+		let res = runtime.resolve_tx(tx).unwrap();
+        runtime.process_all().unwrap();
+        let ans = outcome_into_result(res);
+        return ans;
+    }
+
     pub fn resolute_market(
         &self,
         runtime: &mut RuntimeStandalone,
@@ -345,6 +372,28 @@ impl ExternalUser {
         return ans;
     }
 
+    pub fn claim_affiliate_earnings(
+        &self,
+        runtime: &mut RuntimeStandalone,
+        account_id: String
+    ) -> TxResult {
+        let args = json!({
+            "account_id": account_id
+        })
+        .to_string()
+        .as_bytes()
+        .to_vec();
+        
+        let tx = self
+        .new_tx(runtime, flux_protocol())
+        .function_call("claim_affiliate_earnings".into(), args, 10000000000000000, 0)
+        .sign(&self.signer);
+		
+		let res = runtime.resolve_tx(tx).unwrap();
+        runtime.process_all().unwrap();
+        let ans = outcome_into_result(res);
+        return ans;
+    }
     pub fn withdraw_dispute_stake(
         &self,
         runtime: &mut RuntimeStandalone,
@@ -425,6 +474,35 @@ impl ExternalUser {
         return share_balance;
     }
 
+    pub fn get_market_sell_depth(
+        &self, 
+        runtime: &RuntimeStandalone, 
+        market_id: U64, 
+        outcome: U64,
+        shares: U128
+    ) -> (U128, U128) {
+        let market_price_json = runtime
+        .view_method_call(
+            &(flux_protocol()),
+            "get_market_sell_depth",
+            json!({
+                "market_id": market_id, 
+                "outcome": outcome,
+                "shares": shares,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
+
+        //TODO: UPDATE THIS CASTING
+        let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
+        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return res;
+    }
+
     // Methods for unit tests
     pub fn get_open_orders_len(
         &self, 
@@ -452,6 +530,7 @@ impl ExternalUser {
 
         return res;
     }
+    
     pub fn get_filled_orders_len(
         &self, 
         runtime: &RuntimeStandalone,  
@@ -465,6 +544,31 @@ impl ExternalUser {
             json!({
                 "market_id": market_id, 
                 "outcome": outcome,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap()
+        .0;
+
+        //TODO: UPDATE THIS CASTING
+        let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
+        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return res;
+    }
+    
+    pub fn get_market_volume(
+        &self, 
+        runtime: &RuntimeStandalone,  
+        market_id: U64, 
+    ) -> U128 {
+        let market_price_json = runtime
+        .view_method_call(
+            &(flux_protocol()),
+            "get_market_volume",
+            json!({
+                "market_id": market_id, 
             })
             .to_string()
             .as_bytes(),

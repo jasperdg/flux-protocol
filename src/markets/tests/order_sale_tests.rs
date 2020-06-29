@@ -1,111 +1,106 @@
 use super::*;
 use std::cmp;
 
-fn init_with_buyer_and_seller() -> (String, String, Markets) {
-	let mut contract = Markets::default();
-	
-	testing_env!(get_context(carol(), current_block_timestamp()));
-	contract.claim_fdai();
-	
-	testing_env!(get_context(alice(), current_block_timestamp()));
-	contract.claim_fdai();
+fn simplest_order_sale() -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone) {
+	let (mut runtime, root, accounts) = init_runtime_env();
+	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
+	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	testing_env!(get_context(bob(), current_block_timestamp()));
-	contract.claim_fdai();
-	contract.create_market("Hi!".to_string(), empty_string(), 2, outcome_tags(0), categories(), market_end_timestamp_ms(), 0, 0, "test".to_string());
+	let buyer = &accounts[0];
+	let seller = &accounts[1];
 
-	return(alice(), carol(), contract)
-}
+	buyer.transfer(&mut runtime, seller.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
+	buyer.transfer(&mut runtime, root.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
+	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	buyer.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	seller.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
-fn simplest_order_sale() -> (String, String, Markets) {
-	let (buyer, seller, mut contract) = init_with_buyer_and_seller();
-	testing_env!(get_context(seller.to_string(), current_block_timestamp()));
-	contract.place_order(0, 0, 10000, 50, None);
-	contract.place_order(0, 1, 10000, 50, None);
 	let buy_price = 50;
-	// Alice places 100 shares worth of buy orders
-	testing_env!(get_context(buyer.to_string(), current_block_timestamp()));
-	contract.place_order(0, 1, 100 * buy_price, buy_price, None);
+	seller.place_order(&mut runtime, U64(0), U64(0), U128(200 * buy_price), U128(buy_price), None).expect("order placement failed unexpectedly"); 
+	seller.place_order(&mut runtime, U64(0), U64(1), U128(200 * buy_price), U128(buy_price), None).expect("order placement failed unexpectedly"); 
+	
+	buyer.place_order(&mut runtime, U64(0), U64(1), U128(100 * buy_price), U128(buy_price), None).expect("order placement failed unexpectedly");
 
-	testing_env!(get_context(seller.to_string(), current_block_timestamp()));
+	let initial_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
 
-	// Record dai balance pre-sale
-	let seller_dai_balance = contract.get_fdai_balance(seller.to_string());
-
-	let seller_share_balance = contract.get_outcome_share_balance(0, 1, carol());
-	assert_eq!(200, seller_share_balance);
-
-	let (sell_depth, shares_fillable) = contract.get_market_sell_depth(0, 1, 10000);
+	let share_balance_seller: u128 = seller.get_outcome_share_balance(&mut runtime, seller.get_account_id(), U64(0), U64(1)).into();
+	assert_eq!(200, share_balance_seller);
+	
+	let (spendable, shares_fillable) = seller.get_market_sell_depth(&mut runtime, U64(0), U64(1), U128(10000));
+	let spendable: u128 = spendable.into();
+	let shares_fillable: u128 = shares_fillable.into();
 	assert_eq!(100, shares_fillable);
-	assert_eq!(100 * buy_price, sell_depth);
+	assert_eq!(100 * buy_price, spendable);
+	
+	let share_balance_buyer: u128 = buyer.get_outcome_share_balance(&mut runtime, buyer.get_account_id(), U64(0), U64(1)).into();
+	assert_eq!(0, share_balance_buyer);
 
-	let buyer_share_balance = contract.get_outcome_share_balance(0, 1, alice());
-	assert_eq!(buyer_share_balance, 0);
+	seller.dynamic_market_sell(&mut runtime, U64(0), U64(1), U128(share_balance_seller)).expect("market sell failed unexpectedly");
 
-	contract.dynamic_market_sell(0, 1, seller_share_balance);
+	let dai_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
+	assert_eq!(dai_balance_seller, initial_balance_seller + 5000 - 50);
 
 	// check share balance post sell
-	let seller_share_balance = contract.get_outcome_share_balance(0, 1, carol());
-	assert_eq!(seller_share_balance, 100);
-	
-	// check dai balance post sell
-	let seller_dai_balance_post_sell = contract.get_fdai_balance(seller.to_string());
-	assert_eq!(seller_dai_balance_post_sell, seller_dai_balance + 5000);
+	let share_balance_seller: u128 = seller.get_outcome_share_balance(&mut runtime, seller.get_account_id(), U64(0), U64(1)).into();
+	assert_eq!(share_balance_seller, 100);
 
-	let buyer_share_balance = contract.get_outcome_share_balance(0, 1, alice());
-	assert_eq!(buyer_share_balance, 100);
-
-	return (buyer, seller, contract);
+	let share_balance_buyer: u128 = buyer.get_outcome_share_balance(&mut runtime, buyer.get_account_id(), U64(0), U64(1)).into();
+	assert_eq!(share_balance_buyer, 100);
+	return (accounts, root, runtime);
 }
 
-fn partial_buy_order_fill_through_sale(buy_price: u128) -> (String, String, Markets) {
-	let (buyer, seller, mut contract) = init_with_buyer_and_seller();
-	
-	// 200 yes & no shares TODO test w/ uneven share amount
-	testing_env!(get_context(seller.to_string(), current_block_timestamp()));
-	contract.place_order(0, 0, 10000, 50, None);
-	contract.place_order(0, 1, 10000, 50, None);
-	
-	// buyer places 1000 shares worth of buy orders
-	testing_env!(get_context(buyer.to_string(), current_block_timestamp()));
-	contract.place_order(0, 1, 1000 * buy_price, buy_price, None);
+fn partial_buy_order_fill_through_sale(buy_price: u128) -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone) {
+	let (mut runtime, root, accounts) = init_runtime_env();
+	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
+	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	testing_env!(get_context(seller.to_string(), current_block_timestamp()));
+	let buyer = &accounts[0];
+	let seller = &accounts[1];
 
-	// Record dai balance pre-sale
-	let seller_dai_balance = contract.get_fdai_balance(seller.to_string());
+	buyer.transfer(&mut runtime, seller.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
+	buyer.transfer(&mut runtime, root.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
+	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	buyer.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	seller.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");	
 
-	let seller_share_balance = contract.get_outcome_share_balance(0, 1, seller.to_string());
-	assert_eq!(200, seller_share_balance);
+	seller.place_order(&mut runtime, U64(0), U64(0), U128(200 * 50), U128(50), None).expect("order placement failed unexpectedly"); // 10.000
+	seller.place_order(&mut runtime, U64(0), U64(1), U128(200 * 50), U128(50), None).expect("order placement failed unexpectedly"); // 0
 	
-	let (sell_depth, shares_fillable) = contract.get_market_sell_depth(0, 1, 10000);
+	buyer.place_order(&mut runtime, U64(0), U64(1), U128(1000 * buy_price), U128(buy_price), None).expect("order placement failed unexpectedly"); // 48.000 / 12.000 
+
+	let initial_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
+
+	let share_balance_sller: u128 = seller.get_outcome_share_balance(&mut runtime, seller.get_account_id(), U64(0), U64(1)).into();
+	assert_eq!(200, share_balance_sller);
+	
+	let (spendable, shares_fillable) = seller.get_market_sell_depth(&mut runtime, U64(0), U64(1), U128(10000));
+	let spendable: u128 = spendable.into();
+	let shares_fillable: u128 = shares_fillable.into();
 	assert_eq!(1000, shares_fillable);
-	assert_eq!(1000 * buy_price, sell_depth);
+	assert_eq!(1000 * buy_price, spendable);
 
-	let buyer_share_balance = contract.get_outcome_share_balance(0, 1, buyer.to_string());
-	assert_eq!(buyer_share_balance, 0);
+	let share_balance_buyer: u128 = buyer.get_outcome_share_balance(&mut runtime, buyer.get_account_id(), U64(0), U64(1)).into();
+	assert_eq!(0, share_balance_buyer);
 
-	contract.dynamic_market_sell(0, 1, seller_share_balance);
+	let tx_res = seller.dynamic_market_sell(&mut runtime, U64(0), U64(1), U128(share_balance_sller)).expect("market sell failed unexpectedly");
 
 	// check share balance post sell
-	let seller_share_balance = contract.get_outcome_share_balance(0, 1, seller.to_string());
-	assert_eq!(seller_share_balance, 0);
-	
-	// check dai balance post sell
-	let seller_dai_balance_post_sell = contract.get_fdai_balance(seller.to_string());
-	assert_eq!(seller_dai_balance_post_sell, seller_dai_balance + 200 * cmp::min(buy_price, 50));
+	let share_balance_seller: u128 = seller.get_outcome_share_balance(&mut runtime, seller.get_account_id(), U64(0), U64(1)).into();
+	assert_eq!(share_balance_seller, 0);
 
-	let buyer_share_balance = contract.get_outcome_share_balance(0, 1, buyer.to_string());
-	assert_eq!(buyer_share_balance, 200);
+	let dai_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
+	let sell_fee = 1 * 200 * cmp::min(buy_price, 50) / 100;
+	assert_eq!(dai_balance_seller, initial_balance_seller + 200 * cmp::min(buy_price, 50) - sell_fee);
 
-	return (buyer, seller, contract);
+	let share_balance_buyer: u128 = buyer.get_outcome_share_balance(&mut runtime, buyer.get_account_id(), U64(0), U64(1)).into();
+	assert_eq!(share_balance_buyer, 200);
+	return (accounts, root, runtime);
 }
 
 #[test]
 fn test_simplest_order_sale() {
 	simplest_order_sale();
 }
-
 
 #[test]
 fn test_partial_buy_order_fill_through_sale() {
@@ -114,122 +109,168 @@ fn test_partial_buy_order_fill_through_sale() {
 
 #[test]
 fn test_simple_market_order_sale_payout_valid() {
-	let (buyer, seller, mut contract) = simplest_order_sale();
-	let one_dai = to_dai(1);
+	let (accounts, root, mut runtime) = simplest_order_sale();
 
-	testing_env!(get_context(bob(), market_end_timestamp_ns()));
-	contract.resolute_market(0, Some(1), 5 * one_dai);
-	testing_env!(get_context(bob(), market_end_timestamp_ns() + 1800000000000));
-	contract.finalize_market(0, Some(1));
+	let buyer = &accounts[0];
+	let seller = &accounts[1]; 
 
-	let claimable_seller = contract.get_claimable(0, seller.to_string());
+	runtime.current_block().block_timestamp = market_end_timestamp_ns();
+	root.resolute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly");
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	root.finalize_market(&mut runtime, U64(0), Some(U64(1))).expect("market resolution failed unexpectedly");
+
+	
+	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
+	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
+
 	let expected_claimable_seller = 9900;
 	assert_eq!(claimable_seller, expected_claimable_seller);
-	
-	let claimable_buyer = contract.get_claimable(0, buyer.to_string());
 	let expected_claimable_buyer = 9900;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
+
+	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	seller.claim_earnings(&mut runtime, U64(0), seller.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	let contract_balance: u128 = root.get_balance(&mut runtime, flux_protocol()).into();
+	assert_eq!(contract_balance, 0);
 }
 
 #[test]
 fn test_simple_market_order_sale_payout_invalid() {
-	let (buyer, seller, mut contract) = simplest_order_sale();
-	let one_dai = to_dai(1);
+	let (accounts, root, mut runtime) = simplest_order_sale();
 
-	testing_env!(get_context(bob(), market_end_timestamp_ns()));
-	contract.resolute_market(0, None, 5 * one_dai);
-	testing_env!(get_context(bob(), market_end_timestamp_ns() + 1800000000000));
-	contract.finalize_market(0, None);
+	let buyer = &accounts[0];
+	let seller = &accounts[1]; 
 
-	let claimable_seller = contract.get_claimable(0, seller.to_string());
+	runtime.current_block().block_timestamp = market_end_timestamp_ns();
+	root.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5))).expect("market resolution failed unexpectedly");
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	root.finalize_market(&mut runtime, U64(0), None).expect("market resolution failed unexpectedly");
+
+	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
+	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
+
 	let expected_claimable_seller = 14850;
-	
-	let claimable_buyer = contract.get_claimable(0, buyer.to_string());
-	let expected_claimable_buyer = 4950;
-	
 	assert_eq!(claimable_seller, expected_claimable_seller);
+	let expected_claimable_buyer = 4950;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
+	
+	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	seller.claim_earnings(&mut runtime, U64(0), seller.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	let contract_balance: u128 = root.get_balance(&mut runtime, flux_protocol()).into();
+	assert_eq!(contract_balance, 0);
 }
 
 
 #[test]
 fn test_dynamically_priced_market_order_sale_for_loss_payout_valid() {
-	let (buyer, seller, mut contract) = partial_buy_order_fill_through_sale(40);
-	let one_dai = to_dai(1);
+	let (accounts, root, mut runtime) = partial_buy_order_fill_through_sale(40);
 
-	testing_env!(get_context(bob(), market_end_timestamp_ns()));
-	contract.resolute_market(0, Some(1), 5 * one_dai);
-	testing_env!(get_context(bob(), market_end_timestamp_ns() + 1800000000000));
-	contract.finalize_market(0, Some(1));
+	let buyer = &accounts[0];
+	let seller = &accounts[1]; 
 
-	let claimable_seller = contract.get_claimable(0, seller.to_string());
+	runtime.current_block().block_timestamp = market_end_timestamp_ns();
+	root.resolute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly");
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	root.finalize_market(&mut runtime, U64(0), Some(U64(1))).expect("market resolution failed unexpectedly");
+
+	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
+	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
+
 	let expected_claimable_seller = 0;
-	
-	let claimable_buyer = contract.get_claimable(0, buyer.to_string());
-	let expected_claimable_buyer = 51800;
-	
 	assert_eq!(claimable_seller, expected_claimable_seller);
+	let expected_claimable_buyer = 51800;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
+
+	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	let contract_balance: u128 = root.get_balance(&mut runtime, flux_protocol()).into();
+	assert_eq!(contract_balance, 0);
 }
 
 #[test]
 fn test_dynamically_priced_market_order_sale_for_loss_payout_invalid() {
-	let (buyer, seller, mut contract) = partial_buy_order_fill_through_sale(40);
-	let one_dai = to_dai(1);
+	let (accounts, root, mut runtime) = partial_buy_order_fill_through_sale(40);
 
-	testing_env!(get_context(bob(), market_end_timestamp_ns()));
-	contract.resolute_market(0, None, 5 * one_dai);
-	testing_env!(get_context(bob(), market_end_timestamp_ns() + 1800000000000));
-	contract.finalize_market(0, None);
+	let buyer = &accounts[0];
+	let seller = &accounts[1]; 
 
-	let claimable_seller = contract.get_claimable(0, seller.to_string());
+	runtime.current_block().block_timestamp = market_end_timestamp_ns();
+	root.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5))).expect("market resolution failed unexpectedly");
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	root.finalize_market(&mut runtime, U64(0), None).expect("market resolution failed unexpectedly");
+
+	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
+	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
+
 	let expected_claimable_seller = 11880;
-	
-	let claimable_buyer = contract.get_claimable(0, buyer.to_string());
-	let expected_claimable_buyer = 39600;
-	
 	assert_eq!(claimable_seller, expected_claimable_seller);
+	let expected_claimable_buyer = 39920;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
+
+	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	seller.claim_earnings(&mut runtime, U64(0), seller.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+
+	let contract_balance: u128 = root.get_balance(&mut runtime, flux_protocol()).into();
+	assert_eq!(contract_balance, 0);
 }
 
 #[test]
 fn test_dynamically_priced_market_order_sale_for_profit_payout_valid() {
-	let (buyer, seller, mut contract) = partial_buy_order_fill_through_sale(60);
-	let one_dai = to_dai(1);
+	let (accounts, root, mut runtime) = partial_buy_order_fill_through_sale(60);
 
-	testing_env!(get_context(bob(), market_end_timestamp_ns()));
-	contract.resolute_market(0, Some(1), 5 * one_dai);
-	testing_env!(get_context(bob(), market_end_timestamp_ns() + 1800000000000));
-	contract.finalize_market(0, Some(1));
+	let buyer = &accounts[0];
+	let seller = &accounts[1]; 
 
-	let claimable_seller = contract.get_claimable(0, seller.to_string());
-	let expected_claimable_seller = 0;
-	
-	let claimable_buyer = contract.get_claimable(0, buyer.to_string());
-	let expected_claimable_buyer = 67800;
-	
+	runtime.current_block().block_timestamp = market_end_timestamp_ns();
+	root.resolute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly");
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	root.finalize_market(&mut runtime, U64(0), Some(U64(1))).expect("market resolution failed unexpectedly");
+
+	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
+	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
+
+	let expected_claimable_seller = 1980;
 	assert_eq!(claimable_seller, expected_claimable_seller);
+	let expected_claimable_buyer = 67800;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
+
+	seller.claim_earnings(&mut runtime, U64(0), seller.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+
+	let contract_balance: u128 = root.get_balance(&mut runtime, flux_protocol()).into();
+	assert_eq!(contract_balance, 0);
 }
 
 #[test]
 fn test_dynamically_priced_market_order_sale_for_profit_payout_invalid() {
-	let (buyer, seller, mut contract) = partial_buy_order_fill_through_sale(60);
-	let one_dai = to_dai(1);
+	let (accounts, root, mut runtime) = partial_buy_order_fill_through_sale(60);
 
-	testing_env!(get_context(bob(), market_end_timestamp_ns()));
-	contract.resolute_market(0, None, 5 * one_dai);
-	testing_env!(get_context(bob(), market_end_timestamp_ns() + 1800000000000));
-	contract.finalize_market(0, None);
+	let buyer = &accounts[0];
+	let seller = &accounts[1]; 
 
-	let claimable_seller = contract.get_claimable(0, seller.to_string());
+	runtime.current_block().block_timestamp = market_end_timestamp_ns();
+	root.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5))).expect("market resolution failed unexpectedly");
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	root.finalize_market(&mut runtime, U64(0), None).expect("market resolution failed unexpectedly");
+
+	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
+	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
+
 	let expected_claimable_seller = 9900;
-	
-	let claimable_buyer = contract.get_claimable(0, buyer.to_string());
-	let expected_claimable_buyer = 59400;
-	
 	assert_eq!(claimable_seller, expected_claimable_seller);
+	let expected_claimable_buyer = 59880;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
+
+	seller.claim_earnings(&mut runtime, U64(0), seller.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+
+	let contract_balance: u128 = root.get_balance(&mut runtime, flux_protocol()).into();
+	assert_eq!(contract_balance, 0);
 }
 
 
