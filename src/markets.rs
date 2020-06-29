@@ -40,6 +40,7 @@ pub trait FluxProtocol {
     fn proceed_order_placement(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
     fn proceed_market_resolution(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
     fn proceed_market_dispute(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
+    fn proceed_affiliate_fee_claim(&mut self, account_id: String);
     // fn grant_fdai(&mut self, from: String);
     // fn check_sufficient_balance(&mut self, spend: U128);
     // fn update_fdai_metrics_claim(&mut self);
@@ -233,7 +234,7 @@ impl Markets {
 		assert!(env::predecessor_account_id() == order.creator);
 
 		let to_return = orderbook.remove_order(order_id);
-		env::log(format!("canceled order, refunding: {}", to_return).as_bytes());
+
 		return fun_token::transfer(env::predecessor_account_id(), to_return.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
     }
 
@@ -474,11 +475,12 @@ impl Markets {
 		account_id: String
 	) -> U128 {
 		let market_id: u64 = market_id.into();
-
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
+
 		let (winnings, left_in_open_orders, governance_earnings, _) = market.get_claimable_for(account_id.to_string());
 		let market_creator_fee = winnings * market.creator_fee_percentage / 100;
 		let resolution_fee = winnings * market.resolution_fee_percentage / 100;
+
 		return (winnings - market_creator_fee - resolution_fee + governance_earnings + left_in_open_orders).into();
 	}
 
@@ -490,10 +492,10 @@ impl Markets {
 	) {
 		let market_id: u64 = market_id.into();
 		let market = self.markets.get_mut(&market_id).expect("market doesn't exist");
+		let market_creator = market.creator.to_string();
 		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
 		assert_eq!(market.resoluted, true);
 		assert_eq!(market.finalized, true);
-
 		
 		let (winnings, left_in_open_orders, governance_earnings, affiliates) = market.get_claimable_for(account_id.to_string());
 		let mut market_creator_fee = winnings * market.creator_fee_percentage / 100;
@@ -512,21 +514,20 @@ impl Markets {
 			self.affiliate_earnings
 			.entry(affiliate_account_id)
 			.and_modify(|balance| {
-				*balance += amount_owed;
+				*balance += affiliate_owed;
 			})
-			.or_insert(amount_owed);
+			.or_insert(affiliate_owed);
 		}
 
+		let total_fee = market_creator_fee + paid_to_affiliates + resolution_fee;
+		let to_claim = winnings + governance_earnings + left_in_open_orders;		
+		let earnings = to_claim - total_fee;
 		
-		let earnings = winnings - market_creator_fee - paid_to_affiliates - resolution_fee + governance_earnings + left_in_open_orders;
 		if earnings == 0 {panic!("can't claim 0 tokens")}
-		// make sure that everything is claimed successfuly in test coverage
-		// Best way to solve this is have both these transfers in batch - if one fails both shoud revert.
-		// If reverted this tx should revert all changes too 
 
 		if market_creator_fee > 0 {
 			fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
-				fun_token::transfer(account_id.to_string(), U128(market_creator_fee), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
+				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
 			);
 		} else {
 			fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
@@ -534,18 +535,48 @@ impl Markets {
 		
 	}
 
-	// TODO
 	pub fn claim_affiliate_earnings(
 		&mut self,
 		account_id: String
-	) {
+	) -> Promise {
+		let affiliate_earnings = *self.affiliate_earnings.get(&account_id).expect("account doesn't have any affiliate fees to collect");
+		if affiliate_earnings > 0 {
+			return fun_token::transfer(account_id.to_string(), U128(affiliate_earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
+				flux_protocol::proceed_affiliate_fee_claim(account_id, &env::current_account_id(), 0, SINGLE_CALL_GAS),
+			);
+		} else {
+			panic!("account doesn't have any affiliate fees to collect");
+		}	
+	}
 
+	pub fn proceed_affiliate_fee_claim(
+		&mut self,
+		account_id: String
+	) -> PromiseOrValue<bool> {
+		self.assert_self();
+		let transfer_succeeded = self.is_promise_success();
+		if !transfer_succeeded { panic!("affilaite fee payout transfer tx failed failed"); }
+		
+		*self.affiliate_earnings.get_mut(&account_id).expect("account doesn't have any affiliate fees to collect") = 0;
+
+		return PromiseOrValue::Value(true);
 	}
 
 	pub fn get_all_markets(
 		&self
 	) -> &BTreeMap<u64, Market> {
 		return &self.markets;
+	}
+
+	pub fn get_market_volume(
+		&self,
+		market_id: U64
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		return self.markets
+		.get(&market_id)
+		.expect("market doesn't exist")
+		.filled_volume.into();
 	}
 
 	pub fn get_markets_by_id(
@@ -558,38 +589,43 @@ impl Markets {
 		}
 		return markets;
 	}
-
-	pub fn get_specific_markets(
-		&self, 
-		market_ids: Vec<u64>
-	) -> BTreeMap<u64, &Market> {
-		let mut markets = BTreeMap::new();
-		for market_id in 0..market_ids.len() {
-			markets.insert(market_id as u64, self.markets.get(&(market_id as u64)).unwrap());
-		}
-		return markets;
-	}
 	
-	fn dynamic_market_sell(
+	pub fn dynamic_market_sell(
 		&mut self,
-		market_id: u64,
-		outcome: u64,
-		shares: u128,
+		market_id: U64,
+		outcome: U64,
+		shares: U128,
+	// ) -> Promise{
 	) {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		let shares: u128 = shares.into();
+
 		assert!(shares > 0, "can't sell no shares");
+
 		let market = self.markets.get_mut(&market_id).expect("non existent market");
-		let earnings = market.dynamic_market_sell(outcome, shares);
-		self.add_balance(earnings, env::predecessor_account_id());
+		let earnings = market.dynamic_market_sell_internal(outcome, shares);
+		let market_creator_fee = earnings * market.creator_fee_percentage / 100;
+		let resolution_fee = earnings * market.resolution_fee_percentage / 100;
+		let fees = market_creator_fee + resolution_fee;
+
+		fun_token::transfer(env::predecessor_account_id(), U128(earnings - fees), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 	}
 
-	fn get_market_sell_depth(
+	pub fn get_market_sell_depth(
 		&self, 
-		market_id: u64,
-		outcome: u64,
-		shares: u128,
-	) -> (u128, u128) {
+		market_id: U64,
+		outcome: U64,
+		shares: U128,
+	) -> (U128, U128) {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		let shares: u128 = shares.into();
+
 		let market = self.markets.get(&market_id).expect("non existent market");
-		return market.get_dynamic_market_sell_offer(outcome, shares);
+		let (spendable, shares_fillabe) = market.get_dynamic_market_sell_offer(outcome, shares);
+
+		return (spendable.into(), shares_fillabe.into());
 	}
 
 	pub fn get_outcome_share_balance(
@@ -828,14 +864,14 @@ mod tests {
 		return (runtime, root, accounts);
 	}
 
-	// mod init_tests;
-	// mod market_order_tests;
-	// mod binary_order_matching_tests;
-	// mod categorical_market_tests;
-	// mod market_depth_tests;
-	// mod claim_earnings_tests;
+	mod init_tests;
+	mod market_order_tests;
+	mod binary_order_matching_tests;
+	mod categorical_market_tests;
+	mod market_depth_tests;
+	mod claim_earnings_tests;
 	mod market_dispute_tests;
-	// mod market_resolution_tests;
-	// mod fee_payout_tests;
-	// mod order_sale_tests;
+	mod market_resolution_tests;
+	mod fee_payout_tests;
+	mod order_sale_tests;
 }

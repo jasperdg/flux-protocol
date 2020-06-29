@@ -105,7 +105,7 @@ impl Market {
 		}
 	}
 
-	pub fn dynamic_market_sell(
+	pub fn dynamic_market_sell_internal(
 		&mut self,
 		outcome: u64,
 		shares_to_sell: u128
@@ -126,7 +126,8 @@ impl Market {
 			if shares_sought > shares_fillable {
 				spendable += shares_fillable * best_price;
 				claimable_if_valid += orderbook.subtract_shares(shares_fillable, best_price);
-				orderbook.fill_best_orders(shares_to_sell);
+				let volume_filled = orderbook.fill_best_orders(shares_to_sell);
+				self.filled_volume += volume_filled;
 			} else {
 				shares_fillable -= shares_sought;
 				spendable += liq_at_price;
@@ -144,8 +145,10 @@ impl Market {
 			*claimable += claimable_if_valid;
 		})
 		.or_insert(claimable_if_valid);
+		
+		let volume_filled = orderbook.fill_best_orders(shares_to_sell - shares_fillable);
+		self.filled_volume += volume_filled;
 
-		orderbook.fill_best_orders(shares_to_sell - shares_fillable);
 		return spendable - claimable_if_valid;
 	}
 
@@ -452,10 +455,12 @@ impl Market {
 			let winning_orderbook = self.orderbooks.get(&self.to_numerical_outcome(self.winning_outcome)).unwrap();
 			let (winning_value, affiliate_map) = winning_orderbook.calc_claimable_amt(account_id.to_string());
 			affiliates = affiliate_map;
-			winnings += winning_value;
+			let claimable_if_valid = *self.claimable_if_valid.get(&account_id.to_string()).unwrap_or(&0);
+			winnings += winning_value + claimable_if_valid;
 		}
 
 		// Claiming Dispute Earnings
+	
         let governance_earnings = self.get_dispute_earnings(account_id.to_string());
 		return (winnings, in_open_orders, governance_earnings, affiliates);
 	}
@@ -662,6 +667,13 @@ impl Market {
 		&mut self, 
 		account_id: String
 	) {
+		self.claimable_if_valid
+		.entry(account_id.to_string())
+		.and_modify(|claimable| {
+			*claimable = 0;
+		})
+		.or_insert(0);
+
 		for orderbook_id in 0..self.outcomes {
 			let orderbook = self.orderbooks.get_mut(&orderbook_id).unwrap();
 			orderbook.delete_orders_for(account_id.to_string());

@@ -153,16 +153,18 @@ impl Orderbook {
 	pub fn fill_best_orders(
 		&mut self, 
 		mut amt_of_shares_to_fill: u128
-	) {
+	) -> u128 {
 	    let mut to_remove : Vec<(u128, u128)> = vec![];
-
+		let mut filled_for_matches = 0;
 		if let Some(( _ , current_order_map)) = self.orders_by_price.iter_mut().next() {
 			// Iteratively fill market orders until done
             for (order_id, _) in current_order_map.iter_mut() {
 				let order = self.open_orders.get_mut(&order_id).unwrap();
-                if amt_of_shares_to_fill > 0 {
+                if amt_of_shares_to_fill > 0 {					
                     let shares_remaining_in_order = order.amt_of_shares - order.shares_filled;
 					let filling = cmp::min(shares_remaining_in_order, amt_of_shares_to_fill);
+					
+					filled_for_matches += filling * order.price;
 
 					*self.liquidity_by_price.entry(order.price).or_insert(0) -= filling * order.price;
 
@@ -184,6 +186,8 @@ impl Orderbook {
 		for entry in to_remove {
 		    self.remove_order(entry.0);
 		}
+
+		return filled_for_matches;
 	}
 
 	fn get_mut_order_by_id(&mut self, order_id: &u128) -> &mut Order {
