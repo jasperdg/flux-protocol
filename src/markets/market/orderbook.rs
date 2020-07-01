@@ -1,5 +1,4 @@
 use near_sdk::{
-	near_bindgen, 
 	env,
 	collections::{
 		UnorderedMap,
@@ -9,7 +8,6 @@ use near_sdk::{
 };
 use std::cmp;
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
 pub mod order;
@@ -139,7 +137,7 @@ impl Orderbook {
 		
 		let spend_by_user = self.spend_by_user.get(&order.creator).unwrap() - outstanding_spend;
 		self.spend_by_user.insert(&order.creator, &spend_by_user);
-		
+
 		let liq_at_price = self.liquidity_by_price.get(&order.price).unwrap_or(0) - outstanding_spend;
 		self.liquidity_by_price.insert(&order.price, &liq_at_price);
 		
@@ -174,9 +172,7 @@ impl Orderbook {
 		
         if orders_at_price.is_empty() {
 			self.orders_by_price.remove(&order.price);
-
-			self.orders_by_price.insert(&order.price, &orders_at_price);
-            if let Some((min_key, _ )) = self.orders_by_price.iter().next() {
+			if let Some((min_key, _ )) = self.orders_by_price.iter().next() {
 				self.best_price = Some(min_key);
             } else {
 				self.best_price = None;
@@ -197,9 +193,9 @@ impl Orderbook {
 			// Iteratively fill market orders until done
             for (order_id, _) in current_order_map.iter() {
 				let mut order = self.open_orders.get(&order_id).unwrap();
-
+				
                 if amt_of_shares_to_fill > 0 {					
-                    let shares_remaining_in_order = order.amt_of_shares - order.shares_filled;
+					let shares_remaining_in_order = order.amt_of_shares - order.shares_filled;
 					let filling = cmp::min(shares_remaining_in_order, amt_of_shares_to_fill);
 					
 					filled_for_matches += filling * order.price;
@@ -212,7 +208,7 @@ impl Orderbook {
 
                     if order.spend - order.filled < 100 { // some rounding errors here might cause some stack overflow bugs that's why this is build in.
                         to_remove.push((order_id, order.price));
-                        self.filled_orders.insert(&order.id, &order);
+						self.open_orders.insert(&order.id, &order);
                     } else {
 						self.open_orders.insert(&order.id, &order);
 					}
@@ -222,7 +218,7 @@ impl Orderbook {
                 }
             }
 		}
-
+		
 		for entry in to_remove {
 		    self.remove_order(entry.0);
 		}
@@ -406,32 +402,29 @@ impl Orderbook {
 		&self,
 		account_id: String
 	) -> u128 {
-	// 	let empty_vec: &Vec<u128> = &vec![];
-	// 	let orders_by_user = self.orders_by_user.get(&account_id).unwrap_or(empty_vec);
+		let orders_by_user = self.orders_by_user.get(&account_id).unwrap_or(Vector::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
 
-	// 	let mut balance = 0;
-	// 	for order_id in orders_by_user {
-	// 		let order = self.open_orders
-	// 		.get(&order_id)
-	// 		.unwrap_or_else(| | {
-	// 			return  self.filled_orders.get(&order_id).expect("order with this id doesn't seem to exist")
-	// 		});
-	// 		balance += order.shares_filled;
-	// 	}
-	// 	return balance;
-		return 0;
+		let mut balance = 0;
+		for order_id in orders_by_user.iter() {
+			let order = self.open_orders
+			.get(&order_id)
+			.unwrap_or_else(| | {
+				return  self.filled_orders.get(&order_id).expect("order with this id doesn't seem to exist")
+			});
+			balance += order.shares_filled;
+		}
+		return balance;
 	}
 
 	pub fn get_liquidity_at_price(
 		&self, 
 		price: u128
 	) -> u128 {
-	// 	let spend_liquidity = *self.liquidity_by_price.get(&price).unwrap_or(&0);
-	// 	if spend_liquidity == 0 {
-	// 		return 0
-	// 	} else {
-	// 		return spend_liquidity / price;
-	// 	}
-		return 0;
+		let spend_liquidity = self.liquidity_by_price.get(&price).unwrap_or(0);
+		if spend_liquidity == 0 {
+			return 0
+		} else {
+			return spend_liquidity / price;
+		}
 	}
 }

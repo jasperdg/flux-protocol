@@ -1,5 +1,6 @@
 use std::string::String;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
+use std::ops::Bound::*;
 use near_sdk::{
 	near_bindgen, 
 	env,
@@ -10,15 +11,15 @@ use near_sdk::{
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 
-// #[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize, Debug)]
-// pub struct ResolutionWindow {
-// 	pub round: u64,
-// 	pub participants_to_outcome_to_stake: HashMap<String, HashMap<u64, u128>>, // Account to outcome to stake
-// 	pub required_bond_size: u128,
-// 	pub staked_per_outcome: HashMap<u64, u128>, // Staked per outcome
-// 	pub end_time: u64,
-// 	pub outcome: Option<u64>,
-// }
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
+pub struct ResolutionWindow {
+	pub round: u64,
+	pub participants_to_outcome_to_stake: HashMap<String, HashMap<u64, u128>>, // Account to outcome to stake
+	pub required_bond_size: u128,
+	pub staked_per_outcome: HashMap<u64, u128>, // Staked per outcome
+	pub end_time: u64,
+	pub outcome: Option<u64>,
+}
 
 pub mod orderbook;
 type Orderbook = orderbook::Orderbook;
@@ -36,7 +37,7 @@ pub struct Market {
 	pub categories: Vec<String>,
 	pub creation_time: u64,
 	pub end_time: u64,
-	pub orderbooks: TreeMap<u64, orderbook::Orderbook>,
+	pub orderbooks: UnorderedMap<u64, orderbook::Orderbook>,
 	pub winning_outcome: Option<u64>, // invalid has outcome id: self.outcomes
 	pub resoluted: bool,
 	pub resolute_bond: u128,
@@ -46,7 +47,7 @@ pub struct Market {
 	pub creator_fee_percentage: u128,
 	pub resolution_fee_percentage: u128,
 	pub affiliate_fee_percentage: u128,
-	pub claimable_if_valid: HashMap<String, u128>,
+	pub claimable_if_valid: UnorderedMap<String, u128>,
 	pub api_source: String,
 	// pub resolution_windows: Vec<ResolutionWindow>
 }
@@ -66,7 +67,7 @@ impl Market {
 		affiliate_fee_percentage: u128,
 		api_source: String
 	) -> Self {
-		let mut empty_orderbooks = TreeMap::new(format!("market:{}:orderbooks", id).as_bytes().to_vec());
+		let mut empty_orderbooks = UnorderedMap::new(format!("market:{}:orderbooks", id).as_bytes().to_vec());
 
 		for i in 0..outcomes {
 			empty_orderbooks.insert(&i, &Orderbook::new(id, i));
@@ -102,7 +103,7 @@ impl Market {
 			creator_fee_percentage,
 			resolution_fee_percentage,
 			affiliate_fee_percentage,
-			claimable_if_valid: HashMap::new(),
+			claimable_if_valid: UnorderedMap::new(format!("market:{}:claimable_if_valid", id).as_bytes().to_vec()),
 			api_source,
 			// resolution_windows: vec![base_resolution_window]
 		}
@@ -211,10 +212,10 @@ impl Market {
 		let mut market_price = self.get_market_price_for(outcome);
 		if market_price > price { return (spend,0) }
 		let orderbook_ids = self.get_inverse_orderbook_ids(outcome);
-
+		env::log(b"matches found");
 		let mut shares_filled = 0;
 		let mut spendable = spend;
-
+		
 		while spendable > 100 && market_price <= price {
 			let mut shares_to_fill = spendable / market_price;
 			let shares_fillable = self.get_min_shares_fillable(outcome);
@@ -226,7 +227,7 @@ impl Market {
 				let mut orderbook = self.orderbooks.get(&orderbook_id).expect("orderbook with this id doesn't exist");
 				if !orderbook.best_price.is_none() {
 					orderbook.fill_best_orders(shares_to_fill);
-					self.orderbooks.insert(&&orderbook_id, &orderbook);
+					self.orderbooks.insert(&orderbook_id, &orderbook);
 				}
 			}
 
@@ -256,11 +257,11 @@ impl Market {
 
 	pub fn get_market_prices_for(
 		&self
-	) -> BTreeMap<u64, u128> {
-		let mut market_prices: BTreeMap<u64, u128> = BTreeMap::new();
+	) -> TreeMap<u64, u128> {
+		let mut market_prices: TreeMap<u64, u128> = TreeMap::new(format!("market_prices:{}", self.id).as_bytes().to_vec());
 		for outcome in 0..self.outcomes {
 			let market_price = self.get_market_price_for(outcome);
-			market_prices.insert(outcome, market_price);
+			market_prices.insert(&outcome, &market_price);
 		}
 		return market_prices;
 	}
@@ -305,56 +306,56 @@ impl Market {
 	// 	return outcome.unwrap_or(self.outcomes);
 	// }
 
-	// pub fn resolute(
-	// 	&mut self,
-	// 	sender: String,
-	// 	winning_outcome: Option<u64>, 
-	// 	stake: u128
-	// ) -> u128 {
-	// 	assert!(env::block_timestamp() / 1000000 >= self.end_time, "market hasn't ended yet");
-	// 	assert_eq!(self.resoluted, false, "market is already resoluted");
-	// 	assert_eq!(self.finalized, false, "market is already finalized");
-	// 	assert!(winning_outcome == None || winning_outcome.unwrap() < self.outcomes, "invalid winning outcome");
-	// 	let outcome_id = self.to_numerical_outcome(winning_outcome);
-	// 	let resolution_window = self.resolution_windows.last_mut().expect("no resolute window exists, something went wrong at creation");
-	// 	assert_eq!(resolution_window.round, 0, "can only resolute once");
+	pub fn resolute(
+		&mut self,
+		sender: String,
+		winning_outcome: Option<u64>, 
+		stake: u128
+	) -> u128 {
+		assert!(env::block_timestamp() / 1000000 >= self.end_time, "market hasn't ended yet");
+		assert_eq!(self.resoluted, false, "market is already resoluted");
+		assert_eq!(self.finalized, false, "market is already finalized");
+		assert!(winning_outcome == None || winning_outcome.unwrap() < self.outcomes, "invalid winning outcome");
+		let outcome_id = self.to_numerical_outcome(winning_outcome);
+		let resolution_window = self.resolution_windows.last_mut().expect("no resolute window exists, something went wrong at creation");
+		assert_eq!(resolution_window.round, 0, "can only resolute once");
 		
-	// 	let mut to_return = 0;
-	// 	let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(&0);
+		let mut to_return = 0;
+		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(&0);
 
-	// 	if stake + staked_on_outcome >= self.resolute_bond {
-	// 		to_return = stake + staked_on_outcome - self.resolute_bond;
-	// 		self.winning_outcome = winning_outcome;
-	// 		self.resoluted = true;
-	// 	} 
+		if stake + staked_on_outcome >= self.resolute_bond {
+			to_return = stake + staked_on_outcome - self.resolute_bond;
+			self.winning_outcome = winning_outcome;
+			self.resoluted = true;
+		} 
 
-	// 	resolution_window.participants_to_outcome_to_stake
-	// 	.entry(sender)
-	// 	.or_insert(HashMap::new())
-	// 	.entry(outcome_id)
-	// 	.and_modify(|staked| {*staked += stake - to_return})
-	// 	.or_insert(stake);
+		resolution_window.participants_to_outcome_to_stake
+		.entry(sender)
+		.or_insert(HashMap::new())
+		.entry(outcome_id)
+		.and_modify(|staked| {*staked += stake - to_return})
+		.or_insert(stake);
 
-	// 	resolution_window.staked_per_outcome
-	// 	.entry(outcome_id)
-	// 	.and_modify(|total_staked| {*total_staked += stake - to_return})
-	// 	.or_insert(stake);
+		resolution_window.staked_per_outcome
+		.entry(outcome_id)
+		.and_modify(|total_staked| {*total_staked += stake - to_return})
+		.or_insert(stake);
 		
-	// 	if self.resoluted {
-	// 		resolution_window.outcome = winning_outcome;
-	// 		let new_resolution_window = ResolutionWindow {
-	// 			round: resolution_window.round + 1,
-	// 			participants_to_outcome_to_stake: HashMap::new(),
-	// 			required_bond_size: resolution_window.required_bond_size * 2,
-	// 			staked_per_outcome: HashMap::new(), // Staked per outcome
-	// 			end_time: env::block_timestamp() / 1000000 + 1800000, // 30 nano minutes should be 30 minutes
-	// 			outcome: None,
-	// 		};
-	// 		self.resolution_windows.push(new_resolution_window);
-	// 	} 
+		if self.resoluted {
+			resolution_window.outcome = winning_outcome;
+			let new_resolution_window = ResolutionWindow {
+				round: resolution_window.round + 1,
+				participants_to_outcome_to_stake: HashMap::new(),
+				required_bond_size: resolution_window.required_bond_size * 2,
+				staked_per_outcome: HashMap::new(), // Staked per outcome
+				end_time: env::block_timestamp() / 1000000 + 1800000, // 30 nano minutes should be 30 minutes
+				outcome: None,
+			};
+			self.resolution_windows.push(new_resolution_window);
+		} 
 
-	// 	return to_return;
-	// }
+		return to_return;
+	}
 
 	// pub fn dispute(
 	// 	&mut self, 
@@ -557,112 +558,112 @@ impl Market {
 	// 	return profit + user_correctly_staked + resolution_reward;
 	// }
 
-    // // Updates the best price for an order once initial best price is filled
-	// fn update_next_best_price(
-	// 	&self, 
-	// 	inverse_orderbook_ids: &Vec<u64>, 
-	// 	first_iteration: &bool, 
-	// 	outcome_to_price_share_pointer: &mut HashMap<u64, (u128, u128)>, 
-	// 	best_order_exists: &mut bool, 
-	// 	market_price: &mut u128, 
-	// 	lowest_liquidity: &u128
-	// ) {
-	//     for orderbook_id in inverse_orderbook_ids {
-    //         let orderbook = self.orderbooks.get(&orderbook_id).unwrap();
-    //         if !first_iteration {
-    //             if outcome_to_price_share_pointer.get_mut(orderbook_id).is_none() {continue}
-    //             outcome_to_price_share_pointer.get_mut(orderbook_id).unwrap().1 -= lowest_liquidity;
-    //             let price_liquidity = outcome_to_price_share_pointer.get(orderbook_id).unwrap();
-    //             let liquidity = price_liquidity.1;
+    // Updates the best price for an order once initial best price is filled
+	fn update_next_best_price(
+		&self, 
+		inverse_orderbook_ids: &Vec<u64>, 
+		first_iteration: &bool, 
+		outcome_to_price_share_pointer: &mut HashMap<u64, (u128, u128)>, 
+		best_order_exists: &mut bool, 
+		market_price: &mut u128, 
+		lowest_liquidity: &u128
+	) {
+	    for orderbook_id in inverse_orderbook_ids {
+            let orderbook = self.orderbooks.get(&orderbook_id).unwrap();
+            if !first_iteration {
+                if outcome_to_price_share_pointer.get_mut(orderbook_id).is_none() {continue}
+                outcome_to_price_share_pointer.get_mut(orderbook_id).unwrap().1 -= lowest_liquidity;
+                let price_liquidity = outcome_to_price_share_pointer.get(orderbook_id).unwrap();
+                let liquidity = price_liquidity.1;
 
-    //             if liquidity == 0 {
-    //                 // get next best price
-    //                 let next_best_price_prom = orderbook.orders_by_price.range(0..price_liquidity.0 - 1).next();
+                if liquidity == 0 {
+                    // get next best price
+                    let next_best_price_prom = orderbook.orders_by_price.lower(&price_liquidity.0);
 
-    //                 if next_best_price_prom.is_none() {
-    //                     outcome_to_price_share_pointer.remove(orderbook_id);
-    //                     continue;
-    //                 }
-    //                 *best_order_exists = true;
-    //                 let next_best_price = *next_best_price_prom.unwrap().0;
-    //                 let add_to_market_price =  price_liquidity.0 - next_best_price;
-    //                 *market_price += add_to_market_price;
-    //                 outcome_to_price_share_pointer.insert(*orderbook_id, (next_best_price, orderbook.get_liquidity_at_price(next_best_price)));
-    //             }
-    //         }
-    //     }
-	// }
+                    if next_best_price_prom.is_none() {
+                        outcome_to_price_share_pointer.remove(orderbook_id);
+                        continue;
+                    }
+                    *best_order_exists = true;
+                    let next_best_price = next_best_price_prom.unwrap();
+                    let add_to_market_price =  price_liquidity.0 - next_best_price;
+                    *market_price += add_to_market_price;
+                    outcome_to_price_share_pointer.insert(*orderbook_id, (next_best_price, orderbook.get_liquidity_at_price(next_best_price)));
+                }
+            }
+        }
+	}
 
-    // // Updates the lowest liquidity available amongst best prices
-	// fn update_lowest_liquidity(
-	// 	&self, 
-	// 	inverse_orderbook_ids: &Vec<u64>, 
-	// 	first_iteration: &bool, 
-	// 	lowest_liquidity: &mut u128, 
-	// 	outcome_to_price_share_pointer: &mut HashMap<u64, (u128, u128)>, 
-	// 	best_order_exists: &mut bool
-	// ) {
-	//     *best_order_exists = false;
-	//     for orderbook_id in inverse_orderbook_ids {
-    //         // Get lowest liquidity at new price
-    //         let orderbook = self.orderbooks.get(&orderbook_id).unwrap();
-    //         if *first_iteration {
-    //             let price = orderbook.best_price;
-    //             if price.is_none() {continue}
-    //             *best_order_exists = true;
-    //             let liquidity = orderbook.get_liquidity_at_price(price.unwrap());
-    //             outcome_to_price_share_pointer.insert(*orderbook_id, (price.unwrap(), liquidity));
-    //         }
-    //         if outcome_to_price_share_pointer.get(orderbook_id).is_none() {continue}
-    //         let liquidity = outcome_to_price_share_pointer.get(orderbook_id).unwrap().1;
-    //         if *lowest_liquidity == 0 {*lowest_liquidity = liquidity}
-    //         else if *lowest_liquidity > liquidity { *lowest_liquidity = liquidity}
+    // Updates the lowest liquidity available amongst best prices
+	fn update_lowest_liquidity(
+		&self, 
+		inverse_orderbook_ids: &Vec<u64>, 
+		first_iteration: &bool, 
+		lowest_liquidity: &mut u128, 
+		outcome_to_price_share_pointer: &mut HashMap<u64, (u128, u128)>, 
+		best_order_exists: &mut bool
+	) {
+	    *best_order_exists = false;
+	    for orderbook_id in inverse_orderbook_ids {
+            // Get lowest liquidity at new price
+            let orderbook = self.orderbooks.get(&orderbook_id).unwrap();
+            if *first_iteration {
+                let price = orderbook.best_price;
+                if price.is_none() {continue}
+                *best_order_exists = true;
+                let liquidity = orderbook.get_liquidity_at_price(price.unwrap());
+                outcome_to_price_share_pointer.insert(*orderbook_id, (price.unwrap(), liquidity));
+            }
+            if outcome_to_price_share_pointer.get(orderbook_id).is_none() {continue}
+            let liquidity = outcome_to_price_share_pointer.get(orderbook_id).unwrap().1;
+            if *lowest_liquidity == 0 {*lowest_liquidity = liquidity}
+            else if *lowest_liquidity > liquidity { *lowest_liquidity = liquidity}
 
-    //     }
-	// }
+        }
+	}
 
-	// // TODO: Add get_liquidity function that doesn't need the spend argument
-	// pub fn get_liquidity_available(
-	// 	&self, 
-	// 	outcome: u64, 
-	// 	spend: u128, 
-	// 	price: u128
-	// ) -> u128 {
-	// 	let inverse_orderbook_ids = self.get_inverse_orderbook_ids(outcome);
-	// 	// Mapped outcome to price and liquidity left
-	// 	let mut outcome_to_price_share_pointer: HashMap<u64,  (u128, u128)> = HashMap::new();
-	// 	let mut max_spend = 0;
-	// 	let mut max_shares = 0;
-	// 	let mut market_price = self.get_market_price_for(outcome);
-	// 	let mut best_order_exists = true;
-	// 	let mut lowest_liquidity = 0;
-	// 	let mut first_iteration = true;
+	// TODO: Add get_liquidity function that doesn't need the spend argument
+	pub fn get_liquidity_available(
+		&self, 
+		outcome: u64, 
+		spend: u128, 
+		price: u128
+	) -> u128 {
+		let inverse_orderbook_ids = self.get_inverse_orderbook_ids(outcome);
+		// Mapped outcome to price and liquidity left
+		let mut outcome_to_price_share_pointer: HashMap<u64,  (u128, u128)> = HashMap::new();
+		let mut max_spend = 0;
+		let mut max_shares = 0;
+		let mut market_price = self.get_market_price_for(outcome);
+		let mut best_order_exists = true;
+		let mut lowest_liquidity = 0;
+		let mut first_iteration = true;
 
-	// 	while max_spend < spend && market_price <= price && best_order_exists {
-	// 		self.update_next_best_price(&inverse_orderbook_ids,
-	// 		&first_iteration,
-	// 		&mut outcome_to_price_share_pointer,
-	// 		&mut best_order_exists,
-	// 		&mut market_price,
-	// 		&lowest_liquidity);
+		while max_spend < spend && market_price <= price && best_order_exists {
+			self.update_next_best_price(&inverse_orderbook_ids,
+			&first_iteration,
+			&mut outcome_to_price_share_pointer,
+			&mut best_order_exists,
+			&mut market_price,
+			&lowest_liquidity);
 
-	// 		lowest_liquidity = 0;
-	// 		if market_price <= price {
-	// 			self.update_lowest_liquidity(
-	// 				&inverse_orderbook_ids,
-	// 				&first_iteration,
-	// 				&mut lowest_liquidity,
-    //             	&mut outcome_to_price_share_pointer,
-	// 				&mut best_order_exists
-	// 			);
-	// 			max_spend += lowest_liquidity * market_price;
-	// 			max_shares += lowest_liquidity;
-	// 		}
-	// 		first_iteration = false;
-	// 	}
+			lowest_liquidity = 0;
+			if market_price <= price {
+				self.update_lowest_liquidity(
+					&inverse_orderbook_ids,
+					&first_iteration,
+					&mut lowest_liquidity,
+                	&mut outcome_to_price_share_pointer,
+					&mut best_order_exists
+				);
+				max_spend += lowest_liquidity * market_price;
+				max_shares += lowest_liquidity;
+			}
+			first_iteration = false;
+		}
 
-	// 	return max_spend;
-	// }
+		return max_spend;
+	}
 
 
 	// pub fn reset_balances_for(
