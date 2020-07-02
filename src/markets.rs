@@ -208,7 +208,7 @@ impl Markets {
 			None => None
 		};
 		let stake_u128: u128 = stake.into();
-		let market = self.markets.get_mut(&market_id).expect("market doesn't exist");
+		let market = self.markets.get(&market_id).expect("market doesn't exist");
 		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
 		assert_eq!(market.resoluted, false, "market is already resoluted");
 		assert_eq!(market.finalized, false, "market is already finalized");
@@ -242,8 +242,9 @@ impl Markets {
 		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
 		env::log(format!("parent promise (transfer) was succesfull {}", stake).as_bytes());
 		
-		let market = self.markets.get_mut(&market_id).expect("market doesn't exist");
+		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		let change: u128 = market.resolute(sender.to_string(), winning_outcome, stake).into();
+		self.markets.insert(&market_id, &market);
 		if change > 0 {
 			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 			return PromiseOrValue::Promise(prom);
