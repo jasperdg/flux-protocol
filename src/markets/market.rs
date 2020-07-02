@@ -440,40 +440,39 @@ impl Market {
 	//     self.finalized = true;
 	// }
 
-	// // TODO: claimable should probably be renamed to something like: dispute earnings
-	// pub fn get_claimable_for(
-	// 	&self, 
-	// 	account_id: String
-	// ) -> (u128, u128, u128, HashMap<String, u128>) {
-	// 	let invalid = self.winning_outcome.is_none();
-	// 	let mut winnings = 0;
-	// 	let mut in_open_orders = 0;
-	// 	let mut affiliates: HashMap<String, u128> = HashMap::new();
-	// 	// Claiming payouts
-	// 	if invalid {
-	// 		for (_, orderbook) in self.orderbooks.iter() {
-	// 			in_open_orders += orderbook.get_open_order_value_for(account_id.to_string());
-	// 			let spent = orderbook.get_spend_by(account_id.to_string());
-	// 			winnings += spent; // market creator forfits his fee when market resolutes to invalid
-	// 		}
-	// 		winnings -= in_open_orders;
-	// 	} else {
-	// 		for (_, orderbook) in self.orderbooks.iter() {
-	// 			in_open_orders += orderbook.get_open_order_value_for(account_id.to_string());
-	// 		}
+	pub fn get_claimable_for(
+		&self, 
+		account_id: String
+	) -> (u128, u128, u128, HashMap<String, u128>) {
+		let invalid = self.winning_outcome.is_none();
+		let mut winnings = 0;
+		let mut in_open_orders = 0;
+		let mut affiliates: HashMap<String, u128> = HashMap::new();
+		// Claiming payouts
+		if invalid {
+			for (_, orderbook) in self.orderbooks.iter() {
+				in_open_orders += orderbook.get_open_order_value_for(account_id.to_string());
+				let spent = orderbook.get_spend_by(account_id.to_string());
+				winnings += spent; // market creator forfits his fee when market resolutes to invalid
+			}
+			winnings -= in_open_orders;
+		} else {
+			for (_, orderbook) in self.orderbooks.iter() {
+				in_open_orders += orderbook.get_open_order_value_for(account_id.to_string());
+			}
 
-	// 		let winning_orderbook = self.orderbooks.get(&self.to_numerical_outcome(self.winning_outcome)).unwrap();
-	// 		let (winning_value, affiliate_map) = winning_orderbook.calc_claimable_amt(account_id.to_string());
-	// 		affiliates = affiliate_map;
-	// 		let claimable_if_valid = *self.claimable_if_valid.get(&account_id.to_string()).unwrap_or(&0);
-	// 		winnings += winning_value + claimable_if_valid;
-	// 	}
+			let winning_orderbook = self.orderbooks.get(&self.to_numerical_outcome(self.winning_outcome)).unwrap();
+			let (winning_value, affiliate_map) = winning_orderbook.calc_claimable_amt(account_id.to_string());
+			affiliates = affiliate_map;
+			let claimable_if_valid = self.claimable_if_valid.get(&account_id.to_string()).unwrap_or(0);
+			winnings += winning_value + claimable_if_valid;
+		}
 
-	// 	// Claiming Dispute Earnings
+		// Claiming Dispute Earnings
 	
-    //     let governance_earnings = self.get_dispute_earnings(account_id.to_string());
-	// 	return (winnings, in_open_orders, governance_earnings, affiliates);
-	// }
+        let governance_earnings = self.get_dispute_earnings(account_id.to_string());
+		return (winnings, in_open_orders, governance_earnings, affiliates);
+	}
 
 	// pub fn cancel_dispute_participation(
 	// 	&mut self,
@@ -497,73 +496,72 @@ impl Market {
 	// 	return to_return;
 	// }
 
-	// fn get_dispute_earnings(
-	// 	&self, 
-	// 	account_id: String
-	// ) -> u128 {
-	// 	let mut user_correctly_staked = 0;
-	// 	let mut resolution_reward = 0;
-	// 	let mut total_correctly_staked = 0;
-	// 	let mut total_incorrectly_staked = 0;
+	fn get_dispute_earnings(
+		&self, 
+		account_id: String
+	) -> u128 {
+		let mut user_correctly_staked = 0;
+		let mut resolution_reward = 0;
+		let mut total_correctly_staked = 0;
+		let mut total_incorrectly_staked = 0;
 
-	// 	let winning_outcome_id = self.to_numerical_outcome(self.winning_outcome);
+		let winning_outcome_id = self.to_numerical_outcome(self.winning_outcome);
 			
-	// 	for window in &self.resolution_windows {
-	// 		// check if round - round 0 - which is the resolution round
-	// 		if window.round == 0 {
+		for window in self.resolution_windows.iter() {
+			// check if round - round 0 - which is the resolution round
+			if window.round == 0 {
 
-	// 			// Calculate how much the total fee payout will be 
-	// 			let total_resolution_fee = self.resolution_fee_percentage * self.filled_volume / 100;
-	// 			// Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome
-	// 			if self.winning_outcome == window.outcome {
-	// 				// check if the user participated in this outcome
-	// 				let resolution_participation = !window.participants_to_outcome_to_stake.get(&account_id).is_none();
+				// Calculate how much the total fee payout will be 
+				let total_resolution_fee = self.resolution_fee_percentage * self.filled_volume / 100;
+				// Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome
+				if self.winning_outcome == window.outcome {
+					// check if the user participated in this outcome
+					let resolution_participation = !window.participants_to_outcome_to_stake.get(&account_id).is_none();
 					
-	// 				if resolution_participation {
-	// 					// Check how much of the bond the user participated
-	// 					let correct_outcome_participation = window.participants_to_outcome_to_stake
-	// 					.get(&account_id)
-	// 					.unwrap()
-	// 					.get(&self.to_numerical_outcome(self.winning_outcome))
-	// 					.unwrap_or(&0);
+					if resolution_participation {
+						// Check how much of the bond the user participated
+						let correct_outcome_participation = window.participants_to_outcome_to_stake
+						.get(&account_id)
+						.unwrap()
+						.get(&self.to_numerical_outcome(self.winning_outcome))
+						.unwrap_or(0);
 
-	// 					if correct_outcome_participation > &0 {
-	// 						// calculate his relative share of the total_resolution_fee relative to his participation
-	// 						resolution_reward += total_resolution_fee * correct_outcome_participation * 100 / window.required_bond_size / 100 + correct_outcome_participation;
-	// 					}
+						if correct_outcome_participation > 0 {
+							// calculate his relative share of the total_resolution_fee relative to his participation
+							resolution_reward += total_resolution_fee * correct_outcome_participation * 100 / window.required_bond_size / 100 + correct_outcome_participation;
+						}
 						
-	// 				} 
-	// 			} else {
-	// 				// If the initial resolution bond wasn't staked on the correct outcome, devide the resolution fee amongst disputors
-	// 				total_incorrectly_staked += total_resolution_fee + window.required_bond_size;
-	// 			}
-	// 		} else {
-	// 			// If it isn't the first round calculate according to escalation game
-	// 			let empty_map = HashMap::new();
-	// 			let window_outcome_id = self.to_numerical_outcome(window.outcome);
+					} 
+				} else {
+					// If the initial resolution bond wasn't staked on the correct outcome, devide the resolution fee amongst disputors
+					total_incorrectly_staked += total_resolution_fee + window.required_bond_size;
+				}
+			} else {
+				// If it isn't the first round calculate according to escalation game
+				let window_outcome_id = self.to_numerical_outcome(window.outcome);
 
-	// 			if window_outcome_id == winning_outcome_id {
-	// 				let round_participation = window.participants_to_outcome_to_stake
-	// 				.get(&account_id)
-	// 				.unwrap_or(&empty_map)
-	// 				.get(&winning_outcome_id)
-	// 				.unwrap_or(&0);
+				if window_outcome_id == winning_outcome_id {
+					let round_participation = window.participants_to_outcome_to_stake
+					.get(&account_id)
+					.unwrap_or(UnorderedMap::new(format!("market:{}:staked_per_outcome:{}:{}", self.id, window.round + 1, account_id).as_bytes().to_vec()))
+					.get(&winning_outcome_id)
+					.unwrap_or(0);
 
-	// 				user_correctly_staked += round_participation;
-	// 				total_correctly_staked += window.required_bond_size;
-	// 			} else if window.outcome.is_some() {
-	// 				total_incorrectly_staked += window.required_bond_size;
+					user_correctly_staked += round_participation;
+					total_correctly_staked += window.required_bond_size;
+				} else if window.outcome.is_some() {
+					total_incorrectly_staked += window.required_bond_size;
 				 
-	// 			}
-	// 		}
-	// 	}
+				}
+			}
+		}
 
-	// 	if total_correctly_staked == 0 {return resolution_reward}
+		if total_correctly_staked == 0 {return resolution_reward}
 	
-	// 	let percentage_earnigns = user_correctly_staked * 100 / total_correctly_staked;
-	// 	let profit = percentage_earnigns * total_incorrectly_staked / 100;
-	// 	return profit + user_correctly_staked + resolution_reward;
-	// }
+		let percentage_earnigns = user_correctly_staked * 100 / total_correctly_staked;
+		let profit = percentage_earnigns * total_incorrectly_staked / 100;
+		return profit + user_correctly_staked + resolution_reward;
+	}
 
     // Updates the best price for an order once initial best price is filled
 	fn update_next_best_price(
@@ -673,39 +671,36 @@ impl Market {
 	}
 
 
-	// pub fn reset_balances_for(
-	// 	&mut self, 
-	// 	account_id: String
-	// ) {
-	// 	self.claimable_if_valid
-	// 	.entry(account_id.to_string())
-	// 	.and_modify(|claimable| {
-	// 		*claimable = 0;
-	// 	})
-	// 	.or_insert(0);
+	pub fn reset_balances_for(
+		&mut self, 
+		account_id: String
+	) {
+		self.claimable_if_valid.insert(&account_id, &0);
 
-	// 	for orderbook_id in 0..self.outcomes {
-	// 		let orderbook = self.orderbooks.get_mut(&orderbook_id).unwrap();
-	// 		orderbook.delete_orders_for(account_id.to_string());
-	// 	}
-	// }
+		for orderbook_id in 0..self.outcomes {
+			let mut orderbook = self.orderbooks.get(&orderbook_id).unwrap();
+			orderbook.delete_orders_for(account_id.to_string());
+		}
+	}
 
-	// pub fn delete_resolution_for(
-	// 	&mut self,
-	// 	account_id: String,
-	// ) {
-	// 	let outcome_id = self.to_numerical_outcome(self.winning_outcome);
-	// 	for window in &mut self.resolution_windows {
-	// 		window.participants_to_outcome_to_stake
-	// 		.entry(account_id.to_string())
-	// 		.or_insert(HashMap::new())
-	// 		.entry(outcome_id)
-	// 		.and_modify(|staked| {
-	// 			*staked = 0
-	// 		})
-	// 		.or_insert(0);
-	// 	}
-	// }
+	pub fn delete_resolution_for(
+		&mut self,
+		account_id: String,
+	) {
+		let mut to_update: Vec<ResolutionWindow> = vec![];
+		for mut window in self.resolution_windows.iter() {
+			let staked_per_outcome = window.participants_to_outcome_to_stake.get(&account_id);
+			if staked_per_outcome.is_none() {continue;}
+
+			// TODO this needs to change else we won't be able to withdraw unstaked funds after claiming funds initially
+			window.participants_to_outcome_to_stake.insert(&account_id, &UnorderedMap::new(format!("user_empty_participation:{}:{}:{}", account_id, self.id, window.round).as_bytes().to_vec()));
+			to_update.push(window);	
+		}
+
+		for window in to_update {
+			self.resolution_windows.replace(window.round, &window);
+		}
+	}
 }
 
 impl Default for Market {

@@ -6,9 +6,12 @@ use near_sdk::{
 		Vector
 	}
 };
-use std::cmp;
+use std::{
+	cmp,
+	convert::TryInto,
+	collections::HashMap
+};
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::convert::TryInto;
 
 pub mod order;
 pub type Order = order::Order;
@@ -24,7 +27,7 @@ pub struct Orderbook {
 	pub orders_by_price: TreeMap<u128, UnorderedMap<u128, bool>>,
 	pub liquidity_by_price: TreeMap<u128, u128>,
 	pub orders_by_user: UnorderedMap<String, Vector<u128>>,
-	pub claimed_orders_by_user: UnorderedMap<String, Vec<u128>>,
+	pub claimed_orders_by_user: UnorderedMap<String, Vector<u128>>,
 	pub nonce: u128,
 	pub outcome_id: u64
 }
@@ -297,58 +300,53 @@ impl Orderbook {
 	// 	return claimable_if_valid;
 	// }
 
-	// pub fn calc_claimable_amt(
-	// 	&self, 
-	// 	account_id: String
-	// ) -> (u128, HashMap<String, u128>) {
-	// 	let mut claimable = 0;
-	// 	let empty_vec: Vec<u128> = vec![];
-	// 	let orders_by_user_vec = self.orders_by_user.get(&account_id).unwrap_or(&empty_vec);
-	// 	let mut affiliates: HashMap<String, u128> = HashMap::new();
-	// 	for i in 0..orders_by_user_vec.len() {
-	// 		let order = self.open_orders
-	// 		.get(&orders_by_user_vec[i])
-	// 		.unwrap_or_else(|| {
-	// 			return self.filled_orders
-	// 			.get(&orders_by_user_vec[i])
-	// 			.expect("Order by user doesn't seem to exist");
-	// 		});
+	pub fn calc_claimable_amt(
+		&self, 
+		account_id: String
+	) -> (u128, HashMap<String, u128>) {
+		let mut claimable = 0;
+		let empty_vec: Vec<u128> = vec![];
+		let orders_by_user_vec = self.orders_by_user.get(&account_id).unwrap_or(Vector::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
+		let mut affiliates: HashMap<String, u128> = HashMap::new();
+		for i in 0..orders_by_user_vec.len() {
+			let order = self.open_orders
+			.get(&orders_by_user_vec.get(i).expect("this index doesn't exist"))
+			.unwrap_or_else(|| {
+				return self.filled_orders
+				.get(&orders_by_user_vec.get(i).expect("this index ddoesn't exist"))
+				.expect("Order by user doesn't seem to exist");
+			});
 			
-	// 		// If there is in fact an affiliate connected to this order
-	// 		if !order.affiliate_account_id.is_none() {
-	// 			let affiliate_account = order.affiliate_account_id.as_ref().unwrap();
-	// 			affiliates
-	// 			.entry(affiliate_account.to_string())
-	// 			.and_modify(|balance| {
-	// 				*balance += order.shares_filled * 100;
-	// 			})
-	// 			.or_insert(order.shares_filled * 100);
-	// 		}
-	// 		claimable += order.shares_filled * 100;
-	// 	}
+			// If there is in fact an affiliate connected to this order
+			if !order.affiliate_account_id.is_none() {
+				let affiliate_account = order.affiliate_account_id.as_ref().unwrap();
+				affiliates
+				.entry(affiliate_account.to_string())
+				.and_modify(|balance| {
+					*balance += order.shares_filled * 100;
+				})
+				.or_insert(order.shares_filled * 100);
+			}
+			claimable += order.shares_filled * 100;
+		}
 
-	// 	return (claimable, affiliates);
-	// }
+		return (claimable, affiliates);
+	}
 
-	// pub fn delete_orders_for(
-	// 	&mut self, 
-	// 	account_id: String
-	// ) {
-	// 	let empty_vec = &mut vec![];
-	// 	let orders_by_user_copy = self.orders_by_user.get(&account_id).unwrap_or(empty_vec).clone();
+	pub fn delete_orders_for(
+		&mut self, 
+		account_id: String
+	) {
+		let orders_by_user_prom = self.orders_by_user.get(&account_id);
 		
-	// 	self.spend_by_user
-	// 	.entry(account_id.to_string())
-	// 	.and_modify(|spend| { *spend = 0; })
-	// 	.or_insert(0);
+		self.spend_by_user.insert(&account_id, &0);
+		if orders_by_user_prom.is_none() {return}
 
-	// 	self.claimed_orders_by_user
-	// 	.insert(account_id.to_string(), orders_by_user_copy);
+		self.claimed_orders_by_user
+		.insert(&account_id, &orders_by_user_prom.unwrap());
 
-	// 	*self.orders_by_user
-	// 	.get_mut(&account_id)
-	// 	.unwrap_or(empty_vec) = vec![];
-	// }
+		self.orders_by_user.remove(&account_id);
+	}
 
     // fn remove_filled_order(
 	// 	&mut self, 
@@ -371,32 +369,32 @@ impl Orderbook {
 	// 	return self.best_price.unwrap();
 	// }
 
-	// pub fn get_open_order_value_for(
-	// 	&self, 
-	// 	account_id: String
-	// ) -> u128 {
-	// 	let mut claimable = 0;
-	// 	let empty_vec: Vec<u128> = vec![];
-	// 	let orders_by_user_vec = self.orders_by_user.get(&account_id).unwrap_or(&empty_vec);
+	pub fn get_open_order_value_for(
+		&self, 
+		account_id: String
+	) -> u128 {
+		let mut claimable = 0;
+		let empty_vec: Vec<u128> = vec![];
+		let orders_by_user_vec = self.orders_by_user.get(&account_id).unwrap_or(Vector::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
 
-    //     for i in 0..orders_by_user_vec.len() {
-	// 		let order_id = orders_by_user_vec[i];
-	// 		let open_order_prom = self.open_orders.get(&order_id);
-	// 		let order_is_open = !open_order_prom.is_none();
-	// 		if order_is_open {
-	// 			let order = self.open_orders.get(&order_id).unwrap();
-	// 			claimable += order.spend - order.filled;
-	// 		}
-    //     }
-	// 	return claimable;
-	// }
+        for i in 0..orders_by_user_vec.len() {
+			let order_id = orders_by_user_vec.get(i).unwrap();
+			let open_order_prom = self.open_orders.get(&order_id);
+			let order_is_open = !open_order_prom.is_none();
+			if order_is_open {
+				let order = self.open_orders.get(&order_id).unwrap();
+				claimable += order.spend - order.filled;
+			}
+        }
+		return claimable;
+	}
 
-	// pub fn get_spend_by(
-	// 	&self, 
-	// 	account_id: String
-	// ) -> u128 {
-	// 	return *self.spend_by_user.get(&account_id).unwrap_or(&0);
-	// }
+	pub fn get_spend_by(
+		&self, 
+		account_id: String
+	) -> u128 {
+		return self.spend_by_user.get(&account_id).unwrap_or(0);
+	}
 
 	pub fn get_share_balance(
 		&self,
