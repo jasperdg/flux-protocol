@@ -25,8 +25,7 @@ fn test_dispute_valid() {
 	
 	carol.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 	
-	alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(10))).expect("market dispute failed unexpectedly"); 
-	
+	let tx_res =alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(10))).expect("market dispute failed unexpectedly"); 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(U64(0))).expect("market finalization failed unexpectedly"); 
 
@@ -45,7 +44,6 @@ fn test_dispute_valid() {
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnings tx failed unexpectedly");
 	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id()).expect("claim_earnings tx failed unexpectedly");
-	
 	let balance_after_claim_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	let balance_after_claim_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();
 	
@@ -258,7 +256,7 @@ fn test_insufficient_balance() {
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	let tx_res = alice.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(ntoy(101))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
-}
+} 
 
 #[test]
 #[should_panic(expected = "you cant cancel dispute stake for bonded outcome")]

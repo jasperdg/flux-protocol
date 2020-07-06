@@ -78,7 +78,7 @@ impl Market {
 		let mut resolution_windows = Vector::new("market:{}:resolution_windows".as_bytes().to_vec());
 		let base_resolution_window = ResolutionWindow {
 			round: 0,
-			participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", id, 0).as_bytes().to_vec()),
+			participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:0", id).as_bytes().to_vec()),
 			required_bond_size: 5 * base.pow(17),
 			staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", id, 0).as_bytes().to_vec()), // Staked per outcome
 			end_time: end_time,
@@ -112,82 +112,78 @@ impl Market {
 		}
 	}
 
-	// pub fn dynamic_market_sell_internal(
-	// 	&mut self,
-	// 	outcome: u64,
-	// 	shares_to_sell: u128
-	// ) -> u128 {
-	// 	let orderbook = self.orderbooks.get_mut(&outcome).unwrap();
-	// 	let share_balance = orderbook.get_share_balance(env::predecessor_account_id());
-	// 	let mut claimable_if_valid = 0 ;
-	// 	assert!(shares_to_sell <= share_balance, "user doesn't have enough balance to sell these shares");
-	// 	let mut best_price = orderbook.best_price.unwrap_or(0);
+	pub fn dynamic_market_sell_internal(
+		&mut self,
+		outcome: u64,
+		shares_to_sell: u128
+	) -> u128 {
+		let mut orderbook = self.orderbooks.get(&outcome).unwrap();
+		let share_balance = orderbook.get_share_balance(env::predecessor_account_id());
+		let mut claimable_if_valid = 0 ;
+		assert!(shares_to_sell <= share_balance, "user doesn't have enough balance to sell these shares");
+		let mut best_price = orderbook.best_price.unwrap_or(0);
 		
-	// 	if best_price == 0 { return 0; }
-	// 	let mut liq_at_price = orderbook.liquidity_by_price.get(&best_price).expect("no liquidity");
-	// 	let mut spendable = 0;
-	// 	let mut shares_fillable = shares_to_sell;
+		if best_price == 0 { return 0; }
+		let mut liq_at_price = orderbook.liquidity_by_price.get(&best_price).expect("no liquidity");
+		let mut spendable = 0;
+		let mut shares_fillable = shares_to_sell;
 
-	// 	while best_price > 0 && shares_fillable > 0 {
-	// 		let shares_sought = liq_at_price / best_price;
-	// 		if shares_sought > shares_fillable {
-	// 			spendable += shares_fillable * best_price;
-	// 			claimable_if_valid += orderbook.subtract_shares(shares_fillable, best_price);
-	// 			let volume_filled = orderbook.fill_best_orders(shares_to_sell);
-	// 			self.filled_volume += volume_filled;
-	// 		} else {
-	// 			shares_fillable -= shares_sought;
-	// 			spendable += liq_at_price;
-	// 			claimable_if_valid += orderbook.subtract_shares(shares_sought, best_price);
-	// 		}
+		while best_price > 0 && shares_fillable > 0 {
+			let shares_sought = liq_at_price / best_price;
+			if shares_sought > shares_fillable {
+				spendable += shares_fillable * best_price;
+				claimable_if_valid += orderbook.subtract_shares(shares_fillable, best_price);
+				let volume_filled = orderbook.fill_best_orders(shares_to_sell);
+				self.filled_volume += volume_filled;
+			} else {
+				shares_fillable -= shares_sought;
+				spendable += liq_at_price;
+				claimable_if_valid += orderbook.subtract_shares(shares_sought, best_price);
+			}
 			
-	// 		let (next_price, liq_at_next_price) = orderbook.liquidity_by_price.range(0..best_price).next_back().unwrap_or((&0, &0));
-	// 		best_price = *next_price;
-	// 		liq_at_price = liq_at_next_price;
-	// 	}
+			let next_price = orderbook.liquidity_by_price.lower(&best_price).unwrap_or(0);
+			best_price = next_price;
+			liq_at_price = orderbook.liquidity_by_price.get(&best_price).unwrap_or(0);
+		}
 
-	// 	self.claimable_if_valid
-	// 	.entry(env::predecessor_account_id())
-	// 	.and_modify(|claimable| {
-	// 		*claimable += claimable_if_valid;
-	// 	})
-	// 	.or_insert(claimable_if_valid);
-		
-	// 	let volume_filled = orderbook.fill_best_orders(shares_to_sell - shares_fillable);
-	// 	self.filled_volume += volume_filled;
+		let claimable_if_valid_before = self.claimable_if_valid.get(&env::predecessor_account_id()).unwrap_or(0);
+		self.claimable_if_valid.insert(&env::predecessor_account_id(), &(claimable_if_valid + claimable_if_valid_before));
+		let volume_filled = orderbook.fill_best_orders(shares_to_sell - shares_fillable);
+		self.orderbooks.insert(&outcome, &orderbook);
+		self.filled_volume += volume_filled;
 
-	// 	return spendable - claimable_if_valid;
-	// }
+		return spendable - claimable_if_valid;
+	}
 
-	// pub fn get_dynamic_market_sell_offer(
-	// 	&self, 
-	// 	outcome: u64,
-	// 	shares_to_sell: u128
-	// ) -> (u128, u128) {
-	// 	let orderbook = self.orderbooks.get(&outcome).unwrap();
-	// 	let mut best_price = orderbook.best_price.unwrap_or(0);
-	// 	if best_price == 0 { return (0, 0); }
-	// 	let mut liq_at_price = orderbook.liquidity_by_price.get(&best_price).expect("no liquidity");
-	// 	let mut spendable = 0;
-	// 	let mut shares_fillable = shares_to_sell;
+	pub fn get_dynamic_market_sell_offer(
+		&self, 
+		outcome: u64,
+		shares_to_sell: u128
+	) -> (u128, u128) {
+		let orderbook = self.orderbooks.get(&outcome).unwrap();
+		let mut best_price = orderbook.best_price.unwrap_or(0);
+		if best_price == 0 { return (0, 0); }
+		let mut liq_at_price = orderbook.liquidity_by_price.get(&best_price).expect("no liquidity");
+		let mut spendable = 0;
+		let mut shares_fillable = shares_to_sell;
 
-	// 	while best_price > 0 && shares_fillable > 0 {
-	// 		let shares_sought = liq_at_price / best_price;
-	// 		if shares_sought > shares_fillable {
-	// 			spendable += shares_fillable * best_price;
-	// 			return (spendable, 0);
-	// 		} else {
-	// 			shares_fillable -= shares_sought;
-	// 			spendable += liq_at_price;
-	// 		}
+		while best_price > 0 && shares_fillable > 0 {
+			let shares_sought = liq_at_price / best_price;
+			if shares_sought > shares_fillable {
+				spendable += shares_fillable * best_price;
+				return (spendable, 0);
+			} else {
+				shares_fillable -= shares_sought;
+				spendable += liq_at_price;
+			}
 					
-	// 		let (next_price, liq_at_next_price) = orderbook.liquidity_by_price.range(0..best_price).next_back().unwrap_or((&0, &0));
-	// 		best_price = *next_price;
-	// 		liq_at_price = liq_at_next_price;
-	// 	}
+			let next_price = orderbook.liquidity_by_price.lower(&best_price).unwrap_or(0);
+			best_price = next_price;
+			liq_at_price = orderbook.liquidity_by_price.get(&next_price).unwrap_or(0);
+		}
 
-	// 	return (spendable, shares_to_sell - shares_fillable);
-	// }
+		return (spendable, shares_to_sell - shares_fillable);
+	}
 
 	pub fn create_order(
 		&mut self, 
@@ -215,7 +211,7 @@ impl Market {
 		let mut market_price = self.get_market_price_for(outcome);
 		if market_price > price { return (spend,0) }
 		let orderbook_ids = self.get_inverse_orderbook_ids(outcome);
-		env::log(b"matches found");
+
 		let mut shares_filled = 0;
 		let mut spendable = spend;
 		
@@ -334,25 +330,26 @@ impl Market {
 
 		let mut sender_stake_per_outcome = resolution_window.participants_to_outcome_to_stake
 		.get(&sender)
-		.unwrap_or(UnorderedMap::new(format!("market:{}:staked_per_outcome:{}:{}", self.id, resolution_window.round + 1, sender).as_bytes().to_vec()));
-		let mut stake_in_outcome = sender_stake_per_outcome
+		.unwrap_or(UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec()));
+		let stake_in_outcome = sender_stake_per_outcome
 		.get(&outcome_id)
 		.unwrap_or(0);
 		let new_stake = stake_in_outcome + stake - to_return;
 		sender_stake_per_outcome.insert(&outcome_id, &new_stake);
 		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
-		let mut staked_on_outcome = resolution_window.staked_per_outcome
+		let staked_on_outcome = resolution_window.staked_per_outcome
 		.get(&outcome_id)
 		.unwrap_or(0);
 		let new_stake_on_outcome = staked_on_outcome + stake - to_return;
 		resolution_window.staked_per_outcome.insert(&outcome_id, &new_stake_on_outcome);
 
+		
 		if self.resoluted {
 			resolution_window.outcome = winning_outcome;
 			let new_resolution_window = ResolutionWindow {
 				round: resolution_window.round + 1,
-				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
+				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
 				required_bond_size: resolution_window.required_bond_size * 2,
 				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
 				end_time: env::block_timestamp() / 1000000 + 1800000, // 30 nano minutes should be 30 minutes
@@ -360,85 +357,85 @@ impl Market {
 			};
 			self.resolution_windows.push(&new_resolution_window);
 		} 
+		
+		self.resolution_windows.replace(resolution_window.round, &resolution_window);
 
 		return to_return;
 	}
 
-	// pub fn dispute(
-	// 	&mut self, 
-	// 	sender: String,
-	// 	winning_outcome: Option<u64>,
-	// 	stake: u128
-	// ) -> u128 {
+	pub fn dispute(
+		&mut self, 
+		sender: String,
+		winning_outcome: Option<u64>,
+		stake: u128
+	) -> u128 {
 
-	// 	let outcome_id = self.to_numerical_outcome(winning_outcome);
-	// 	let resolution_window = self.resolution_windows.last_mut().expect("Invalid dispute window unwrap");
-	// 	let full_bond_size = resolution_window.required_bond_size;
-	// 	let mut bond_filled = false;
-	// 	let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(&0);
-	// 	let mut to_return = 0;
+		let outcome_id = self.to_numerical_outcome(winning_outcome);
+		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Invalid dispute window unwrap");
+		let full_bond_size = resolution_window.required_bond_size;
+		let mut bond_filled = false;
+		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
+		let mut to_return = 0;
 
-	// 	if staked_on_outcome + stake >= full_bond_size  {
-	// 		bond_filled = true;
-	// 		to_return = staked_on_outcome + stake - full_bond_size;
-	// 		self.disputed = true; // Only as long as Judge exists
-	// 		self.winning_outcome = winning_outcome;
-	// 	}
+		if staked_on_outcome + stake >= full_bond_size  {
+			bond_filled = true;
+			to_return = staked_on_outcome + stake - full_bond_size;
+			self.disputed = true; // Only as long as Judge exists
+			self.winning_outcome = winning_outcome;
+		}
 
-	// 	// Add to disputors stake
-	// 	resolution_window.participants_to_outcome_to_stake
-	// 	.entry(sender)
-	// 	.or_insert(HashMap::new())
-	// 	.entry(outcome_id)
-	// 	.and_modify(|staked| { *staked += stake - to_return })
-	// 	.or_insert(stake);
+		let mut sender_stake_per_outcome = resolution_window.participants_to_outcome_to_stake
+		.get(&sender)
+		.unwrap_or(UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec()));
+		let stake_in_outcome = sender_stake_per_outcome
+		.get(&outcome_id)
+		.unwrap_or(0);
+		let new_stake = stake_in_outcome + stake - to_return;
+		sender_stake_per_outcome.insert(&outcome_id, &new_stake);
+		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
-	// 	// Add to total staked on outcome
-	// 	resolution_window.staked_per_outcome
-	// 	.entry(outcome_id)
-	// 	.and_modify(|total_staked| {*total_staked += stake - to_return})
-	// 	.or_insert(stake);
+		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - to_return));
+
 		
-	// 	// Check if this order fills the bond
-	// 	if bond_filled {
-	// 		// Set last winning outcome
-	// 		resolution_window.outcome = winning_outcome;
+		// Check if this order fills the bond
+		if bond_filled {
+			// Set last winning outcome
+			resolution_window.outcome = winning_outcome;
 
-	// 		//
-	// 		resolution_window.staked_per_outcome
-	// 		.entry(outcome_id)
-	// 		.and_modify(|total_staked| {*total_staked = full_bond_size})
-	// 		.or_insert(stake);
+			let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("This can't be None");
+			assert_eq!(staked_on_outcome, full_bond_size, "the total staked on outcome needs to equal full bond size if we get here");
 
-	// 		let next_resolution_window = ResolutionWindow{
-	// 			round: resolution_window.round + 1,
-	// 			participants_to_outcome_to_stake: HashMap::new(),
-	// 			required_bond_size: resolution_window.required_bond_size * 2,
-	// 			staked_per_outcome: HashMap::new(), // Staked per outcome
-	// 			end_time: env::block_timestamp() / 1000000 + 1800000,
-	// 			outcome: None,
-	// 			// invalid: false
-	// 		};
+			let next_resolution_window = ResolutionWindow{
+				round: resolution_window.round + 1,
+				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
+				required_bond_size: resolution_window.required_bond_size * 2,
+				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
+				end_time: env::block_timestamp() / 1000000 + 1800000,
+				outcome: None,
+				// invalid: false
+			};
 
-	// 		self.resolution_windows.push(next_resolution_window);
-	// 	}
+			self.resolution_windows.push(&next_resolution_window);
+		}
 
-	// 	return to_return;
-	// }
+		self.resolution_windows.replace(resolution_window.round, &resolution_window);
 
-	// pub fn finalize(
-	// 	&mut self, 
-	// 	winning_outcome: Option<u64>
-	// ) {
-	// 	assert_eq!(self.resoluted, true, "market isn't resoluted yet");
-	// 	assert!(winning_outcome == None || winning_outcome.unwrap() < self.outcomes, "invalid outcome");
+		return to_return;
+	}
+
+	pub fn finalize(
+		&mut self, 
+		winning_outcome: Option<u64>
+	) {
+		assert_eq!(self.resoluted, true, "market isn't resoluted yet");
+		assert!(winning_outcome == None || winning_outcome.unwrap() < self.outcomes, "invalid outcome");
 	
-	//     if self.disputed {
-    //         self.winning_outcome = winning_outcome;
-	// 	}
+	    if self.disputed {
+            self.winning_outcome = winning_outcome;
+		}
 		
-	//     self.finalized = true;
-	// }
+	    self.finalized = true;
+	}
 
 	pub fn get_claimable_for(
 		&self, 
@@ -474,27 +471,25 @@ impl Market {
 		return (winnings, in_open_orders, governance_earnings, affiliates);
 	}
 
-	// pub fn cancel_dispute_participation(
-	// 	&mut self,
-	// 	round: u64,
-	// 	outcome: Option<u64>
-	// ) -> u128{
-	// 	let outcome_id = self.to_numerical_outcome(outcome);
-	// 	let resolution_window = self.resolution_windows.get_mut(round as usize).expect("dispute round doesn't exist");
-	// 	assert_ne!(outcome, resolution_window.outcome, "you cant cancel dispute stake for bonded outcome");
-	// 	let mut to_return = 0;
-	// 	resolution_window.participants_to_outcome_to_stake
-	// 	.entry(env::predecessor_account_id())
-	// 	.or_insert(HashMap::new())
-	// 	.entry(outcome_id)
-	// 	.and_modify(|staked| { 
-	// 		to_return = *staked;
-	// 		*staked = 0 ;
-	// 	})
-	// 	.or_insert(0);
+	pub fn cancel_dispute_participation(
+		&mut self,
+		round: u64,
+		
+		outcome: Option<u64>
+	) -> u128{
+		let outcome_id = self.to_numerical_outcome(outcome);
+		let mut resolution_window = self.resolution_windows.get(round).expect("dispute round doesn't exist");
+		assert_ne!(outcome, resolution_window.outcome, "you cant cancel dispute stake for bonded outcome");
+		let mut sender_particiaption = resolution_window.participants_to_outcome_to_stake.get(&env::predecessor_account_id()).expect("user didn't paritcipate in this dispute round");
+		let to_return = sender_particiaption.get(&outcome_id).expect("sender didn't pariticipate in this outcome resolution");
+		assert!(to_return > 0, "sender canceled their dispute participation");
 
-	// 	return to_return;
-	// }
+		sender_particiaption.insert(&outcome_id, &0);
+		resolution_window.participants_to_outcome_to_stake.insert(&env::predecessor_account_id(), &sender_particiaption);
+
+		self.resolution_windows.replace(resolution_window.round, &resolution_window);
+		return to_return;
+	}
 
 	fn get_dispute_earnings(
 		&self, 
@@ -680,6 +675,7 @@ impl Market {
 		for orderbook_id in 0..self.outcomes {
 			let mut orderbook = self.orderbooks.get(&orderbook_id).unwrap();
 			orderbook.delete_orders_for(account_id.to_string());
+			self.orderbooks.insert(&orderbook_id, &orderbook);
 		}
 	}
 
@@ -689,7 +685,7 @@ impl Market {
 	) {
 		let mut to_update: Vec<ResolutionWindow> = vec![];
 		for mut window in self.resolution_windows.iter() {
-			let staked_per_outcome = window.participants_to_outcome_to_stake.get(&account_id);
+			let staked_per_outcome = window.participants_to_outcome_to_stake.get(&account_id.to_string());
 			if staked_per_outcome.is_none() {continue;}
 
 			// TODO this needs to change else we won't be able to withdraw unstaked funds after claiming funds initially

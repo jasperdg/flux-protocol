@@ -26,8 +26,8 @@ pub struct Orderbook {
 	pub spend_by_user: UnorderedMap<String, u128>,
 	pub orders_by_price: TreeMap<u128, UnorderedMap<u128, bool>>,
 	pub liquidity_by_price: TreeMap<u128, u128>,
-	pub orders_by_user: UnorderedMap<String, Vector<u128>>,
-	pub claimed_orders_by_user: UnorderedMap<String, Vector<u128>>,
+	pub orders_by_user: UnorderedMap<String, UnorderedMap<u128, bool>>,
+	pub claimed_orders_by_user: UnorderedMap<String, UnorderedMap<u128, bool>>,
 	pub nonce: u128,
 	pub outcome_id: u64
 }
@@ -80,8 +80,8 @@ impl Orderbook {
 		let spend_by_user = self.spend_by_user.get(&account_id).unwrap_or(0);
 		self.spend_by_user.insert(&account_id, &(spend_by_user + spend));
 
-		let mut user_orders = self.orders_by_user.get(&account_id.to_string()).unwrap_or(Vector::new(format!("user_orders:{}:{}:{}", self.market_id, outcome, account_id).as_bytes().to_vec()));
-		user_orders.push(&order_id);
+		let mut user_orders = self.orders_by_user.get(&account_id.to_string()).unwrap_or(UnorderedMap::new(format!("user_orders:{}:{}:{}", self.market_id, outcome, account_id).as_bytes().to_vec()));
+		user_orders.insert(&order_id, &true);
 		self.orders_by_user.insert(&account_id, &user_orders);
 
         // If all of spend is filled, state order is fully filled
@@ -148,23 +148,9 @@ impl Orderbook {
         if order.shares_filled > 0 {
 			self.filled_orders.insert(&order.id, &order);
         } else {
-			let mut order_by_user_vec = self.orders_by_user.get(&order.creator).unwrap();
-			
-			// Keep all orders that aren't order_id using the retain method
-			let mut index = 0;
-			let mut index_to_delete: Option<u64> = None;
-			
-			for id in order_by_user_vec.iter() {
-				if id == order_id {
-					index_to_delete = Some(index);
-					break;
-				}
-				index += 1;
-			}
-			
-			if index_to_delete.is_some() { order_by_user_vec.swap_remove(index_to_delete.unwrap()); }
-			
-			self.orders_by_user.insert(&order.creator, &order_by_user_vec);
+			let mut order_by_user_map = self.orders_by_user.get(&order.creator).unwrap();
+			order_by_user_map.remove(&order_id);
+			self.orders_by_user.insert(&order.creator, &order_by_user_map);
 		}
 		
 		// Remove account_id order tree
@@ -229,76 +215,83 @@ impl Orderbook {
 		return filled_for_matches;
 	}
 
-	// fn get_mut_order_by_id(&mut self, order_id: &u128) -> &mut Order {
-	// 	let open_order = self.open_orders.get_mut(order_id);
+	fn get_order_by_id(&mut self, order_id: &u128) -> (Order, String) {
+		let open_order = self.open_orders.get(order_id);
 
-	// 	if open_order.is_some() {
-	// 		return open_order.unwrap();
-	// 	} else {
-	// 		return self.filled_orders.get_mut(order_id).expect("order with this id doesn't exist");
-	// 	}
-	// }
+		if open_order.is_some() {
+			return (open_order.unwrap(), "open".to_string());
+		} else {
+			return (self.filled_orders.get(order_id).expect("order with this id doesn't exist"), "filled".to_string());
+		}
+	}
 
-	// // Returns claimable_if_valid
-	// pub fn subtract_shares(
-	// 	&mut self, 
-	// 	shares: u128,
-	// 	sell_price: u128,
-	// ) -> u128 {
-	// 	let orders_by_user = self.orders_by_user.get(&env::predecessor_account_id()).unwrap();
-	// 	let mut shares_to_sell = shares;
-	// 	let mut to_remove = vec![];
-	// 	let mut claimable_if_valid = 0;
-	// 	let mut spend_to_decrement = 0;
+	// Returns claimable_if_valid
+	pub fn subtract_shares(
+		&mut self, 
+		shares: u128,
+		sell_price: u128,
+	) -> u128 {
+		let orders_by_user = self.orders_by_user.get(&env::predecessor_account_id()).unwrap();
+		let mut shares_to_sell = shares;
+		let mut to_remove = vec![];
+		let mut claimable_if_valid = 0;
+		let mut spend_to_decrement = 0;
 
-	// 	for order_id in orders_by_user.to_vec() {
-	// 		if shares_to_sell > 0 {
-	// 			let order = self.get_mut_order_by_id(&order_id);
-	// 			let mut shares_to_calculate_spend = order.shares_filled;
+		for (order_id, _) in orders_by_user.iter() {
+			if shares_to_sell > 0 {
+				let (mut order, state) = self.get_order_by_id(&order_id);
+				let mut shares_to_calculate_spend = order.shares_filled;
 
-	// 			if order.shares_filled <= shares_to_sell {
-	// 				if order.is_filled() {
-	// 					shares_to_sell -= order.shares_filled;
-	// 					to_remove.push(order.id);
-	// 				} else {
-	// 					order.spend -= order.shares_filled * order.price;
-	// 					order.filled = 0;
-	// 					order.amt_of_shares -= order.shares_filled;
-	// 					order.shares_filled = 0;
-	// 				}
-	// 			} else {
-	// 				order.spend -= shares_to_sell * order.price;
-	// 				order.filled -= shares_to_sell * order.price;
-	// 				order.amt_of_shares -= shares_to_sell;
-	// 				order.shares_filled = shares_to_sell;
+				if order.shares_filled <= shares_to_sell {
+					if order.is_filled() {
+						shares_to_sell -= order.shares_filled;
+						to_remove.push(order.id);
+					} else {
+						order.spend -= order.shares_filled * order.price;
+						order.filled = 0;
+						order.amt_of_shares -= order.shares_filled;
+						order.shares_filled = 0;
+					}
+				} else {
+					order.spend -= shares_to_sell * order.price;
+					order.filled -= shares_to_sell * order.price;
+					order.amt_of_shares -= shares_to_sell;
+					order.shares_filled = shares_to_sell;
 
-	// 				shares_to_calculate_spend = shares_to_sell;
-	// 				shares_to_sell = 0;
-	// 			}
+					shares_to_calculate_spend = shares_to_sell;
+					shares_to_sell = 0;
+				}
 
-	// 			if order.price < sell_price {
-	// 				claimable_if_valid += (sell_price - order.price) * shares_to_calculate_spend;
-	// 				spend_to_decrement += shares_to_calculate_spend * order.price;
-	// 			} else if order.price > sell_price {
-	// 				spend_to_decrement = sell_price * shares_to_calculate_spend;
-	// 			} else {
-	// 				spend_to_decrement += shares_to_calculate_spend * order.price;
-	// 			}
+				if order.price < sell_price {
+					claimable_if_valid += (sell_price - order.price) * shares_to_calculate_spend;
+					spend_to_decrement += shares_to_calculate_spend * order.price;
+				} else if order.price > sell_price {
+					spend_to_decrement = sell_price * shares_to_calculate_spend;
+				} else {
+					spend_to_decrement += shares_to_calculate_spend * order.price;
+				}
+				
+				if state == "open".to_string() {
+					self.open_orders.insert(&order.id, &order);
+				} else {
+					self.filled_orders.insert(&order.id, &order);
+				}
 
-	// 		} else {
-	// 			continue;
-	// 		}
-	// 	}
+			} else {
+				continue;
+			}
+		}
 
-	// 	for order_id in to_remove {
-	// 		self.remove_filled_order(order_id);
-	// 	}
+		for order_id in to_remove {
+			self.remove_filled_order(order_id);
+		}
 
-	// 	let spend_by_user = self.spend_by_user.get_mut(&env::predecessor_account_id()).expect("user doens't have any spend left");
-	// 	*spend_by_user -= spend_to_decrement;
+		let mut spend_by_user = self.spend_by_user.get(&env::predecessor_account_id()).expect("user doens't have any spend left");
+		spend_by_user -= spend_to_decrement;
+		self.spend_by_user.insert(&env::predecessor_account_id(), &spend_by_user);
 
-	// 	return claimable_if_valid;
-	// }
+		return claimable_if_valid;
+	}
 
 	pub fn calc_claimable_amt(
 		&self, 
@@ -306,14 +299,14 @@ impl Orderbook {
 	) -> (u128, HashMap<String, u128>) {
 		let mut claimable = 0;
 		let empty_vec: Vec<u128> = vec![];
-		let orders_by_user_vec = self.orders_by_user.get(&account_id).unwrap_or(Vector::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
+		let orders_by_user_map = self.orders_by_user.get(&account_id).unwrap_or(UnorderedMap::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
 		let mut affiliates: HashMap<String, u128> = HashMap::new();
-		for i in 0..orders_by_user_vec.len() {
+		for (order_id, _) in orders_by_user_map.iter() {
 			let order = self.open_orders
-			.get(&orders_by_user_vec.get(i).expect("this index doesn't exist"))
+			.get(&order_id)
 			.unwrap_or_else(|| {
 				return self.filled_orders
-				.get(&orders_by_user_vec.get(i).expect("this index ddoesn't exist"))
+				.get(&order_id)
 				.expect("Order by user doesn't seem to exist");
 			});
 			
@@ -348,20 +341,21 @@ impl Orderbook {
 		self.orders_by_user.remove(&account_id);
 	}
 
-    // fn remove_filled_order(
-	// 	&mut self, 
-	// 	order_id : u128
-	// ) {
-    //     // Get filled orders at price
-    //     let order = self.filled_orders.get(&order_id).expect("order with this id doens't exist");
-    //     // Remove order account_id user map
-    //     let order_by_user_map = self.orders_by_user.get_mut(&order.creator).unwrap();
-    //     order_by_user_map.remove(order_id.try_into().unwrap());
-    //     if order_by_user_map.is_empty() {
-    //         self.orders_by_user.remove(&order.creator);
-    //     }
-    //     self.filled_orders.remove(&order_id);
-    // }
+    fn remove_filled_order(
+		&mut self, 
+		order_id : u128
+	) {
+        // Get filled orders at price
+        let order = self.filled_orders.get(&order_id).expect("order with this id doens't exist");
+        // Remove order account_id user map
+        let mut order_by_user_map = self.orders_by_user.get(&order.creator).unwrap();
+		order_by_user_map.remove(&order_id);
+		self.orders_by_user.insert(&order.creator, &order_by_user_map);
+        if order_by_user_map.is_empty() {
+            self.orders_by_user.remove(&order.creator);
+        }
+        self.filled_orders.remove(&order_id);
+    }
 
 	// pub fn get_best_price(
 	// 	&self
@@ -375,10 +369,9 @@ impl Orderbook {
 	) -> u128 {
 		let mut claimable = 0;
 		let empty_vec: Vec<u128> = vec![];
-		let orders_by_user_vec = self.orders_by_user.get(&account_id).unwrap_or(Vector::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
+		let orders_by_user_vec = self.orders_by_user.get(&account_id).unwrap_or(UnorderedMap::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
 
-        for i in 0..orders_by_user_vec.len() {
-			let order_id = orders_by_user_vec.get(i).unwrap();
+        for (order_id, _) in orders_by_user_vec.iter() {
 			let open_order_prom = self.open_orders.get(&order_id);
 			let order_is_open = !open_order_prom.is_none();
 			if order_is_open {
@@ -400,10 +393,10 @@ impl Orderbook {
 		&self,
 		account_id: String
 	) -> u128 {
-		let orders_by_user = self.orders_by_user.get(&account_id).unwrap_or(Vector::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
+		let orders_by_user = self.orders_by_user.get(&account_id).unwrap_or(UnorderedMap::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
 
 		let mut balance = 0;
-		for order_id in orders_by_user.iter() {
+		for (order_id, _) in orders_by_user.iter() {
 			let order = self.open_orders
 			.get(&order_id)
 			.unwrap_or_else(| | {
