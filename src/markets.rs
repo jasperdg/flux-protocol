@@ -121,7 +121,7 @@ impl Markets {
 
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 		
-		assert!(spend > 0, "order must be valued at > 0");
+		assert!(spend > 10000, "order must be valued at > 10000");
 		assert!(price > 0 && price < 100, "price can only be between 0 - 100");
 		assert!(outcome < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
