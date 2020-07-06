@@ -96,5 +96,5 @@ fn test_valid_market_payout_calc() {
 	let claimable_carol: u128 = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id()).into();
 
 	assert_eq!(claimable_alice, 0);
-	assert_eq!(claimable_carol, 100000 - 100);
+	assert_eq!(claimable_carol, 100000 - 1000);
 }

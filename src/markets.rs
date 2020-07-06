@@ -390,8 +390,8 @@ impl Markets {
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		let (winnings, left_in_open_orders, governance_earnings, _) = market.get_claimable_for(account_id.to_string());
-		let market_creator_fee = winnings * market.creator_fee_percentage / 100;
-		let resolution_fee = winnings * market.resolution_fee_percentage / 100;
+		let market_creator_fee = (winnings * market.creator_fee_percentage + 100 - 1) / 100;
+		let resolution_fee = (winnings * market.resolution_fee_percentage + 100 - 1) / 100;
 
 		return (winnings - market_creator_fee - resolution_fee + governance_earnings + left_in_open_orders).into();
 	}
@@ -400,7 +400,8 @@ impl Markets {
 		&mut self, 
 		market_id: U64, 
 		account_id: String
-	) -> Promise {
+	// ) -> Promise {
+	) {
 		let market_id: u64 = market_id.into();
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		let market_creator = market.creator.to_string();
@@ -409,17 +410,18 @@ impl Markets {
 		assert_eq!(market.finalized, true);
 		
 		let (winnings, left_in_open_orders, governance_earnings, affiliates) = market.get_claimable_for(account_id.to_string());
-		let mut market_creator_fee = winnings * market.creator_fee_percentage / 100;
+		let mut market_creator_fee = (winnings * market.creator_fee_percentage + 100 - 1) / 100;
 		let creator_fee_percentage = market.creator_fee_percentage;
-		let resolution_fee = winnings * market.resolution_fee_percentage / 100;
+		let resolution_fee = (winnings * market.resolution_fee_percentage + 100 - 1) / 100;
 		let affiliate_fee_percentage = market.affiliate_fee_percentage;
 		let mut paid_to_affiliates = 0;
+		env::log(format!("resolution fee: {} winnings: {}  left i open orderS: {} governance earnings: {}", resolution_fee, winnings, left_in_open_orders, governance_earnings).as_bytes());
 
 		market.reset_balances_for(account_id.to_string());
 		market.delete_resolution_for(account_id.to_string());
 
 		for (affiliate_account_id, amount_owed) in affiliates {
-			let affiliate_owed = amount_owed * affiliate_fee_percentage * creator_fee_percentage / 10000;
+			let affiliate_owed = (amount_owed * affiliate_fee_percentage * creator_fee_percentage + 10000 - 1) / 10000;
 			paid_to_affiliates += affiliate_owed;
 			market_creator_fee -= affiliate_owed;
 			let affiliate_earnings = self.affiliate_earnings.get(&affiliate_account_id).unwrap_or(0);
@@ -427,18 +429,22 @@ impl Markets {
 		}
 
 		let total_fee = market_creator_fee + paid_to_affiliates + resolution_fee;
-		let to_claim = winnings + governance_earnings + left_in_open_orders;		
+		let to_claim = winnings + governance_earnings + left_in_open_orders;
+		env::log(format!("total fee: {} to claim: {}", total_fee, to_claim).as_bytes());
+
 		let earnings = to_claim - total_fee;
 		
 		if earnings == 0 {panic!("can't claim 0 tokens")}
-
+		env::log(format!("return:{}", earnings).as_bytes());
 		self.markets.insert(&market_id, &market);
 		if market_creator_fee > 0 {
-			return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
+			fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
+			// return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
 				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
 			);
 		} else {
-			return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+			fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+			// return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		}
 		
 	}
@@ -716,14 +722,14 @@ mod tests {
 		return (runtime, root, accounts);
 	}
 
-	mod init_tests;
-	mod market_order_tests;
-	mod binary_order_matching_tests;
-	mod categorical_market_tests;
-	mod market_depth_tests;
-	mod market_resolution_tests;
+	// mod init_tests;
+	// mod market_order_tests;
+	// mod binary_order_matching_tests;
+	// mod categorical_market_tests;
+	// mod market_depth_tests;
+	// mod market_resolution_tests;
 	mod claim_earnings_tests;
-	mod market_dispute_tests;
-	mod fee_payout_tests;
-	mod order_sale_tests;
+	// mod market_dispute_tests;
+	// mod fee_payout_tests;
+	// mod order_sale_tests;
 }

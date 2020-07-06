@@ -38,7 +38,7 @@ fn simplest_order_sale() -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone)
 	seller.dynamic_market_sell(&mut runtime, U64(0), U64(1), U128(share_balance_seller)).expect("market sell failed unexpectedly");
 
 	let dai_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
-	assert_eq!(dai_balance_seller, initial_balance_seller + 50000 - 50);
+	assert_eq!(dai_balance_seller, initial_balance_seller + 50000 - 500);
 
 	// check share balance post sell
 	let share_balance_seller: u128 = seller.get_outcome_share_balance(&mut runtime, seller.get_account_id(), U64(0), U64(1)).into();
@@ -66,18 +66,18 @@ fn partial_buy_order_fill_through_sale(buy_price: u128) -> (Vec<ExternalUser>, E
 	seller.place_order(&mut runtime, U64(0), U64(0), U128(2000 * 50), U128(50), None).expect("order placement failed unexpectedly"); // 10.000
 	seller.place_order(&mut runtime, U64(0), U64(1), U128(2000 * 50), U128(50), None).expect("order placement failed unexpectedly"); // 0
 	
-	buyer.place_order(&mut runtime, U64(0), U64(1), U128(1000 * buy_price), U128(buy_price), None).expect("order placement failed unexpectedly"); // 48.000 / 12.000 
+	buyer.place_order(&mut runtime, U64(0), U64(1), U128(10000 * buy_price), U128(buy_price), None).expect("order placement failed unexpectedly"); // 48.000 / 12.000 
 
 	let initial_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
 
 	let share_balance_sller: u128 = seller.get_outcome_share_balance(&mut runtime, seller.get_account_id(), U64(0), U64(1)).into();
-	assert_eq!(200, share_balance_sller);
+	assert_eq!(2000, share_balance_sller);
 	
 	let (spendable, shares_fillable) = seller.get_market_sell_depth(&mut runtime, U64(0), U64(1), U128(10000));
 	let spendable: u128 = spendable.into();
 	let shares_fillable: u128 = shares_fillable.into();
-	assert_eq!(1000, shares_fillable);
-	assert_eq!(1000 * buy_price, spendable);
+	assert_eq!(10000, shares_fillable);
+	assert_eq!(10000 * buy_price, spendable);
 
 	let share_balance_buyer: u128 = buyer.get_outcome_share_balance(&mut runtime, buyer.get_account_id(), U64(0), U64(1)).into();
 	assert_eq!(0, share_balance_buyer);
@@ -90,7 +90,7 @@ fn partial_buy_order_fill_through_sale(buy_price: u128) -> (Vec<ExternalUser>, E
 
 	let dai_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
 	let sell_fee = 1 * 2000 * cmp::min(buy_price, 50) / 100;
-	assert_eq!(dai_balance_seller, initial_balance_seller + 200 * cmp::min(buy_price, 50) - sell_fee);
+	assert_eq!(dai_balance_seller, initial_balance_seller + 2000 * cmp::min(buy_price, 50) - sell_fee);
 
 	let share_balance_buyer: u128 = buyer.get_outcome_share_balance(&mut runtime, buyer.get_account_id(), U64(0), U64(1)).into();
 	assert_eq!(share_balance_buyer, 2000);
@@ -123,9 +123,9 @@ fn test_simple_market_order_sale_payout_valid() {
 	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
 	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
 
-	let expected_claimable_seller = 9900;
+	let expected_claimable_seller = 99000;
 	assert_eq!(claimable_seller, expected_claimable_seller);
-	let expected_claimable_buyer = 9900;
+	let expected_claimable_buyer = 99000;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
 
 	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
@@ -150,9 +150,9 @@ fn test_simple_market_order_sale_payout_invalid() {
 	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
 	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
 
-	let expected_claimable_seller = 14850;
+	let expected_claimable_seller = 148500;
 	assert_eq!(claimable_seller, expected_claimable_seller);
-	let expected_claimable_buyer = 4950;
+	let expected_claimable_buyer = 49500;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
 	
 	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
@@ -180,7 +180,7 @@ fn test_dynamically_priced_market_order_sale_for_loss_payout_valid() {
 
 	let expected_claimable_seller = 0;
 	assert_eq!(claimable_seller, expected_claimable_seller);
-	let expected_claimable_buyer = 51800;
+	let expected_claimable_buyer = 518000;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
 
 	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
@@ -204,9 +204,9 @@ fn test_dynamically_priced_market_order_sale_for_loss_payout_invalid() {
 	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
 	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
 
-	let expected_claimable_seller = 11880;
+	let expected_claimable_seller = 118800;
 	assert_eq!(claimable_seller, expected_claimable_seller);
-	let expected_claimable_buyer = 39920;
+	let expected_claimable_buyer = 399200;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
 
 	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
@@ -232,9 +232,9 @@ fn test_dynamically_priced_market_order_sale_for_profit_payout_valid() {
 	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
 	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
 
-	let expected_claimable_seller = 1980;
+	let expected_claimable_seller = 19800;
 	assert_eq!(claimable_seller, expected_claimable_seller);
-	let expected_claimable_buyer = 67800;
+	let expected_claimable_buyer = 678000;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
 
 	seller.claim_earnings(&mut runtime, U64(0), seller.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
@@ -260,9 +260,9 @@ fn test_dynamically_priced_market_order_sale_for_profit_payout_invalid() {
 	let claimable_seller: u128 = seller.get_claimable(&mut runtime, U64(0), seller.get_account_id()).into();
 	let claimable_buyer: u128 = buyer.get_claimable(&mut runtime, U64(0), buyer.get_account_id()).into();
 
-	let expected_claimable_seller = 9900;
+	let expected_claimable_seller = 99000;
 	assert_eq!(claimable_seller, expected_claimable_seller);
-	let expected_claimable_buyer = 59880;
+	let expected_claimable_buyer = 598800;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
 
 	seller.claim_earnings(&mut runtime, U64(0), seller.get_account_id()).expect("claim_earnigns tx failed unexpectedly");

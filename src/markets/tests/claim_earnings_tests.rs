@@ -36,19 +36,19 @@ fn test_payout() {
 	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
 
 	alice.finalize_market(&mut runtime, U64(0), None).expect("market finalization failed unexpectedly");
-	
-	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
-
+	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
+	
 	let updated_claimable_alice = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id());
 	let updated_claimable_carol = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id());
-
+	
 	let updated_balance_alice = alice.get_balance(&mut runtime, alice.get_account_id());
 	let updated_balance_carol = alice.get_balance(&mut runtime, carol.get_account_id());
 
 	assert_eq!(updated_balance_alice, U128(initially_claimable_alice + initial_balance_alice));
 	assert_eq!(updated_balance_carol, U128(initially_claimable_carol + initial_balance_carol));
-
+	
 	assert_eq!(updated_claimable_alice, U128(0));
 	assert_eq!(updated_claimable_carol, U128(0));
 }
