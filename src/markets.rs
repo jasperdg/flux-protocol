@@ -17,7 +17,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 mod market;
 type Market = market::Market;
 type Order = market::orderbook::order::Order;
-type ResolutionWindow = market::ResolutionWindow;
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -121,7 +120,7 @@ impl Markets {
 
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 		
-		assert!(spend > 10000, "order must be valued at > 10000");
+		assert!(spend >= 10000, "order must be valued at > 10000");
 		assert!(price > 0 && price < 100, "price can only be between 0 - 100");
 		assert!(outcome < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
@@ -356,18 +355,6 @@ impl Markets {
 		self.markets.insert(&market_id, &market);
 	}
 
-	pub fn get_active_resolution_window(
-		&self,
-		market_id: U64
-	) -> Option<ResolutionWindow> {
-		let market_id: u64 = market_id.into();
-		let market = self.markets.get(&market_id).expect("market doesn't exist");
-		if !market.resoluted {
-			return None;
-		}
-		return Some(market.resolution_windows.get(market.resolution_windows.len() - 1).expect("invalid dispute window"));
-	}
-
 	pub fn get_open_orders_len(
 		&self, 
 		market_id: U64, 
@@ -564,15 +551,6 @@ impl Markets {
 		let orderbook = market.orderbooks.get(&outcome).unwrap();
 
 		return orderbook.get_liquidity_at_price(price).into();
-	}
-
-	pub fn get_market(
-		&self, 
-		id: U64
-	) -> Market {
-		let id: u64 = id.into();
-		let market = self.markets.get(&id);
-		return market.expect("market with this id doesn't exist");
 	}
 
 	pub fn get_owner(

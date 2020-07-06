@@ -14,11 +14,11 @@ fn test_payout() {
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(10))).expect("allowance couldn't be set");
 	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(10))).expect("allowance couldn't be set");
 	
-	carol.place_order(&mut runtime, U64(0), U64(0), U128(10000), U128(70), None).expect("tx failed unexpectedly");
-	carol.place_order(&mut runtime, U64(0), U64(3), U128(1000), U128(10), None).expect("tx failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(0), U128(100000), U128(70), None).expect("tx failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(3), U128(100000), U128(10), None).expect("tx failed unexpectedly");
 	
-	alice.place_order(&mut runtime, U64(0), U64(1), U128(1000), U128(10), None).expect("tx failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(2), U128(1000), U128(10), None).expect("tx failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(1), U128(100000), U128(10), None).expect("tx failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(2), U128(100000), U128(10), None).expect("tx failed unexpectedly");
 
 	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();

@@ -32,17 +32,17 @@ fn partial_binary_order_matching_test() {
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(100000000)).expect("allowance couldn't be set");
+	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(10000000000)).expect("allowance couldn't be set");
 	
-	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(5000), U128(50), None).expect("order placement tx failed unexpectedly");
-	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(5000), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(50000), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(50000), U128(50), None).expect("order placement tx failed unexpectedly");
 	
-	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(5000), U128(50), None).expect("order placement tx failed unexpectedly");
-	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(2750), U128(50), None).expect("order placement tx failed unexpectedly");
-	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(7777), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(50000), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(27500), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(77770), U128(50), None).expect("order placement tx failed unexpectedly");
 	
-	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(7777), U128(50), None).expect("order placement tx failed unexpectedly");
-	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(7777), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(77770), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(77770), U128(50), None).expect("order placement tx failed unexpectedly");
 
 
 	let no_share_balance = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(0));

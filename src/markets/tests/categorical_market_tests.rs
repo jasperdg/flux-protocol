@@ -7,17 +7,17 @@ fn test_categorical_market_automated_matcher() {
 
 	accounts[0].transfer(&mut runtime, accounts[1].get_account_id(), ntoy(10).into()).expect("transfer failed couldn't be set");
 
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(110000)).expect("allowance couldn't be set");
+	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(110000000)).expect("allowance couldn't be set");
 
-	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(3000), U128(30), None).expect("order placement tx failed unexpectedly");
-	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(6000), U128(60), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(30000), U128(30), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(60000), U128(60), None).expect("order placement tx failed unexpectedly");
 	
-	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(2500), U128(25), None).expect("order placement tx failed unexpectedly");
-	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(5000), U128(50), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(25000), U128(25), None).expect("order placement tx failed unexpectedly");
+	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(50000), U128(50), None).expect("order placement tx failed unexpectedly");
 
 	// alice fills all orders
 	accounts[1].set_allowance(&mut runtime, flux_protocol(), U128(110000)).expect("allowance couldn't be set");
-	accounts[1].place_order(&mut runtime, U64(0), U64(2), U128(3500), U128(25), None).expect("order placement tx failed unexpectedly");
+	accounts[1].place_order(&mut runtime, U64(0), U64(2), U128(35000), U128(25), None).expect("order placement tx failed unexpectedly");
 
 	let open_0_orders = accounts[0].get_open_orders_len(&mut runtime, U64(0), U64(0));
     let open_2_orders = accounts[0].get_open_orders_len(&mut runtime, U64(0), U64(1));

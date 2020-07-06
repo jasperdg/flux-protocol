@@ -15,22 +15,22 @@ fn test_invalid_market_payout_calc() {
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
-	alice.place_order(&mut runtime, U64(0), U64(0), U128(7000), U128(70), None).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(1), U128(1000), U128(10), None).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(2), U128(1000), U128(10), None).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(3), U128(1000), U128(10), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(0), U128(70000), U128(70), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(1), U128(10000), U128(10), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(2), U128(10000), U128(10), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(3), U128(10000), U128(10), None).expect("order placement failed unexpectedly");
 	
-	carol.place_order(&mut runtime, U64(0), U64(0), U128(6000), U128(60), None).expect("order placement failed unexpectedly");
-	carol.place_order(&mut runtime, U64(0), U64(1), U128(2000), U128(20), None).expect("order placement failed unexpectedly");
-	carol.place_order(&mut runtime, U64(0), U64(2), U128(2000), U128(20), None).expect("order placement failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(0), U128(60000), U128(60), None).expect("order placement failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(1), U128(20000), U128(20), None).expect("order placement failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(2), U128(20000), U128(20), None).expect("order placement failed unexpectedly");
 	
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	root.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 
 	let initially_claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
 	let initially_claimable_carol: u128 = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id()).into();
-	assert_eq!(initially_claimable_alice, 10000 - 100);
-	assert_eq!(initially_claimable_carol, 10000 - 100);
+	assert_eq!(initially_claimable_alice, 100000 - 1000);
+	assert_eq!(initially_claimable_carol, 100000 - 1000);
 
 	let open_orders_0: u128 = alice.get_open_orders_len(&mut runtime, U64(0), U64(0)).into();
 	let open_orders_1: u128 = alice.get_open_orders_len(&mut runtime, U64(0), U64(1)).into();
@@ -68,10 +68,10 @@ fn test_valid_market_payout_calc() {
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
-	alice.place_order(&mut runtime, U64(0), U64(0), U128(7000), U128(70), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(0), U128(70000), U128(70), None).expect("order placement failed unexpectedly");
 	
-	carol.place_order(&mut runtime, U64(0), U64(1), U128(1000), U128(10), None).expect("order placement failed unexpectedly");
-	carol.place_order(&mut runtime, U64(0), U64(2), U128(2000), U128(20), None).expect("order placement failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(1), U128(10000), U128(10), None).expect("order placement failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(2), U128(20000), U128(20), None).expect("order placement failed unexpectedly");
 	
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	root.resolute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly");
@@ -96,5 +96,5 @@ fn test_valid_market_payout_calc() {
 	let claimable_carol: u128 = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id()).into();
 
 	assert_eq!(claimable_alice, 0);
-	assert_eq!(claimable_carol, 10000 - 100);
+	assert_eq!(claimable_carol, 100000 - 100);
 }
