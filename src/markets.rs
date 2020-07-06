@@ -234,10 +234,8 @@ impl Markets {
 		sender: String
 	) -> PromiseOrValue<bool> {
 		self.assert_self();
-		env::log(b"attempting to proceed market resolution");
 		let transfer_succeeded = self.is_promise_success();
 		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
-		env::log(format!("parent promise (transfer) was succesfull {}", stake).as_bytes());
 		
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		let change: u128 = market.resolute(sender.to_string(), winning_outcome, stake).into();
@@ -400,8 +398,7 @@ impl Markets {
 		&mut self, 
 		market_id: U64, 
 		account_id: String
-	// ) -> Promise {
-	) {
+	) -> Promise {
 		let market_id: u64 = market_id.into();
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		let market_creator = market.creator.to_string();
@@ -415,7 +412,6 @@ impl Markets {
 		let resolution_fee = (winnings * market.resolution_fee_percentage + 100 - 1) / 100;
 		let affiliate_fee_percentage = market.affiliate_fee_percentage;
 		let mut paid_to_affiliates = 0;
-		env::log(format!("resolution fee: {} winnings: {}  left i open orderS: {} governance earnings: {}", resolution_fee, winnings, left_in_open_orders, governance_earnings).as_bytes());
 
 		market.reset_balances_for(account_id.to_string());
 		market.delete_resolution_for(account_id.to_string());
@@ -430,21 +426,18 @@ impl Markets {
 
 		let total_fee = market_creator_fee + paid_to_affiliates + resolution_fee;
 		let to_claim = winnings + governance_earnings + left_in_open_orders;
-		env::log(format!("total fee: {} to claim: {}", total_fee, to_claim).as_bytes());
 
 		let earnings = to_claim - total_fee;
 		
 		if earnings == 0 {panic!("can't claim 0 tokens")}
-		env::log(format!("return:{}", earnings).as_bytes());
+
 		self.markets.insert(&market_id, &market);
 		if market_creator_fee > 0 {
-			fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
-			// return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
+			return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
 				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
 			);
 		} else {
-			fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
-			// return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+			return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		}
 		
 	}
@@ -722,14 +715,14 @@ mod tests {
 		return (runtime, root, accounts);
 	}
 
-	// mod init_tests;
-	// mod market_order_tests;
-	// mod binary_order_matching_tests;
-	// mod categorical_market_tests;
-	// mod market_depth_tests;
-	// mod market_resolution_tests;
+	mod init_tests;
+	mod market_order_tests;
+	mod binary_order_matching_tests;
+	mod categorical_market_tests;
+	mod market_depth_tests;
+	mod market_resolution_tests;
 	mod claim_earnings_tests;
-	// mod market_dispute_tests;
-	// mod fee_payout_tests;
-	// mod order_sale_tests;
+	mod market_dispute_tests;
+	mod fee_payout_tests;
+	mod order_sale_tests;
 }
