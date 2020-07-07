@@ -4,7 +4,7 @@ use super::*;
 #[should_panic(expected = "affiliate claim failed unexpectedly")]
 fn fee_distribution_test() {
 	let (mut runtime, root, accounts) = init_runtime_env();
-	let tx_res = accounts[1].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(4), U128(50), "test".to_string()).unwrap();
+	let tx_res = accounts[1].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(400), U128(50), "test".to_string()).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	let alice = &accounts[0];
@@ -36,7 +36,7 @@ fn fee_distribution_test() {
 	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into(); // trader
 	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into(); // creator / affiliate
 	let initial_balance_root: u128 = alice.get_balance(&mut runtime, root.get_account_id()).into(); // resolutor
-	
+
 	let claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
 	let expected_claimable_alice_excl_fees = to_dai(30);
 	let claimable_root: u128 = alice.get_claimable(&mut runtime, U64(0), root.get_account_id()).into();
@@ -56,7 +56,8 @@ fn fee_distribution_test() {
 	assert_eq!(after_balance_carol, initial_balance_carol + 2 * to_dai(10) / 100);
 	assert_eq!(after_balance_root, initial_balance_root + 1 * to_dai(10) / 100 + to_dai(5));
 	
-	alice.claim_affiliate_earnings(&mut runtime, carol.get_account_id()).expect("affiliate claim failed unexpectedly");
+	let tx_res = alice.claim_affiliate_earnings(&mut runtime, carol.get_account_id()).expect("affiliate claim failed unexpectedly");
+	println!("re: {:?}", tx_res);
 	let after_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into(); // creator / affiliate
 	assert_eq!(after_balance_carol, initial_balance_carol + 4 * to_dai(10) / 100);
 	

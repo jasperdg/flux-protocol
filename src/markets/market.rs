@@ -507,7 +507,7 @@ impl Market {
 			if window.round == 0 {
 
 				// Calculate how much the total fee payout will be 
-				let total_resolution_fee = self.resolution_fee_percentage * self.filled_volume / 100;
+				let total_resolution_fee = self.resolution_fee_percentage * self.filled_volume / 10000;
 				// Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome
 				if self.winning_outcome == window.outcome {
 					// check if the user participated in this outcome
