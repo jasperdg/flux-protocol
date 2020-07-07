@@ -39,9 +39,11 @@ pub trait FunToken {
 
 #[ext_contract]
 pub trait FluxProtocol {
+    fn market_creation(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
     fn proceed_order_placement(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
     fn proceed_market_resolution(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
-    fn proceed_market_dispute(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
+	fn proceed_market_dispute(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
+	fn proceed_market_creation(&mut self, sender: String, description: String, extra_info: String, outcomes: u64, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u128, resolution_fee_percentage: u128, affiliate_fee_percentage: u128, api_source: String);
 }
 
 #[near_bindgen]
@@ -51,7 +53,7 @@ impl Markets {
 		&self
 	) -> u128 {
 		let base: u128 = 10;
-		return base.pow(17)
+		return base.pow(18)
 	}
 
 	fn fun_token_account_id(
@@ -77,7 +79,7 @@ impl Markets {
 		creator_fee_percentage: U128,
 		affiliate_fee_percentage: U128,
 		api_source: String
-	) -> u64 {
+	) -> Promise {
 		let outcomes: u64 = outcomes.into();
 		let end_time: u64 = end_time.into();
 		let creator_fee_percentage: u128 = creator_fee_percentage.into();
@@ -92,15 +94,53 @@ impl Markets {
 		assert!(affiliate_fee_percentage <= 100);
 
 		if outcomes == 2 {assert!(outcome_tags.len() == 0)}
-		// TODO check if end_time hasn't happened yet
-		let account_id = env::predecessor_account_id();
+
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), self.creation_bond.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
+			flux_protocol::proceed_market_creation(
+				env::predecessor_account_id(), 
+				description,
+				extra_info,
+				outcomes,
+				outcome_tags,
+				categories,
+				end_time,
+				creator_fee_percentage, 
+				100,
+				affiliate_fee_percentage,
+				api_source,
+				&env::current_account_id(),
+				0,
+				SINGLE_CALL_GAS
+			)
+		);
+	}
+
+	pub fn proceed_market_creation(
+		&mut self, 
+		sender: String, 
+		description: String, 
+		extra_info: String, 
+		outcomes: u64, 
+		outcome_tags: Vec<String>, 
+		categories: Vec<String>, 
+		end_time: u64, 
+		creator_fee_percentage: u128, 
+		resolution_fee_percentage: u128, 
+		affiliate_fee_percentage: u128, 
+		api_source: String
+	) -> PromiseOrValue<u64> {
+		self.assert_self();
+		
+		let transfer_succeeded = self.is_promise_success();
+		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", self.creation_bond, env::current_account_id()); }
+		
 
 		// TODO: Escrow bond account_id creator's account
-		let new_market = Market::new(self.nonce, account_id, description, extra_info, outcomes, outcome_tags, categories, end_time, creator_fee_percentage, 100, affiliate_fee_percentage ,api_source);
+		let new_market = Market::new(self.nonce, sender, description, extra_info, outcomes, outcome_tags, categories, end_time, creator_fee_percentage, resolution_fee_percentage, affiliate_fee_percentage ,api_source);
 		let market_id = new_market.id;
 		self.markets.insert(&self.nonce, &new_market);
 		self.nonce = self.nonce + 1;
-		return market_id;
+		return PromiseOrValue::Value(market_id);
 	}
 
 	pub fn place_order(
@@ -384,12 +424,15 @@ impl Markets {
 	) -> U128 {
 		let market_id: u64 = market_id.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
-
+		let mut resolution_bond = 0;
+		if account_id == market.creator && market.resolution_bond_claimed == false && market.winning_outcome != None {
+			resolution_bond = self.creation_bond;
+		}
 		let (winnings, left_in_open_orders, governance_earnings, _) = market.get_claimable_for(account_id.to_string());
 		let total_fee_percentage = market.creator_fee_percentage + market.resolution_fee_percentage;
 		let fee = (winnings * total_fee_percentage + 10000 - 1) / 10000;
-
-		return (winnings - fee + governance_earnings + left_in_open_orders).into();
+		
+		return (winnings - fee + governance_earnings + left_in_open_orders + resolution_bond).into();
 	}
 
 	pub fn claim_earnings(
@@ -410,6 +453,12 @@ impl Markets {
 		let resolution_fee = (winnings * market.resolution_fee_percentage + 10000 - 1) / 10000;
 		let affiliate_fee_percentage = market.affiliate_fee_percentage;
 		let mut paid_to_affiliates = 0;
+		
+		let mut resolution_bond = 0;
+		if account_id == market.creator && market.resolution_bond_claimed == false && market.winning_outcome != None {
+			resolution_bond = self.creation_bond;
+			market.resolution_bond_claimed = true;
+		}
 
 		market.reset_balances_for(account_id.to_string());
 		market.delete_resolution_for(account_id.to_string());
@@ -426,7 +475,7 @@ impl Markets {
 		let total_fee = market_creator_fee + paid_to_affiliates + resolution_fee;
 		let to_claim = winnings + governance_earnings + left_in_open_orders;
 
-		let earnings = to_claim - total_fee;
+		let earnings = to_claim - total_fee + resolution_bond;
 		
 		if earnings == 0 {panic!("can't claim 0 tokens")}
 
@@ -590,7 +639,7 @@ impl Default for Markets {
 			markets: UnorderedMap::new(b"markets".to_vec()),
 			nonce: 0,
 			max_fee_percentage: 500,
-			creation_bond: 0,
+			creation_bond: 25e18 as u128 / 100,
 			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec())
 		}
 	}
@@ -608,8 +657,7 @@ mod tests {
 	use near_primitives::transaction::{ExecutionStatus, ExecutionOutcome};
 
 	fn to_dai(amt: u128) -> u128 {
-		let base = 10 as u128;
-		return amt * base.pow(17);
+		return amt * 1e18 as u128;
 	}
 
 	fn flux_protocol() -> String {
@@ -709,7 +757,7 @@ mod tests {
 			accounts.push(acc);
 		}
 
-		root.deploy_fun_token(&mut runtime, accounts[0].get_account_id(), U128(ntoy(100))).unwrap();
+		root.deploy_fun_token(&mut runtime, accounts[0].get_account_id(), U128(to_dai(100))).unwrap();
 
 		return (runtime, root, accounts);
 	}
@@ -722,6 +770,7 @@ mod tests {
 	// mod market_resolution_tests;
 	// mod claim_earnings_tests;
 	// mod market_dispute_tests;
-	mod fee_payout_tests;
+	// mod fee_payout_tests;
 	// mod order_sale_tests;
+	mod validity_bond_tests;
 }

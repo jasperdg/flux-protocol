@@ -50,7 +50,8 @@ pub struct Market {
 	pub affiliate_fee_percentage: u128,
 	pub claimable_if_valid: UnorderedMap<String, u128>,
 	pub api_source: String,
-	pub resolution_windows: Vector<ResolutionWindow>
+	pub resolution_windows: Vector<ResolutionWindow>,
+	pub resolution_bond_claimed: bool,
 }
 
 impl Market {
@@ -66,7 +67,7 @@ impl Market {
 		creator_fee_percentage: u128, 
 		resolution_fee_percentage: u128, 
 		affiliate_fee_percentage: u128,
-		api_source: String
+		api_source: String,
 	) -> Self {
 		let mut empty_orderbooks = UnorderedMap::new(format!("market:{}:orderbooks", id).as_bytes().to_vec());
 
@@ -79,7 +80,7 @@ impl Market {
 		let base_resolution_window = ResolutionWindow {
 			round: 0,
 			participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:0", id).as_bytes().to_vec()),
-			required_bond_size: 5 * base.pow(17),
+			required_bond_size: 5 * base.pow(18),
 			staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", id, 0).as_bytes().to_vec()), // Staked per outcome
 			end_time: end_time,
 			outcome: None,
@@ -99,7 +100,7 @@ impl Market {
 			orderbooks: empty_orderbooks,
 			winning_outcome: None,
 			resoluted: false,
-			resolute_bond: 5 * base.pow(17),
+			resolute_bond: 5 * base.pow(18),
 			filled_volume: 0,
 			disputed: false,
 			finalized: false,
@@ -108,7 +109,8 @@ impl Market {
 			affiliate_fee_percentage,
 			claimable_if_valid: UnorderedMap::new(format!("market:{}:claimable_if_valid", id).as_bytes().to_vec()),
 			api_source,
-			resolution_windows
+			resolution_windows,
+			resolution_bond_claimed: false,
 		}
 	}
 
