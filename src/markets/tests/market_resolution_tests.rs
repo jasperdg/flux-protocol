@@ -3,14 +3,15 @@ use super::*;
 #[test]
 fn test_invalid_market_payout_calc() {
 	let (mut runtime, root, accounts) = init_runtime_env();
+	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(4), outcome_tags(4), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	let alice = &accounts[0];
 	let carol = &accounts[1];
 
-	alice.transfer(&mut runtime, carol.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
-	alice.transfer(&mut runtime, root.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
+	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
+	alice.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
@@ -56,14 +57,15 @@ fn test_invalid_market_payout_calc() {
 #[test]
 fn test_valid_market_payout_calc() {
 	let (mut runtime, root, accounts) = init_runtime_env();
+	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(4), outcome_tags(4), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	let alice = &accounts[0];
 	let carol = &accounts[1];
 
-	alice.transfer(&mut runtime, carol.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
-	alice.transfer(&mut runtime, root.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
+	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
+	alice.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
@@ -95,6 +97,7 @@ fn test_valid_market_payout_calc() {
 	let claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
 	let claimable_carol: u128 = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id()).into();
 
-	assert_eq!(claimable_alice, 0);
+	let validity_bond = to_dai(25) / 100;
+	assert_eq!(claimable_alice, validity_bond);
 	assert_eq!(claimable_carol, 100000 - 1000);
 }

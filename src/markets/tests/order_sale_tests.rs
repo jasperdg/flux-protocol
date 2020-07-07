@@ -3,18 +3,19 @@ use std::cmp;
 
 fn simplest_order_sale() -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone) {
 	let (mut runtime, root, accounts) = init_runtime_env();
-	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
-	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
-
+	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	
 	let buyer = &accounts[0];
 	let seller = &accounts[1];
-
-	buyer.transfer(&mut runtime, seller.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
-	buyer.transfer(&mut runtime, root.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
+	
+	buyer.transfer(&mut runtime, seller.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
+	buyer.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	buyer.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	seller.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-
+	let tx_res = root.create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
+	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
+	
 	let buy_price = 50;
 	seller.place_order(&mut runtime, U64(0), U64(0), U128(2000 * buy_price), U128(buy_price), None).expect("order placement failed unexpectedly"); 
 	seller.place_order(&mut runtime, U64(0), U64(1), U128(2000 * buy_price), U128(buy_price), None).expect("order placement failed unexpectedly"); 
@@ -51,17 +52,18 @@ fn simplest_order_sale() -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone)
 
 fn partial_buy_order_fill_through_sale(buy_price: u128) -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone) {
 	let (mut runtime, root, accounts) = init_runtime_env();
-	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
-	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
-
+	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	
 	let buyer = &accounts[0];
 	let seller = &accounts[1];
-
-	buyer.transfer(&mut runtime, seller.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
-	buyer.transfer(&mut runtime, root.get_account_id(), ntoy(30).into()).expect("transfer failed couldn't be set");
+	
+	buyer.transfer(&mut runtime, seller.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
+	buyer.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	buyer.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	seller.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");	
+	let tx_res = root.create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
+	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	seller.place_order(&mut runtime, U64(0), U64(0), U128(2000 * 50), U128(50), None).expect("order placement failed unexpectedly"); // 10.000
 	seller.place_order(&mut runtime, U64(0), U64(1), U128(2000 * 50), U128(50), None).expect("order placement failed unexpectedly"); // 0
@@ -155,11 +157,12 @@ fn test_simple_market_order_sale_payout_invalid() {
 	let expected_claimable_buyer = 49500;
 	assert_eq!(claimable_buyer, expected_claimable_buyer);
 	
+	let validity_bond = to_dai(25) / 100;
 	buyer.claim_earnings(&mut runtime, U64(0), buyer.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
 	seller.claim_earnings(&mut runtime, U64(0), seller.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
 	root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
 	let contract_balance: u128 = root.get_balance(&mut runtime, flux_protocol()).into();
-	assert_eq!(contract_balance, 0);
+	assert_eq!(contract_balance, validity_bond);
 }
 
 
@@ -214,7 +217,8 @@ fn test_dynamically_priced_market_order_sale_for_loss_payout_invalid() {
 	root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
 
 	let contract_balance: u128 = root.get_balance(&mut runtime, flux_protocol()).into();
-	assert_eq!(contract_balance, 0);
+	let validity_bond = to_dai(25) / 100;
+	assert_eq!(contract_balance, validity_bond);
 }
 
 #[test]
@@ -270,7 +274,8 @@ fn test_dynamically_priced_market_order_sale_for_profit_payout_invalid() {
 	root.claim_earnings(&mut runtime, U64(0), root.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
 
 	let contract_balance: u128 = root.get_balance(&mut runtime, flux_protocol()).into();
-	assert_eq!(contract_balance, 0);
+	let validity_bond = to_dai(25) / 100;
+	assert_eq!(contract_balance, validity_bond);
 }
 
 

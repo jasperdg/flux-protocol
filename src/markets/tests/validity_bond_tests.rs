@@ -14,7 +14,6 @@ fn test_validity_market_payout_calc_valid_market() {
 	let alice = &accounts[0];
 
 	alice.transfer(&mut runtime, root.get_account_id(), U128(to_dai(30))).expect("allowance couldn't be set");
-
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
