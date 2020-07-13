@@ -147,10 +147,6 @@ impl Market {
 				let volume_filled = orderbook.fill_best_orders(shares_to_sell);
 				self.filled_volume += volume_filled;
 			} else {
-				// // TODO: extend test cases to test this case
-				// let volume_filled = orderbook.fill_best_orders(shares_sought);
-				// self.filled_volume += volume_filled;
-
 				shares_fillable -= shares_sought;
 				spendable += liq_at_price;
 				claimable_if_valid += orderbook.subtract_shares(shares_sought, best_price);
