@@ -4,12 +4,18 @@ use std::ops::Bound::*;
 use near_sdk::{
 	near_bindgen, 
 	env,
+	json_types::{
+		U64,
+		U128
+	},
 	collections::{
 		UnorderedMap,
 		TreeMap,
 		Vector
 	}
 };
+use serde_json::json;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -51,7 +57,8 @@ pub struct Market {
 	pub claimable_if_valid: UnorderedMap<String, u128>,
 	pub api_source: String,
 	pub resolution_windows: Vector<ResolutionWindow>,
-	pub resolution_bond_claimed: bool,
+	pub validity_bond_claimed: bool,
+	pub claimed_earnings: UnorderedMap<String, bool>
 }
 
 impl Market {
@@ -110,7 +117,8 @@ impl Market {
 			claimable_if_valid: UnorderedMap::new(format!("market:{}:claimable_if_valid", id).as_bytes().to_vec()),
 			api_source,
 			resolution_windows,
-			resolution_bond_claimed: false,
+			validity_bond_claimed: false,
+			claimed_earnings: UnorderedMap::new(format!("market:{}:claimed_earnings_for", id).as_bytes().to_vec()),
 		}
 	}
 
@@ -126,6 +134,7 @@ impl Market {
 		let mut best_price = orderbook.best_price.unwrap_or(0);
 		
 		if best_price == 0 { return 0; }
+
 		let mut liq_at_price = orderbook.liquidity_by_price.get(&best_price).expect("no liquidity");
 		let mut spendable = 0;
 		let mut shares_fillable = shares_to_sell;
@@ -138,6 +147,10 @@ impl Market {
 				let volume_filled = orderbook.fill_best_orders(shares_to_sell);
 				self.filled_volume += volume_filled;
 			} else {
+				// // TODO: extend test cases to test this case
+				// let volume_filled = orderbook.fill_best_orders(shares_sought);
+				// self.filled_volume += volume_filled;
+
 				shares_fillable -= shares_sought;
 				spendable += liq_at_price;
 				claimable_if_valid += orderbook.subtract_shares(shares_sought, best_price);
@@ -148,8 +161,23 @@ impl Market {
 			liq_at_price = orderbook.liquidity_by_price.get(&best_price).unwrap_or(0);
 		}
 
-		let claimable_if_valid_before = self.claimable_if_valid.get(&env::predecessor_account_id()).unwrap_or(0);
-		self.claimable_if_valid.insert(&env::predecessor_account_id(), &(claimable_if_valid + claimable_if_valid_before));
+		if claimable_if_valid > 0 {
+			let claimable_if_valid_before = self.claimable_if_valid.get(&env::predecessor_account_id()).unwrap_or(0);
+			self.claimable_if_valid.insert(&env::predecessor_account_id(), &(claimable_if_valid + claimable_if_valid_before));
+			env::log(
+				json!({
+					"type": "increased_claimable_if_valid".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"sender": env::predecessor_account_id(),
+						"claimable_if_valid": U128(claimable_if_valid),
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);	
+		}
+
 		let volume_filled = orderbook.fill_best_orders(shares_to_sell - shares_fillable);
 		self.orderbooks.insert(&outcome, &orderbook);
 		self.filled_volume += volume_filled;
@@ -346,8 +374,10 @@ impl Market {
 		let new_stake_on_outcome = staked_on_outcome + stake - to_return;
 		resolution_window.staked_per_outcome.insert(&outcome_id, &new_stake_on_outcome);
 
+
 		
 		if self.resoluted {
+
 			resolution_window.outcome = winning_outcome;
 			let new_resolution_window = ResolutionWindow {
 				round: resolution_window.round + 1,
@@ -357,8 +387,42 @@ impl Market {
 				end_time: env::block_timestamp() / 1000000 + 1800000, // 30 nano minutes should be 30 minutes
 				outcome: None,
 			};
+
+
+			env::log(
+				json!({
+					"type": "market_resoluted".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"sender": sender,
+						"staked": U128(stake - to_return),
+						"outcome": self.to_loggable_winning_outcome(winning_outcome),
+						"next_resolution_window" : {
+							"round": U64(new_resolution_window.round),
+							"required_bond_size": U128(new_resolution_window.required_bond_size),
+							"end_time": U64(new_resolution_window.end_time),
+						}
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
 			self.resolution_windows.push(&new_resolution_window);
-		} 
+		}  else {
+			env::log(
+				json!({
+					"type": "staked_on_resolution".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"sender": sender,
+						"staked": U128(stake - to_return),
+						"outcome": self.to_loggable_winning_outcome(winning_outcome),
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
+		}
 		
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
 
@@ -414,10 +478,42 @@ impl Market {
 				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
 				end_time: env::block_timestamp() / 1000000 + 1800000,
 				outcome: None,
-				// invalid: false
 			};
 
+			env::log(
+				json!({
+					"type": "resolution_disputed".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"sender": sender,
+						"staked": U128(stake - to_return),
+						"outcome": self.to_loggable_winning_outcome(winning_outcome),
+						"next_resolution_window" : {
+							"round": U64(next_resolution_window.round),
+							"required_bond_size": U128(next_resolution_window.required_bond_size),
+							"end_time": U64(next_resolution_window.end_time),
+						}
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
+
 			self.resolution_windows.push(&next_resolution_window);
+		} else {
+			env::log(
+				json!({
+					"type": "staked_on_dispute".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"sender": sender,
+						"staked": U128(stake - to_return),
+						"outcome": self.to_loggable_winning_outcome(winning_outcome),
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
 		}
 
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
@@ -435,6 +531,18 @@ impl Market {
 	    if self.disputed {
             self.winning_outcome = winning_outcome;
 		}
+
+		env::log(
+			json!({
+				"type": "market_finalized".to_string(),
+				"params": {
+					"market_id": U64(self.id),
+					"winning_outcome": self.to_loggable_winning_outcome(self.winning_outcome)
+				}
+			})
+			.to_string()
+			.as_bytes()
+		);
 		
 	    self.finalized = true;
 	}
@@ -667,37 +775,14 @@ impl Market {
 		return max_spend;
 	}
 
-
-	pub fn reset_balances_for(
-		&mut self, 
-		account_id: String
-	) {
-		self.claimable_if_valid.insert(&account_id, &0);
-
-		for orderbook_id in 0..self.outcomes {
-			let mut orderbook = self.orderbooks.get(&orderbook_id).unwrap();
-			orderbook.delete_orders_for(account_id.to_string());
-			self.orderbooks.insert(&orderbook_id, &orderbook);
-		}
-	}
-
-	pub fn delete_resolution_for(
-		&mut self,
-		account_id: String,
-	) {
-		let mut to_update: Vec<ResolutionWindow> = vec![];
-		for mut window in self.resolution_windows.iter() {
-			let staked_per_outcome = window.participants_to_outcome_to_stake.get(&account_id.to_string());
-			if staked_per_outcome.is_none() {continue;}
-
-			// TODO this needs to change else we won't be able to withdraw unstaked funds after claiming funds initially
-			window.participants_to_outcome_to_stake.insert(&account_id, &UnorderedMap::new(format!("user_empty_participation:{}:{}:{}", account_id, self.id, window.round).as_bytes().to_vec()));
-			to_update.push(window);	
-		}
-
-		for window in to_update {
-			self.resolution_windows.replace(window.round, &window);
-		}
+	fn to_loggable_winning_outcome(
+		&self, 
+		winning_outcome: Option<u64>
+	) -> Option<U64> {
+		return match winning_outcome {
+			Some(outcome) => Some(U64(outcome)),
+			None => None
+		};
 	}
 }
 

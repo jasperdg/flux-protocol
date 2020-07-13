@@ -11,7 +11,7 @@ use near_sdk::{
 	}
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-
+use serde_json::json;
 mod market;
 type Market = market::Market;
 type Order = market::orderbook::order::Order;
@@ -133,13 +133,35 @@ impl Markets {
 		
 		let transfer_succeeded = self.is_promise_success();
 		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", self.creation_bond, env::current_account_id()); }
-		
 
-		// TODO: Escrow bond account_id creator's account
+		env::log(
+			json!({
+				"type": "market_creation".to_string(),
+				"params": {
+					"id": self.nonce,
+					"creator": sender,
+					"description": description,
+					"extra_info": extra_info,
+					"outcomes": U64(outcomes),
+					"outcome_tags": outcome_tags,
+					"categories": categories,
+					"end_time": U64(end_time),
+					"creator_fee_percentage": U128(creator_fee_percentage),
+					"resolution_fee_percentage": U128(resolution_fee_percentage),
+					"affiliate_fee_percentage": U128(affiliate_fee_percentage),
+					"api_source": api_source,
+				}
+			})
+			.to_string()
+			.as_bytes()
+		);
+
 		let new_market = Market::new(self.nonce, sender, description, extra_info, outcomes, outcome_tags, categories, end_time, creator_fee_percentage, resolution_fee_percentage, affiliate_fee_percentage ,api_source);
 		let market_id = new_market.id;
 		self.markets.insert(&self.nonce, &new_market);
 		self.nonce = self.nonce + 1;
+		
+		
 		return PromiseOrValue::Value(market_id);
 	}
 
@@ -214,7 +236,6 @@ impl Markets {
 		outcome: U64, 
 		order_id: U128
 	) {
-	// ) -> Promise {
 		let market_id: u64 = market_id.into();
 		let outcome: u64 = outcome.into();
 		let order_id: u128 = order_id.into();
@@ -303,6 +324,19 @@ impl Markets {
 		let to_return = market.cancel_dispute_participation(dispute_round, outcome);
 		self.markets.insert(&market_id, &market);
 		if to_return > 0 {
+			env::log(
+				json!({
+					"type": "withdrawn_unbounded_dispute_stake".to_string(),
+					"params": {
+						"market_id": U64(market_id),
+						"sender": env::predecessor_account_id(),
+						"dispute_round": U64(dispute_round),
+						"outcome": outcome,
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
 			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		} else {
 			panic!("user has no participation in this dispute");
@@ -422,17 +456,22 @@ impl Markets {
 		market_id: U64, 
 		account_id: String
 	) -> U128 {
+		
 		let market_id: u64 = market_id.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
-		let mut resolution_bond = 0;
-		if account_id == market.creator && market.resolution_bond_claimed == false && market.winning_outcome != None {
-			resolution_bond = self.creation_bond;
+		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
+		assert_eq!(market.finalized, true, "market isn't finalized yet");
+		let claimed_earnings = market.claimed_earnings.get(&account_id);
+		assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
+		let mut validity_bond = 0;
+		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
+			validity_bond = self.creation_bond;
 		}
 		let (winnings, left_in_open_orders, governance_earnings, _) = market.get_claimable_for(account_id.to_string());
 		let total_fee_percentage = market.creator_fee_percentage + market.resolution_fee_percentage;
 		let fee = (winnings * total_fee_percentage + 10000 - 1) / 10000;
 		
-		return (winnings - fee + governance_earnings + left_in_open_orders + resolution_bond).into();
+		return (winnings - fee + governance_earnings + left_in_open_orders + validity_bond).into();
 	}
 
 	pub fn claim_earnings(
@@ -443,10 +482,13 @@ impl Markets {
 		let market_id: u64 = market_id.into();
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		let market_creator = market.creator.to_string();
+		let claimed_earnings = market.claimed_earnings.get(&account_id);
+		assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
 		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
-		assert_eq!(market.resoluted, true);
-		assert_eq!(market.finalized, true);
-		
+		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
+		assert_eq!(market.finalized, true, "market isn't finalized yet");
+
+		market.claimed_earnings.insert(&account_id, &true);
 		let (winnings, left_in_open_orders, governance_earnings, affiliates) = market.get_claimable_for(account_id.to_string());
 		let mut market_creator_fee = (winnings * market.creator_fee_percentage + 10000 - 1) / 10000;
 		let creator_fee_percentage = market.creator_fee_percentage;
@@ -454,31 +496,52 @@ impl Markets {
 		let affiliate_fee_percentage = market.affiliate_fee_percentage;
 		let mut paid_to_affiliates = 0;
 		
-		let mut resolution_bond = 0;
-		if account_id == market.creator && market.resolution_bond_claimed == false && market.winning_outcome != None {
-			resolution_bond = self.creation_bond;
-			market.resolution_bond_claimed = true;
+		let mut validity_bond = 0;
+		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
+			validity_bond = self.creation_bond;
+			market.validity_bond_claimed = true;
 		}
 
-		market.reset_balances_for(account_id.to_string());
-		market.delete_resolution_for(account_id.to_string());
-
-		for (affiliate_account_id, amount_owed) in affiliates {										
+		for (affiliate_account_id, amount_owed) in affiliates {	
 			let affiliate_owed = (amount_owed * affiliate_fee_percentage * creator_fee_percentage + 1000000 - 1) / 1000000;
 			paid_to_affiliates += affiliate_owed;
+			env::log(
+				json!({
+					"type": "added_to_affiliate_earnings".to_string(),
+					"params": {
+						"market_id": U64(market_id),
+						"affiliate": affiliate_account_id,
+						"earned": U128(affiliate_owed),
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
 			market_creator_fee -= affiliate_owed;
 			let affiliate_earnings = self.affiliate_earnings.get(&affiliate_account_id).unwrap_or(0);
 			self.affiliate_earnings.insert(&affiliate_account_id, &(affiliate_earnings + affiliate_owed));
 		}
-	
 
 		let total_fee = market_creator_fee + paid_to_affiliates + resolution_fee;
 		let to_claim = winnings + governance_earnings + left_in_open_orders;
 
-		let earnings = to_claim - total_fee + resolution_bond;
+		let earnings = to_claim - total_fee + validity_bond;
 		
 		if earnings == 0 {panic!("can't claim 0 tokens")}
 
+		env::log(
+			json!({
+				"type": "earnings_claimed".to_string(),
+				"params": {
+					"market_id": U64(market_id),
+					"account_id": account_id,
+					"earned": U128(earnings),
+				}
+			})
+			.to_string()
+			.as_bytes()
+		);		
+		
 		self.markets.insert(&market_id, &market);
 		if market_creator_fee > 0 {
 			return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
@@ -496,6 +559,17 @@ impl Markets {
 	) -> Promise {
 		let affiliate_earnings = self.affiliate_earnings.get(&account_id).expect("account doesn't have any affiliate fees to collect");
 		if affiliate_earnings > 0 {
+			env::log(
+				json!({
+					"type": "affiliate_earnings_claimed".to_string(),
+					"params": {
+						"account_id": account_id,
+						"earned": U128(affiliate_earnings),
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);		
 			self.affiliate_earnings.insert(&account_id, &0);
 			return fun_token::transfer(account_id.to_string(), U128(affiliate_earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		} else {
@@ -524,10 +598,12 @@ impl Markets {
 		let market_id: u64 = market_id.into();
 		let outcome: u64 = outcome.into();
 		let shares: u128 = shares.into();
-
+		
 		assert!(shares > 0, "can't sell no shares");
-
+		
 		let mut market = self.markets.get(&market_id).expect("non existent market");
+		let has_claimed = market.claimed_earnings.get(&env::predecessor_account_id());
+		assert_eq!(has_claimed.is_none(), true, "can't sell shares after claim");
 		let earnings = market.dynamic_market_sell_internal(outcome, shares);
 		self.markets.insert(&market_id, &market);
 		

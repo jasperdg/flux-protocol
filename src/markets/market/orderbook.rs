@@ -4,13 +4,15 @@ use near_sdk::{
 		UnorderedMap,
 		TreeMap,
 		Vector
-	}
+	},
+	json_types::{U128, U64},
 };
 use std::{
 	cmp,
 	convert::TryInto,
 	collections::HashMap
 };
+use serde_json::json;
 use borsh::{BorshDeserialize, BorshSerialize};
 
 pub mod order;
@@ -75,7 +77,7 @@ impl Orderbook {
 		affiliate_account_id: Option<String>
 	){
 		let order_id = self.new_order_id();
-		let new_order = Order::new(account_id.to_string(), outcome, order_id, spend, amt_of_shares, price, filled, shares_filled, affiliate_account_id);
+		let new_order = Order::new(account_id.to_string(), outcome, order_id, spend, amt_of_shares, price, filled, shares_filled, affiliate_account_id.clone());
 
 		let spend_by_user = self.spend_by_user.get(&account_id).unwrap_or(0);
 		self.spend_by_user.insert(&account_id, &(spend_by_user + spend));
@@ -88,9 +90,46 @@ impl Orderbook {
 		let left_to_spend = spend - filled;
 
 		if left_to_spend < 100 {
+			env::log(
+				json!({
+					"type": "order_filled_at_placement".to_string(),
+					"params": {
+						"market_id": U64(self.market_id),
+						"account_id": account_id, 
+						"outcome": U64(outcome), 
+						"spend":  U128(spend),
+						"amt_of_shares":  U128(amt_of_shares),
+						"price":  U128(price),
+						"filled": U128(filled), 
+						"shares_filled": U128(shares_filled),
+						"affiliate_account_id": affiliate_account_id
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
 			self.filled_orders.insert(&order_id, &new_order);
 			return;
 		}
+
+		env::log(
+			json!({
+				"type": "order_placed".to_string(),
+				"params": {
+					"market_id": U64(self.market_id),
+					"account_id": account_id, 
+					"outcome": U64(outcome), 
+					"spend":  U128(spend),
+					"amt_of_shares":  U128(amt_of_shares),
+					"price":  U128(price),
+					"filled": U128(filled), 
+					"shares_filled": U128(shares_filled),
+					"affiliate_account_id": affiliate_account_id
+				}
+			})
+			.to_string()
+			.as_bytes()
+		);
 
         // If there is a remaining order, set this new order as the new market rate
 		self.set_best_price(price);
@@ -146,8 +185,34 @@ impl Orderbook {
 		
         // Add back to filled if eligible, remove account_id user map if not
         if order.shares_filled > 0 {
+			env::log(
+				json!({
+					"type": "order_filled".to_string(),
+					"params": {
+						"market_id": U64(self.market_id),
+						"orderbook_id": U64(self.outcome_id),
+						"order_id": U128(order_id),
+						"filled": U128(order.shares_filled),
+						"shares_filled": U128(order.filled),
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
 			self.filled_orders.insert(&order.id, &order);
         } else {
+			env::log(
+				json!({
+					"type": "order_canceled".to_string(),
+					"params": {
+						"market_id": U64(self.market_id),
+						"orderbook_id": U64(self.outcome_id),
+						"id": U128(order_id)
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
 			let mut order_by_user_map = self.orders_by_user.get(&order.creator).unwrap();
 			order_by_user_map.remove(&order_id);
 			self.orders_by_user.insert(&order.creator, &order_by_user_map);
@@ -197,10 +262,24 @@ impl Orderbook {
 
                     if order.spend - order.filled < 100 { // some rounding errors here might cause some stack overflow bugs that's why this is build in.
                         to_remove.push((order_id, order.price));
-						self.open_orders.insert(&order.id, &order);
-                    } else {
-						self.open_orders.insert(&order.id, &order);
+					} else {
+						env::log(
+							json!({
+								"type": "order_partly_filled".to_string(),
+								"params": {
+									"market_id": U64(self.market_id),
+									"orderbook_id": U64(self.outcome_id),
+									"id": U128(order_id),
+									"filled": U128(order.shares_filled),
+									"shares_filled": U128(order.filled),
+								}
+							})
+							.to_string()
+							.as_bytes()
+						);
 					}
+					self.open_orders.insert(&order.id, &order);
+
                     amt_of_shares_to_fill -= filling;
                 } else {
                     break;
@@ -237,29 +316,65 @@ impl Orderbook {
 		let mut claimable_if_valid = 0;
 		let mut spend_to_decrement = 0;
 
+		// TODO: understand what's going on here and why - aka rewrite
 		for (order_id, _) in orders_by_user.iter() {
 			if shares_to_sell > 0 {
 				let (mut order, state) = self.get_order_by_id(&order_id);
 				let mut shares_to_calculate_spend = order.shares_filled;
 
+				// if there's more or equal shares to be sold than ths
 				if order.shares_filled <= shares_to_sell {
+					// check if share that is being sold is filled
 					if order.is_filled() {
 						shares_to_sell -= order.shares_filled;
 						to_remove.push(order.id);
 					} else {
+						// if the shares sold are part of an open order - adjust said order
 						order.spend -= order.shares_filled * order.price;
 						order.filled = 0;
 						order.amt_of_shares -= order.shares_filled;
 						order.shares_filled = 0;
+						env::log(
+							json!({
+								"type": "sold_fill_from_order".to_string(),
+								"params": {
+									"market_id": U64(self.market_id),
+									"orderbook_id": U64(self.outcome_id),
+									"order_id": U128(order.id),
+									"updated_spend": U128(order.spend),
+									"updated_filled": U128(order.filled),
+									"updated_amt_of_shares": U128(order.amt_of_shares),
+									"upated_shares_filled": U128(order.shares_filled)
+								}
+							})
+							.to_string()
+							.as_bytes()
+						);
 					}
 				} else {
 					order.spend -= shares_to_sell * order.price;
 					order.filled -= shares_to_sell * order.price;
 					order.amt_of_shares -= shares_to_sell;
 					order.shares_filled = shares_to_sell;
-
 					shares_to_calculate_spend = shares_to_sell;
 					shares_to_sell = 0;
+
+					env::log(
+						json!({
+							"type": "sold_fill_from_order".to_string(),
+							"params": {
+								"market_id": U64(self.market_id),
+								"orderbook_id": U64(self.outcome_id),
+								"order_id": U128(order.id),
+								"updated_spend": U128(order.spend),
+								"updated_filled": U128(order.filled),
+								"updated_amt_of_shares": U128(order.amt_of_shares),
+								"upated_shares_filled": U128(order.shares_filled)
+							}
+						})
+						.to_string()
+						.as_bytes()
+					);
 				}
 
 				if order.price < sell_price {
@@ -278,7 +393,7 @@ impl Orderbook {
 				}
 
 			} else {
-				continue;
+				break;
 			}
 		}
 
@@ -289,7 +404,18 @@ impl Orderbook {
 		let mut spend_by_user = self.spend_by_user.get(&env::predecessor_account_id()).expect("user doens't have any spend left");
 		spend_by_user -= spend_to_decrement;
 		self.spend_by_user.insert(&env::predecessor_account_id(), &spend_by_user);
-
+		env::log(
+			json!({
+				"type": "decrement_spend_by_user".to_string(),
+				"params": {
+					"market_id": U64(self.market_id),
+					"orderbook_id": U64(self.outcome_id),
+					"amt_to_subtract": U128(spend_to_decrement),
+				}
+			})
+			.to_string()
+			.as_bytes()
+		);
 		return claimable_if_valid;
 	}
 
@@ -326,21 +452,6 @@ impl Orderbook {
 		return (claimable, affiliates);
 	}
 
-	pub fn delete_orders_for(
-		&mut self, 
-		account_id: String
-	) {
-		let orders_by_user_prom = self.orders_by_user.get(&account_id);
-		
-		self.spend_by_user.insert(&account_id, &0);
-		if orders_by_user_prom.is_none() {return}
-
-		self.claimed_orders_by_user
-		.insert(&account_id, &orders_by_user_prom.unwrap());
-
-		self.orders_by_user.remove(&account_id);
-	}
-
     fn remove_filled_order(
 		&mut self, 
 		order_id : u128
@@ -350,6 +461,18 @@ impl Orderbook {
         // Remove order account_id user map
         let mut order_by_user_map = self.orders_by_user.get(&order.creator).unwrap();
 		order_by_user_map.remove(&order_id);
+		env::log(
+			json!({
+				"type": "removed_filled_order".to_string(),
+				"params": {
+					"market_id": U64(self.market_id),
+					"orderbook_id": U64(self.outcome_id),
+					"order_id": U128(order_id),
+				}
+			})
+			.to_string()
+			.as_bytes()
+		);
 		self.orders_by_user.insert(&order.creator, &order_by_user_map);
         if order_by_user_map.is_empty() {
             self.orders_by_user.remove(&order.creator);

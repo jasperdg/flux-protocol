@@ -37,9 +37,6 @@ fn test_validity_market_payout_calc_valid_market() {
 	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id()).expect("claim earnings failed");
 	println!("{:?}", tx_res);
 
-	let claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
-	assert_eq!(claimable_alice, 0);
-
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	assert_eq!(contract_balance, to_dai(5));
 

@@ -25,8 +25,10 @@ fn test_payout() {
 	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
-	
 	let tx_res = carol.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5))).expect("tx failed unexpectedly");
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000000000;
+	carol.finalize_market(&mut runtime, U64(0), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
+
 	let initially_claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
 	let initially_claimable_carol: u128 = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id()).into();
 	
@@ -39,17 +41,12 @@ fn test_payout() {
 	alice.finalize_market(&mut runtime, U64(0), None).expect("market finalization failed unexpectedly");
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
-	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
-	
-	let updated_claimable_alice = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id());
-	let updated_claimable_carol = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id());
+	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnigns tx failed unexpectedly");;
 	
 	let updated_balance_alice = alice.get_balance(&mut runtime, alice.get_account_id());
 	let updated_balance_carol = alice.get_balance(&mut runtime, carol.get_account_id());
 
 	assert_eq!(updated_balance_alice, U128(initially_claimable_alice + initial_balance_alice));
 	assert_eq!(updated_balance_carol, U128(initially_claimable_carol + initial_balance_carol));
-	
-	assert_eq!(updated_claimable_alice, U128(0));
-	assert_eq!(updated_claimable_carol, U128(0));
+
 }

@@ -1,1 +1,1 @@
-near deploy --accountId fluxprotocol-phase-point-two --wasmFile ./res/flux_protocol.wasm
+near deploy --accountId u1f92b_u1f680.flux-dev  --wasmFile ./res/flux_protocol.wasm

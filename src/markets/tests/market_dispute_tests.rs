@@ -52,12 +52,6 @@ fn test_dispute_valid() {
 	assert_eq!(initial_balance_alice + initially_claimable_alice, balance_after_claim_alice);
 	assert_eq!(initial_balance_carol + initially_claimable_carol, balance_after_claim_carol);
 
-	let claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
-	let claimable_carol: u128 = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id()).into();
-	
-	assert_eq!(claimable_alice, 0);
-	assert_eq!(claimable_carol, 0);
-
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	assert_eq!(contract_balance, to_dai(10));
 
