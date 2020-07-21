@@ -24,10 +24,11 @@ struct Markets {
 	nonce: u64,
 	max_fee_percentage: u128,
 	creation_bond: u128,
-	affiliate_earnings: UnorderedMap<String, u128>
+	affiliate_earnings: UnorderedMap<String, u128>,
+	fun_token_account_id: String
 }
 
-const SINGLE_CALL_GAS: u64 = 200000000000000;
+const SINGLE_CALL_GAS: u64 = 100000000000000;
 
 #[ext_contract]
 pub trait FunToken {
@@ -37,6 +38,7 @@ pub trait FunToken {
     fn get_balance(&self, owner_id: AccountId) -> u128;
 }
 
+
 #[ext_contract]
 pub trait FluxProtocol {
     fn market_creation(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
@@ -44,6 +46,20 @@ pub trait FluxProtocol {
     fn proceed_market_resolution(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
 	fn proceed_market_dispute(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
 	fn proceed_market_creation(&mut self, sender: String, description: String, extra_info: String, outcomes: u64, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u128, resolution_fee_percentage: u128, affiliate_fee_percentage: u128, api_source: String);
+}
+
+impl Default for Markets {
+	fn default() -> Self {
+		Self {
+			creator: "flux-dev".to_string(),
+			markets: UnorderedMap::new(b"markets".to_vec()),
+			nonce: 0,
+			max_fee_percentage: 500,
+			creation_bond: 25e18 as u128 / 100,
+			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec()), 
+			fun_token_account_id: "fun_token".to_string()
+		}
+	}
 }
 
 #[near_bindgen]
@@ -59,7 +75,7 @@ impl Markets {
 	fn fun_token_account_id(
 		&self
 	) -> String {
-		return "fun_token".to_string();
+		return self.fun_token_account_id.to_string();
 	}
 
 	fn assert_self(
@@ -80,6 +96,7 @@ impl Markets {
 		affiliate_fee_percentage: U128,
 		api_source: String
 	) -> Promise {
+	// ) {
 		let outcomes: u64 = outcomes.into();
 		let end_time: u64 = end_time.into();
 		let creator_fee_percentage: u128 = creator_fee_percentage.into();
@@ -201,7 +218,7 @@ impl Markets {
 				affiliate_account_id,
 				&env::current_account_id(), 
 				0, 
-				SINGLE_CALL_GAS * 3
+				SINGLE_CALL_GAS
 			)
 		);
 	}
@@ -270,8 +287,7 @@ impl Markets {
 		assert_eq!(market.finalized, false, "market is already finalized");
 		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
 
-
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2)
 		.then(
 			flux_protocol::proceed_market_resolution(
 				env::predecessor_account_id(),
@@ -280,7 +296,7 @@ impl Markets {
 				stake_u128,
 				&env::current_account_id(),
 				0,
-				SINGLE_CALL_GAS * 2
+				SINGLE_CALL_GAS
 			)
 		);
 	}
@@ -300,7 +316,7 @@ impl Markets {
 		let change: u128 = market.resolute(sender.to_string(), winning_outcome, stake).into();
 		self.markets.insert(&market_id, &market);
 		if change > 0 {
-			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2);
 			return PromiseOrValue::Promise(prom);
 		} else {
 			return PromiseOrValue::Value(true);
@@ -365,7 +381,7 @@ impl Markets {
 		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
 		assert!(env::block_timestamp() / 1000000 <= resolution_window.end_time, "dispute window is closed, market can be finalized");
 
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2).then(
 			flux_protocol::proceed_market_dispute(
 				env::predecessor_account_id(),
 				market_id,
@@ -373,7 +389,7 @@ impl Markets {
 				stake_u128,
 				&env::current_account_id(), 
 				0, 
-				SINGLE_CALL_GAS * 2
+				SINGLE_CALL_GAS
 			)
 		)
 	}
@@ -394,7 +410,7 @@ impl Markets {
 
 		self.markets.insert(&market.id, &market);
 		if change > 0 {
-			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS));
+			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2));
 		} else {
 			return PromiseOrValue::Value(true);
 		}
@@ -459,10 +475,9 @@ impl Markets {
 		
 		let market_id: u64 = market_id.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
-		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
-		assert_eq!(market.finalized, true, "market isn't finalized yet");
 		let claimed_earnings = market.claimed_earnings.get(&account_id);
 		assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
+		if claimed_earnings.is_some() { return U128(0); }
 		let mut validity_bond = 0;
 		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
 			validity_bond = self.creation_bond;
@@ -708,18 +723,6 @@ impl Markets {
 	
 }
 
-impl Default for Markets {
-	fn default() -> Self {
-		Self {
-			creator: "flux-dev".to_string(),
-			markets: UnorderedMap::new(b"markets".to_vec()),
-			nonce: 0,
-			max_fee_percentage: 500,
-			creation_bond: 25e18 as u128 / 100,
-			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec())
-		}
-	}
-}
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
@@ -838,15 +841,15 @@ mod tests {
 		return (runtime, root, accounts);
 	}
 
-	mod init_tests; 
-	mod market_order_tests;
+	// mod init_tests; 
+	// mod market_order_tests;
 	mod binary_order_matching_tests;
-	mod categorical_market_tests;
-	mod market_depth_tests;
-	mod market_resolution_tests; 
-	mod claim_earnings_tests;
-	mod market_dispute_tests;
-	mod fee_payout_tests;
-	mod order_sale_tests; 
-	mod validity_bond_tests;
+	// mod categorical_market_tests;
+	// mod market_depth_tests;
+	// mod market_resolution_tests; 
+	// mod claim_earnings_tests;
+	// mod market_dispute_tests;
+	// mod fee_payout_tests;
+	// mod order_sale_tests; 
+	// mod validity_bond_tests;
 }

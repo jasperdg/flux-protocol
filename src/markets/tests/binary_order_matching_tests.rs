@@ -12,10 +12,10 @@ fn simplest_binary_order_matching_test() {
 	accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(50000), U128(50), None).expect("order placement tx failed unexpectedly");
 	accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(50000), U128(50), None).expect("order placement tx failed unexpectedly");
 
-	let no_share_balance = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(0));
-	let yes_share_balance = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(1));
-	assert_eq!(no_share_balance, U128(1000));
-	assert_eq!(yes_share_balance, U128(1000));
+	let no_share_balance: u128 = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(0)).into();
+	let yes_share_balance: u128 = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(1)).into();
+	assert_eq!(no_share_balance, 1000);
+	assert_eq!(yes_share_balance, 1000);
 
 	let open_no_orders_len = accounts[0].get_open_orders_len(&mut runtime, U64(0), U64(0));
 	let open_yes_orders_len = accounts[0].get_open_orders_len(&mut runtime, U64(0), U64(1));

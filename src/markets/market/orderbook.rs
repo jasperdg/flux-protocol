@@ -21,7 +21,6 @@ pub type Order = order::Order;
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Orderbook {
 	pub market_id: u64,
-	pub root: Option<u128>,
 	pub best_price: Option<u128>,
 	pub open_orders: UnorderedMap<u128, Order>,
 	pub filled_orders: UnorderedMap<u128, Order>,
@@ -29,7 +28,6 @@ pub struct Orderbook {
 	pub orders_by_price: TreeMap<u128, UnorderedMap<u128, bool>>,
 	pub liquidity_by_price: TreeMap<u128, u128>,
 	pub orders_by_user: UnorderedMap<String, UnorderedMap<u128, bool>>,
-	pub claimed_orders_by_user: UnorderedMap<String, UnorderedMap<u128, bool>>,
 	pub nonce: u128,
 	pub outcome_id: u64
 }
@@ -41,14 +39,12 @@ impl Orderbook {
 	) -> Self {
 		Self {
 			market_id,
-			root: None,
 			open_orders: UnorderedMap::new(format!("open_orders:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			filled_orders: UnorderedMap::new(format!("filled_orders:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			spend_by_user: UnorderedMap::new(format!("spend_by_user:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			orders_by_price: TreeMap::new(format!("orders_by_price:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			liquidity_by_price: TreeMap::new(format!("liquidity_by_price:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			orders_by_user: UnorderedMap::new(format!("orders_by_user:{}:{}", market_id, outcome).as_bytes().to_vec()),
-			claimed_orders_by_user: UnorderedMap::new(format!("claimed_orders_by_user:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			best_price: None,
 			nonce: 0,
 			outcome_id: outcome,
