@@ -62,5 +62,3 @@ fn fee_distribution_test() {
 	
 	let tx_res = alice.claim_affiliate_earnings(&mut runtime, carol.get_account_id()).expect("affiliate claim failed unexpectedly"); // should fail
 }
-
-// TODO: test coverage for crowdsourced pariticipation on winning outcome that isn;t bonded - this shouldnt be added to the users pariticpation

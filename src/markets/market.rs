@@ -728,7 +728,6 @@ impl Market {
         }
 	}
 
-	// TODO: Add get_liquidity function that doesn't need the spend argument
 	pub fn get_liquidity_available(
 		&self, 
 		outcome: u64, 

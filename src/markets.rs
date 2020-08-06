@@ -57,7 +57,7 @@ impl Default for Markets {
 			max_fee_percentage: 500,
 			creation_bond: 25e18 as u128 / 100,
 			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec()), 
-			fun_token_account_id: "fun_token".to_string()
+			fun_token_account_id: "flux_fungible_token.flux-dev".to_string()
 		}
 	}
 }

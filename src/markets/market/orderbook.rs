@@ -312,7 +312,6 @@ impl Orderbook {
 		let mut claimable_if_valid = 0;
 		let mut spend_to_decrement = 0;
 
-		// TODO: understand what's going on here and why - aka rewrite
 		for (order_id, _) in orders_by_user.iter() {
 			if shares_to_sell > 0 {
 				let (mut order, state) = self.get_order_by_id(&order_id);
