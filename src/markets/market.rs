@@ -380,7 +380,7 @@ impl Market {
 				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
 				required_bond_size: resolution_window.required_bond_size * 2,
 				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: env::block_timestamp() / 1000000 + 1800000, // 30 nano minutes should be 30 minutes
+				end_time: env::block_timestamp() / 1000000 + 43200000, // dispute time is 12 hours for first release
 				outcome: None,
 			};
 
@@ -472,7 +472,7 @@ impl Market {
 				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
 				required_bond_size: resolution_window.required_bond_size * 2,
 				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: env::block_timestamp() / 1000000 + 1800000,
+				end_time: env::block_timestamp() / 1000000 + 43200000,
 				outcome: None,
 			};
 

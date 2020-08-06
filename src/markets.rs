@@ -233,14 +233,11 @@ impl Markets {
 		price: u128,
 		affiliate_account_id: Option<String>,
 	) -> PromiseOrValue<bool> {
-		env::log(format!("Order placement proceeding").as_bytes());
 		self.assert_self();
 		
 		let transfer_succeeded = self.is_promise_success();
 		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", spend, env::current_account_id()); }
 		
-		env::log(format!("transfer success, order placement succeeded").as_bytes());
-
 		let mut market = self.markets.get(&market_id).unwrap();
 		market.create_order(sender, outcome, amount_of_shares, spend, price, affiliate_account_id);
 		self.markets.insert(&market.id, &market);
