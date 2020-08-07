@@ -25,7 +25,7 @@ struct Markets {
 	max_fee_percentage: u128,
 	creation_bond: u128,
 	affiliate_earnings: UnorderedMap<String, u128>,
-	fun_token_account_id: String
+	fun_token_account_id: Option<String>
 }
 
 const SINGLE_CALL_GAS: u64 = 100000000000000;
@@ -57,13 +57,18 @@ impl Default for Markets {
 			max_fee_percentage: 500,
 			creation_bond: 25e18 as u128 / 100,
 			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec()), 
-			fun_token_account_id: "flux_fungible_token.flux-dev".to_string()
+			fun_token_account_id: None
 		}
 	}
 }
 
 #[near_bindgen]
 impl Markets {
+
+
+	pub fn init(&mut self, fun_token_account_id: String) {
+		self.fun_token_account_id = Some(fun_token_account_id);
+	}
 
 	fn dai_token(
 		&self
@@ -74,8 +79,8 @@ impl Markets {
 
 	fn fun_token_account_id(
 		&self
-	) -> String {
-		return self.fun_token_account_id.to_string();
+	) -> &String {
+		return self.fun_token_account_id.as_ref().expect("contract needs to be initiated first");
 	}
 
 	fn assert_self(
