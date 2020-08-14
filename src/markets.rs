@@ -25,7 +25,7 @@ struct Markets {
 	max_fee_percentage: u128,
 	creation_bond: u128,
 	affiliate_earnings: UnorderedMap<String, u128>,
-	fun_token_account_id: Option<String>
+	fun_token_account_id: String
 }
 
 const SINGLE_CALL_GAS: u64 = 100000000000000;
@@ -49,7 +49,16 @@ pub trait FluxProtocol {
 }
 
 impl Default for Markets {
-	fn default() -> Self {
+    fn default() -> Self {
+        panic!("Fun token should be initialized before usage")
+    }
+}
+
+#[near_bindgen]
+impl Markets {
+
+	#[init]
+	pub fn init(fun_token_account_id: String) -> Self {
 		Self {
 			creator: "flux-dev".to_string(),
 			markets: UnorderedMap::new(b"markets".to_vec()),
@@ -57,17 +66,8 @@ impl Default for Markets {
 			max_fee_percentage: 500,
 			creation_bond: 25e18 as u128 / 100,
 			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec()), 
-			fun_token_account_id: None
+			fun_token_account_id
 		}
-	}
-}
-
-#[near_bindgen]
-impl Markets {
-
-
-	pub fn init(&mut self, fun_token_account_id: String) {
-		self.fun_token_account_id = Some(fun_token_account_id);
 	}
 
 	fn dai_token(
@@ -79,8 +79,8 @@ impl Markets {
 
 	fn fun_token_account_id(
 		&self
-	) -> &String {
-		return self.fun_token_account_id.as_ref().expect("contract needs to be initiated first");
+	) -> String {
+		return self.fun_token_account_id.to_string();
 	}
 
 	fn assert_self(
@@ -160,7 +160,7 @@ impl Markets {
 			json!({
 				"type": "market_creation".to_string(),
 				"params": {
-					"id": self.nonce,
+					"id": U64(self.nonce),
 					"creator": sender,
 					"description": description,
 					"extra_info": extra_info,
@@ -522,20 +522,21 @@ impl Markets {
 		for (affiliate_account_id, amount_owed) in affiliates {	
 			let affiliate_owed = (amount_owed * affiliate_fee_percentage * creator_fee_percentage + 1000000 - 1) / 1000000;
 			paid_to_affiliates += affiliate_owed;
+			let affiliate_earnings = self.affiliate_earnings.get(&affiliate_account_id).unwrap_or(0);
+
 			env::log(
 				json!({
 					"type": "added_to_affiliate_earnings".to_string(),
 					"params": {
 						"market_id": U64(market_id),
 						"affiliate": affiliate_account_id,
-						"earned": U128(affiliate_owed),
+						"earned": U128(affiliate_earnings + affiliate_owed),
 					}
 				})
 				.to_string()
 				.as_bytes()
 			);
 			market_creator_fee -= affiliate_owed;
-			let affiliate_earnings = self.affiliate_earnings.get(&affiliate_account_id).unwrap_or(0);
 			self.affiliate_earnings.insert(&affiliate_account_id, &(affiliate_earnings + affiliate_owed));
 		}
 
@@ -605,31 +606,32 @@ impl Markets {
 		.filled_volume.into();
 	}
 
-	pub fn dynamic_market_sell(
-		&mut self,
-		market_id: U64,
-		outcome: U64,
-		shares: U128,
-	// ) -> Promise{
-	) {
-		let market_id: u64 = market_id.into();
-		let outcome: u64 = outcome.into();
-		let shares: u128 = shares.into();
+	// pub fn dynamic_market_sell(
+	// 	&mut self,
+	// 	market_id: U64,
+	// 	outcome: U64,
+	// 	shares: U128,
+	// // ) -> Promise{
+	// ) {
+	// 	let market_id: u64 = market_id.into();
+	// 	let outcome: u64 = outcome.into();
+	// 	let shares: u128 = shares.into();
 		
-		assert!(shares > 0, "can't sell no shares");
+	// 	assert!(shares > 0, "can't sell no shares");
 		
-		let mut market = self.markets.get(&market_id).expect("non existent market");
-		let has_claimed = market.claimed_earnings.get(&env::predecessor_account_id());
-		assert_eq!(has_claimed.is_none(), true, "can't sell shares after claim");
-		let earnings = market.dynamic_market_sell_internal(outcome, shares);
-		self.markets.insert(&market_id, &market);
+	// 	let mut market = self.markets.get(&market_id).expect("non existent market");
+	// 	let has_claimed = market.claimed_earnings.get(&env::predecessor_account_id());
+	// 	assert_eq!(has_claimed.is_none(), true, "can't sell shares after claim");
+	// 	let earnings = market.dynamic_market_sell_internal(outcome, shares);
+	// 	assert!(earnings > 0, "no matching orders");
+	// 	self.markets.insert(&market_id, &market);
 		
-		let market_creator_fee = earnings * market.creator_fee_percentage / 10000;
-		let resolution_fee = earnings * market.resolution_fee_percentage / 10000;
-		let fees = market_creator_fee + resolution_fee;
+	// 	let market_creator_fee = earnings * market.creator_fee_percentage / 10000;
+	// 	let resolution_fee = earnings * market.resolution_fee_percentage / 10000;
+	// 	let fees = market_creator_fee + resolution_fee;
 
-		fun_token::transfer(env::predecessor_account_id(), U128(earnings - fees), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
-	}
+	// 	fun_token::transfer(env::predecessor_account_id(), U128(earnings - fees), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+	// }
 
 	pub fn get_market_sell_depth(
 		&self, 

@@ -90,6 +90,7 @@ impl Orderbook {
 				json!({
 					"type": "order_filled_at_placement".to_string(),
 					"params": {
+						"order_id": U128(order_id),
 						"market_id": U64(self.market_id),
 						"account_id": account_id, 
 						"outcome": U64(outcome), 
@@ -97,8 +98,10 @@ impl Orderbook {
 						"amt_of_shares":  U128(amt_of_shares),
 						"price":  U128(price),
 						"filled": U128(filled), 
+						"shares_filling": U128(shares_filled),
 						"shares_filled": U128(shares_filled),
-						"affiliate_account_id": affiliate_account_id
+						"affiliate_account_id": affiliate_account_id,
+						"block_height": U64(env::block_index())
 					}
 				})
 				.to_string()
@@ -112,10 +115,12 @@ impl Orderbook {
 			json!({
 				"type": "order_placed".to_string(),
 				"params": {
+					"order_id": U128(order_id),
 					"market_id": U64(self.market_id),
 					"account_id": account_id, 
 					"outcome": U64(outcome), 
 					"spend":  U128(spend),
+					"shares_filling": U128(shares_filled),
 					"amt_of_shares":  U128(amt_of_shares),
 					"price":  U128(price),
 					"filled": U128(filled), 
@@ -181,38 +186,25 @@ impl Orderbook {
 		
         // Add back to filled if eligible, remove account_id user map if not
         if order.shares_filled > 0 {
-			env::log(
-				json!({
-					"type": "order_filled".to_string(),
-					"params": {
-						"market_id": U64(self.market_id),
-						"orderbook_id": U64(self.outcome_id),
-						"order_id": U128(order_id),
-						"filled": U128(order.shares_filled),
-						"shares_filled": U128(order.filled),
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
 			self.filled_orders.insert(&order.id, &order);
         } else {
-			env::log(
-				json!({
-					"type": "order_canceled".to_string(),
-					"params": {
-						"market_id": U64(self.market_id),
-						"orderbook_id": U64(self.outcome_id),
-						"id": U128(order_id)
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
 			let mut order_by_user_map = self.orders_by_user.get(&order.creator).unwrap();
 			order_by_user_map.remove(&order_id);
 			self.orders_by_user.insert(&order.creator, &order_by_user_map);
 		}
+
+		env::log(
+			json!({
+				"type": "order_closed".to_string(),
+				"params": {
+					"market_id": U64(self.market_id),
+					"outcome": U64(self.outcome_id),
+					"id": U128(order_id)
+				}
+			})
+			.to_string()
+			.as_bytes()
+		);
 		
 		// Remove account_id order tree
 		let mut orders_at_price = self.orders_by_price.get(&order.price).expect("no orders at this price");
@@ -256,7 +248,25 @@ impl Orderbook {
                     order.shares_filled += filling;
 					order.filled += filling * order.price;
 
-                    if order.spend - order.filled < 100 { // some rounding errors here might cause some stack overflow bugs that's why this is build in.
+					if order.spend - order.filled < 100 { // some rounding errors here might cause some stack overflow bugs that's why this is build in.
+						env::log(
+							json!({
+							"type": "order_filled".to_string(),
+								"params": {
+									"market_id": U64(self.market_id),
+									"outcome": U64(self.outcome_id),
+									"order_id": U128(order_id),
+									"account_id": order.creator,
+									"shares_filling": U128(filling),
+									"filled": U128(order.filled),
+									"price": U128(order.price),
+									"shares_filled": U128(order.shares_filled),
+									"block_height": U64(env::block_index())
+								}
+							})
+						.to_string()
+						.as_bytes()
+					);
                         to_remove.push((order_id, order.price));
 					} else {
 						env::log(
@@ -264,10 +274,14 @@ impl Orderbook {
 								"type": "order_partly_filled".to_string(),
 								"params": {
 									"market_id": U64(self.market_id),
-									"orderbook_id": U64(self.outcome_id),
-									"id": U128(order_id),
-									"filled": U128(order.shares_filled),
-									"shares_filled": U128(order.filled),
+									"outcome": U64(self.outcome_id),
+									"account_id": order.creator,
+									"order_id": U128(order_id),
+									"shares_filling": U128(filling),
+									"filled": U128(order.filled),
+									"price": U128(order.price),
+									"shares_filled": U128(order.shares_filled),
+									"block_height": U64(env::block_index())
 								}
 							})
 							.to_string()
@@ -333,9 +347,9 @@ impl Orderbook {
 							json!({
 								"type": "sold_fill_from_order".to_string(),
 								"params": {
+									"order_id": U128(order_id),
 									"market_id": U64(self.market_id),
-									"orderbook_id": U64(self.outcome_id),
-									"order_id": U128(order.id),
+									"outcome": U64(self.outcome_id),
 									"updated_spend": U128(order.spend),
 									"updated_filled": U128(order.filled),
 									"updated_amt_of_shares": U128(order.amt_of_shares),
@@ -358,9 +372,9 @@ impl Orderbook {
 						json!({
 							"type": "sold_fill_from_order".to_string(),
 							"params": {
+								"order_id": U128(order_id),
 								"market_id": U64(self.market_id),
-								"orderbook_id": U64(self.outcome_id),
-								"order_id": U128(order.id),
+								"outcome": U64(self.outcome_id),
 								"updated_spend": U128(order.spend),
 								"updated_filled": U128(order.filled),
 								"updated_amt_of_shares": U128(order.amt_of_shares),
@@ -399,18 +413,6 @@ impl Orderbook {
 		let mut spend_by_user = self.spend_by_user.get(&env::predecessor_account_id()).expect("user doens't have any spend left");
 		spend_by_user -= spend_to_decrement;
 		self.spend_by_user.insert(&env::predecessor_account_id(), &spend_by_user);
-		env::log(
-			json!({
-				"type": "decrement_spend_by_user".to_string(),
-				"params": {
-					"market_id": U64(self.market_id),
-					"orderbook_id": U64(self.outcome_id),
-					"amt_to_subtract": U128(spend_to_decrement),
-				}
-			})
-			.to_string()
-			.as_bytes()
-		);
 		return claimable_if_valid;
 	}
 
@@ -456,18 +458,6 @@ impl Orderbook {
         // Remove order account_id user map
         let mut order_by_user_map = self.orders_by_user.get(&order.creator).unwrap();
 		order_by_user_map.remove(&order_id);
-		env::log(
-			json!({
-				"type": "removed_filled_order".to_string(),
-				"params": {
-					"market_id": U64(self.market_id),
-					"orderbook_id": U64(self.outcome_id),
-					"order_id": U128(order_id),
-				}
-			})
-			.to_string()
-			.as_bytes()
-		);
 		self.orders_by_user.insert(&order.creator, &order_by_user_map);
         if order_by_user_map.is_empty() {
             self.orders_by_user.remove(&order.creator);

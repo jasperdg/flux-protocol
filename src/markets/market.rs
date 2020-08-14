@@ -92,7 +92,22 @@ impl Market {
 			end_time: end_time,
 			outcome: None,
 		};
+
 		resolution_windows.push(&base_resolution_window);
+
+		env::log(
+			json!({
+				"type": "new_resolution_window".to_string(),
+				"params": {
+					"market_id": U64(id),
+					"round": U64(base_resolution_window.round),
+					"required_bond_size": U128(base_resolution_window.required_bond_size),
+					"end_time": U64(base_resolution_window.end_time),
+				}
+			})
+			.to_string()
+			.as_bytes()
+		);
 
 		Self {
 			id,
@@ -337,13 +352,8 @@ impl Market {
 		winning_outcome: Option<u64>, 
 		stake: u128
 	) -> u128 {
-		assert!(env::block_timestamp() / 1000000 >= self.end_time, "market hasn't ended yet");
-		assert_eq!(self.resoluted, false, "market is already resoluted");
-		assert_eq!(self.finalized, false, "market is already finalized");
-		assert!(winning_outcome == None || winning_outcome.unwrap() < self.outcomes, "invalid winning outcome");
 		let outcome_id = self.to_numerical_outcome(winning_outcome);
 		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Something went wrong during market creation");
-		assert_eq!(resolution_window.round, 0, "can only resolute once");
 		
 		let mut to_return = 0;
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
@@ -391,13 +401,23 @@ impl Market {
 					"params": {
 						"market_id": U64(self.id),
 						"sender": sender,
+						"round": U64(resolution_window.round),
 						"staked": U128(stake - to_return),
-						"outcome": self.to_loggable_winning_outcome(winning_outcome),
-						"next_resolution_window" : {
-							"round": U64(new_resolution_window.round),
-							"required_bond_size": U128(new_resolution_window.required_bond_size),
-							"end_time": U64(new_resolution_window.end_time),
-						}
+						"outcome": U64(outcome_id),
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
+
+			env::log(
+				json!({
+					"type": "new_resolution_window".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"round": U64(new_resolution_window.round),
+						"required_bond_size": U128(new_resolution_window.required_bond_size),
+						"end_time": U64(new_resolution_window.end_time),	
 					}
 				})
 				.to_string()
@@ -411,8 +431,9 @@ impl Market {
 					"params": {
 						"market_id": U64(self.id),
 						"sender": sender,
+						"round": U64(resolution_window.round),
 						"staked": U128(stake - to_return),
-						"outcome": self.to_loggable_winning_outcome(winning_outcome),
+						"outcome": U64(outcome_id),
 					}
 				})
 				.to_string()
@@ -482,13 +503,22 @@ impl Market {
 					"params": {
 						"market_id": U64(self.id),
 						"sender": sender,
+						"round": U64(resolution_window.round),
 						"staked": U128(stake - to_return),
-						"outcome": self.to_loggable_winning_outcome(winning_outcome),
-						"next_resolution_window" : {
-							"round": U64(next_resolution_window.round),
-							"required_bond_size": U128(next_resolution_window.required_bond_size),
-							"end_time": U64(next_resolution_window.end_time),
-						}
+						"outcome": U64(outcome_id)
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
+			env::log(
+				json!({
+					"type": "new_resolution_window".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"round": U64(next_resolution_window.round),
+						"required_bond_size": U128(next_resolution_window.required_bond_size),
+						"end_time": U64(next_resolution_window.end_time),	
 					}
 				})
 				.to_string()
@@ -503,8 +533,9 @@ impl Market {
 					"params": {
 						"market_id": U64(self.id),
 						"sender": sender,
+						"round": U64(resolution_window.round),
 						"staked": U128(stake - to_return),
-						"outcome": self.to_loggable_winning_outcome(winning_outcome),
+						"outcome": U64(outcome_id)
 					}
 				})
 				.to_string()
@@ -533,7 +564,7 @@ impl Market {
 				"type": "market_finalized".to_string(),
 				"params": {
 					"market_id": U64(self.id),
-					"winning_outcome": self.to_loggable_winning_outcome(self.winning_outcome)
+					"winning_outcome": U64(self.to_numerical_outcome(self.winning_outcome))
 				}
 			})
 			.to_string()
