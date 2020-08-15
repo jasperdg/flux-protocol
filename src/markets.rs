@@ -211,7 +211,7 @@ impl Markets {
 		let amount_of_shares = spend / price;
 		let rounded_spend = amount_of_shares * price;
 
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 10)
 		.then(
 			flux_protocol::proceed_order_placement( 
 				env::predecessor_account_id(),
@@ -223,7 +223,7 @@ impl Markets {
 				affiliate_account_id,
 				&env::current_account_id(), 
 				0, 
-				SINGLE_CALL_GAS
+				SINGLE_CALL_GAS * 2 - SINGLE_CALL_GAS / 10
 			)
 		);
 	}
