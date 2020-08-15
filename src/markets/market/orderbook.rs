@@ -85,6 +85,11 @@ impl Orderbook {
         // If all of spend is filled, state order is fully filled
 		let left_to_spend = spend - filled;
 
+		let mut fill_price = 0;
+
+		if shares_filled > 0 {
+			fill_price = filled / shares_filled;
+		}
 		if left_to_spend < 100 {
 			env::log(
 				json!({
@@ -96,6 +101,7 @@ impl Orderbook {
 						"outcome": U64(outcome), 
 						"spend":  U128(spend),
 						"amt_of_shares":  U128(amt_of_shares),
+						"fill_price": U128(fill_price),
 						"price":  U128(price),
 						"filled": U128(filled), 
 						"shares_filling": U128(shares_filled),
@@ -120,12 +126,14 @@ impl Orderbook {
 					"account_id": account_id, 
 					"outcome": U64(outcome), 
 					"spend":  U128(spend),
+					"fill_price": U128(fill_price),
 					"shares_filling": U128(shares_filled),
 					"amt_of_shares":  U128(amt_of_shares),
 					"price":  U128(price),
 					"filled": U128(filled), 
 					"shares_filled": U128(shares_filled),
-					"affiliate_account_id": affiliate_account_id
+					"affiliate_account_id": affiliate_account_id,
+					"block_height": U64(env::block_index())
 				}
 			})
 			.to_string()
@@ -260,6 +268,7 @@ impl Orderbook {
 									"shares_filling": U128(filling),
 									"filled": U128(order.filled),
 									"price": U128(order.price),
+									"fill_price": U128(order.price),
 									"shares_filled": U128(order.shares_filled),
 									"block_height": U64(env::block_index())
 								}
@@ -280,6 +289,7 @@ impl Orderbook {
 									"shares_filling": U128(filling),
 									"filled": U128(order.filled),
 									"price": U128(order.price),
+									"fill_price": U128(order.price),
 									"shares_filled": U128(order.shares_filled),
 									"block_height": U64(env::block_index())
 								}
