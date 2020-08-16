@@ -18,9 +18,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use crate::order;
 pub type Order = order::Order;
 
-
-
-
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct PriceData {
 	pub share_liquidity: u128,
@@ -38,10 +35,6 @@ pub struct AccountData {
 pub struct Orderbook {
 	pub market_id: u64,
 	pub outcome_id: u64,
-	// pub open_orders: UnorderedMap<u128, Order>,
-	// pub filled_orders: UnorderedMap<u128, Order>,
-	// pub spend_by_user: UnorderedMap<String, u128>,
-	// pub orders_by_price: TreeMap<u128, UnorderedMap<u128, bool>>,
 	pub price_data: TreeMap<u128, PriceData>,
 	pub user_data: UnorderedMap<String, AccountData>,
 	pub nonce: u128,
@@ -118,8 +111,12 @@ impl Orderbook {
 			fill_price = filled / shares_filled;
 		}
 		
+
+		// TODO: add to affiliate_earnings
 		// if left_to_spend < 100 the order counts as filled
 		if left_to_spend < 100 {
+			self.user_data.insert(&account_id, &user_data);
+
 			env::log(
 				json!({
 					"type": "order_filled_at_placement".to_string(),
@@ -151,7 +148,7 @@ impl Orderbook {
 
 		let mut price_data = self.price_data.get(&price).unwrap_or(self.new_price(price));
 		price_data.orders.insert(&order_id, &new_order);
-		price_data.share_liquidity = (spend - filled) / price;
+		price_data.share_liquidity += (spend - filled) / price;
 		self.price_data.insert(&price, &price_data);
 
 		env::log(
@@ -179,64 +176,28 @@ impl Orderbook {
 	}
 
 
-    // // Remove order account_id orderbook -- added price - if invalid order id passed behaviour undefined
-	// pub fn remove_order(
-	// 	&mut self, 
-	// 	order_id: u128
-	// ) -> u128 {
-	// 	// Store copy of order to remove
-	// 	let order = self.open_orders.get(&order_id).expect("order doesn't exist").clone();
-		
-	// 	// Remove original order account_id open_orders
-	// 	self.open_orders.remove(&order.id);
-		
-	// 	let outstanding_spend = order.spend - order.filled;
-		
-	// 	let spend_by_user = self.spend_by_user.get(&order.creator).unwrap() - outstanding_spend;
-	// 	self.spend_by_user.insert(&order.creator, &spend_by_user);
+	pub fn cancel_order(&mut self, order: Order) -> u128 {
+		let mut price_data = self.price_data.get(&order.price).unwrap();
+		let mut user_data = self.user_data.get(&order.creator).unwrap();
 
-	// 	let liq_at_price = self.liquidity_by_price.get(&order.price).unwrap_or(0) - outstanding_spend;
-	// 	self.liquidity_by_price.insert(&order.price, &liq_at_price);
-		
-    //     // Add back to filled if eligible, remove account_id user map if not
-    //     if order.shares_filled > 0 {
-	// 		self.filled_orders.insert(&order.id, &order);
-    //     } else {
-	// 		let mut order_by_user_map = self.orders_by_user.get(&order.creator).unwrap();
-	// 		order_by_user_map.remove(&order_id);
-	// 		self.orders_by_user.insert(&order.creator, &order_by_user_map);
-	// 	}
+		let to_return = order.spend - order.filled; 
 
-	// 	env::log(
-	// 		json!({
-	// 			"type": "order_closed".to_string(),
-	// 			"params": {
-	// 				"market_id": U64(self.market_id),
-	// 				"outcome": U64(self.outcome_id),
-	// 				"id": U128(order_id)
-	// 			}
-	// 		})
-	// 		.to_string()
-	// 		.as_bytes()
-	// 	);
-		
-	// 	// Remove account_id order tree
-	// 	let mut orders_at_price = self.orders_by_price.get(&order.price).expect("no orders at this price");
+		price_data.share_liquidity -= to_return / order.price;
+		price_data.orders.remove(&order.id);
 
-	// 	orders_at_price.remove(&order_id);
-	// 	self.orders_by_price.insert(&order.price, &orders_at_price);
+		if price_data.orders.len() == 0 {
+			env::log(format!("removing orders").to_string().as_bytes());
+			self.price_data.remove(&order.price);
+		} else {
+			self.price_data.insert(&order.price, &price_data);
+		}
 		
-    //     if orders_at_price.is_empty() {
-	// 		self.orders_by_price.remove(&order.price);
-	// 		if let Some((min_key, _ )) = self.orders_by_price.iter().next() {
-	// 			self.best_price = Some(min_key);
-    //         } else {
-	// 			self.best_price = None;
-	// 		}
-	// 	}
+		user_data.open_orders.remove(&order.id);
 		
-    //     return outstanding_spend;
-	// }
+		self.user_data.insert(&order.creator, &user_data);
+
+		return to_return;
+	}
 
 	fn log_order_filled(&self, order: &Order, shares_to_fill: u128) {
 		env::log(
@@ -248,10 +209,10 @@ impl Orderbook {
 					"order_id": U128(order.id),
 					"account_id": order.creator,
 					"shares_filling": U128(shares_to_fill),
-					"filled": U128(order.filled),
+					"filled": U128(order.filled + shares_to_fill * order.price),
 					"price": U128(order.price),
 					"fill_price": U128(order.price),
-					"shares_filled": U128(order.shares_filled),
+					"shares_filled": U128(order.shares_filled + shares_to_fill),
 					"block_height": U64(env::block_index())
 				}
 			})
@@ -260,10 +221,10 @@ impl Orderbook {
 		);
 	}
 
-
+	// TODO: add to affiliate_earnings
 	pub fn fill_order(
 		&mut self, 
-		order: Order, 
+		mut order: Order, 
 		shares_to_fill: u128,
 		close_order: bool
 	) {
@@ -274,15 +235,25 @@ impl Orderbook {
 		user_data.spent += shares_to_fill * order.price;
 		price_data.share_liquidity -= shares_to_fill;
 
+
 		if close_order {
 			user_data.open_orders.remove(&order.id);
 			price_data.orders.remove(&order.id);
-		} 
+		}  else {
+			order.filled += shares_to_fill * order.price;
+			order.shares_filled += shares_to_fill;
+			price_data.orders.insert(&order.id, &order);
+		}
 
-		self.log_order_filled(&order, shares_to_fill);
+		if price_data.orders.len() == 0 {
+			env::log(format!("removing orders").to_string().as_bytes());
+			self.price_data.remove(&order.price);
+		} else {
+			self.price_data.insert(&order.price, &price_data);
+		}
 
 		self.user_data.insert(&order.creator, &user_data);
-		self.price_data.insert(&order.price, &price_data);
+		self.log_order_filled(&order, shares_to_fill);
 	}
 
 	pub fn fill_best_orders(
@@ -295,25 +266,29 @@ impl Orderbook {
 		};
 
 		let orders = self.price_data.get(&fill_price).expect("this price shouldn't exist if there are no orders to be filled").orders;
-		let mut orders_to_remove: Vec<u128> = vec![];
 
 		for (order_id, order) in orders.iter() {
 			if shares_to_fill < 1 { break;} 
-			let shares_fillable_for_order = order.spend - order.filled / order.price;
+			let shares_fillable_for_order = (order.spend - order.filled) / order.price;
 
 			// TODO: test that panic is never called
 			if shares_fillable_for_order == 0 {panic!("should never be 0")}
 
 			let filling = cmp::min(shares_fillable_for_order, shares_to_fill); 
 
-			if shares_to_fill <= shares_fillable_for_order {
-				self.fill_order(order, shares_to_fill, false);
+			env::log(format!("to fill: {}, fillable: {}", shares_to_fill, shares_fillable_for_order).to_string().as_bytes());
+			
+			if shares_to_fill < shares_fillable_for_order {
+				self.fill_order(order, filling, false);
 				break;
+			} else if shares_to_fill > shares_fillable_for_order {
+				self.fill_order(order, filling, true);
 			} else {
-				self.fill_order(order, shares_fillable_for_order, true);
-				orders_to_remove.push(order_id);
+				self.fill_order(order, filling, true);
+				break;
 			}
-
+			
+			env::log(format!("filling: {}", filling).to_string().as_bytes());
 			shares_to_fill -= filling;
 		}
 	}

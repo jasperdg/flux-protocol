@@ -303,6 +303,23 @@ impl Market {
 		return (spent, shares_filled);
 	}
 
+	pub fn get_market_price(
+		&self, 
+		outcome: u64
+	) -> u128 {
+		let mut market_price = 100;
+
+ 		for (orderbook_id, orderbook) in self.orderbooks.iter() {
+			if orderbook_id == outcome {continue};
+
+			let best_price = orderbook.price_data.max().unwrap_or(0);
+			if best_price == 0 {continue;}
+
+			market_price -= best_price;
+		}
+		return market_price;
+	}
+
 	pub fn get_market_price_and_min_liquidty(
 		&self, 
 		outcome: u64
@@ -326,7 +343,6 @@ impl Market {
 
 			market_price -= best_price;
 		}
-
 		return (market_price, min_liquidity);
 	}
 

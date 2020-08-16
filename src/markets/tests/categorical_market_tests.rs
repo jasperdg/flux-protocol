@@ -9,31 +9,26 @@ fn test_categorical_market_automated_matcher() {
 	accounts[0].transfer(&mut runtime, accounts[1].get_account_id(), to_dai(10).into()).expect("transfer failed couldn't be set");
 	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(110000000)).expect("allowance couldn't be set");
 
-
 	let res = accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(1000), U128(25), None).expect("order placement tx failed unexpectedly");
-	println!("{:?}", res);
-
-	let res = accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(1000), U128(25), None).expect("order placement tx failed unexpectedly");
-	println!("{:?}", res);
-	
+	let res = accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(900), U128(25), None).expect("order placement tx failed unexpectedly");
 	let res = accounts[0].place_order(&mut runtime, U64(0), U64(2), U128(1000), U128(25), None).expect("order placement tx failed unexpectedly");
-	println!("{:?}", res);
-	
-	let res = accounts[0].place_order(&mut runtime, U64(0), U64(3), U128(1000), U128(25), None).expect("order placement tx failed unexpectedly");
-	println!("{:?}", res);
+	let res = accounts[0].place_order(&mut runtime, U64(0), U64(3), U128(1000), U128(24), None).expect("order placement tx failed unexpectedly");
+	let res = accounts[0].place_order(&mut runtime, U64(0), U64(2), U128(1000), U128(50), None).expect("order placement tx failed unexpectedly");
 
-	// let open_0_orders = accounts[0].get_open_orders_len(&mut runtime, U64(0), U64(0));
-    // let open_2_orders = accounts[0].get_open_orders_len(&mut runtime, U64(0), U64(1));
-    // let open_1_orders = accounts[0].get_open_orders_len(&mut runtime, U64(0), U64(2));
-    // let filled_0_orders = accounts[0].get_filled_orders_len(&mut runtime, U64(0), U64(0));
-    // let filled_1_orders = accounts[0].get_filled_orders_len(&mut runtime, U64(0), U64(1));
-    // let filled_2_orders = accounts[0].get_filled_orders_len(&mut runtime, U64(0), U64(2));
+	println!("");
+	println!("test {:?}", res);
 
-	// // assertions for the orderbook lengths
-	// assert_eq!(open_0_orders, U128(0));
-	// assert_eq!(open_1_orders, U128(0));
-	// assert_eq!(open_2_orders, U128(0));
-	// assert_eq!(filled_0_orders, U128(2));
-	// assert_eq!(filled_1_orders, U128(2));
-	// assert_eq!(filled_2_orders, U128(1));
+	let balance: u128 = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(0)).into();
+	println!("balance outcome 0: {}", balance);
+	// assert_eq!(balance, U128(1000));
+	let balance: u128 = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(1)).into();
+	println!("balance outcome 1: {}", balance);
+	// assert_eq!(balance, U128(1000));
+	let balance: u128 = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(2)).into();
+	println!("balance outcome 2: {}", balance);
+	// assert_eq!(balance, U128(1000));
+	let balance: u128 = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(3)).into();
+	println!("balance outcome 3: {}", balance);
+	// assert_eq!(balance, U128(1000));
+
 }

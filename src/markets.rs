@@ -263,27 +263,30 @@ impl Markets {
 		return PromiseOrValue::Value(true);
 	}
 
-	// pub fn cancel_order(
-	// 	&mut self, 
-	// 	market_id: U64, 
-	// 	outcome: U64, 
-	// 	order_id: U128
-	// ) {
-	// 	let market_id: u64 = market_id.into();
-	// 	let outcome: u64 = outcome.into();
-	// 	let order_id: u128 = order_id.into();
+	pub fn cancel_order(
+		&mut self, 
+		market_id: U64, 
+		outcome: U64,
+		price: U128,
+		order_id: U128
+	) {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		let order_id: u128 = order_id.into();
+		let price: u128 = price.into();
 		
-	// 	let mut market = self.markets.get(&market_id).unwrap();
-	// 	assert_eq!(market.resoluted, false);
-	// 	let mut orderbook = market.orderbooks.get(&outcome).unwrap();
-	// 	let order = orderbook.open_orders.get(&order_id).unwrap();
-	// 	assert!(env::predecessor_account_id() == order.creator);
-		
-	// 	let to_return = orderbook.remove_order(order_id);
-	// 	market.orderbooks.insert(&outcome, &orderbook);
-	// 	self.markets.insert(&market_id, &market);
-	// 	fun_token::transfer(env::predecessor_account_id(), to_return.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
-    // }
+		let mut market = self.markets.get(&market_id).unwrap();
+		assert_eq!(market.resoluted, false);
+		let mut orderbook = market.orderbooks.get(&outcome).unwrap();
+		let price_data = orderbook.price_data.get(&price).expect("order at this price doesn't exist");
+		let order = price_data.orders.get(&order_id).expect("order with this id doesn't exist");
+		assert!(env::predecessor_account_id() == order.creator, "not this user's order");
+
+		let to_return = orderbook.cancel_order(order);
+		market.orderbooks.insert(&outcome, &orderbook);
+		self.markets.insert(&market_id, &market);
+		fun_token::transfer(env::predecessor_account_id(), to_return.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+    }
 
 	// pub fn resolute_market(
 	// 	&mut self, 
@@ -620,6 +623,19 @@ impl Markets {
 		.filled_volume.into();
 	}
 
+	pub fn get_market_price(
+		&self,
+		market_id: U64,
+		outcome: U64
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		return U128(self.markets
+			.get(&market_id)
+			.expect("market doesn't exist")
+			.get_market_price(outcome));
+	}
+
 	// pub fn dynamic_market_sell(
 	// 	&mut self,
 	// 	market_id: U64,
@@ -647,19 +663,23 @@ impl Markets {
 	// 	fun_token::transfer(env::predecessor_account_id(), U128(earnings - fees), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 	// }
 
-	// pub fn get_outcome_share_balance(
-	// 	&self,
-	// 	account_id: String,
-	// 	market_id: U64,
-	// 	outcome: U64,
-	// ) -> U128 {
-	// 	let market_id: u64 = market_id.into();
-	// 	let outcome: u64 = outcome.into();
+	pub fn get_outcome_share_balance(
+		&self,
+		account_id: String,
+		market_id: U64,
+		outcome: U64,
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
 
-	// 	let market = self.markets.get(&market_id).expect("non existent market");
-	// 	let orderbook = market.orderbooks.get(&outcome).expect("non existent outcome");
-	// 	return orderbook.get_share_balance(account_id).into();
-	// }
+		let market = self.markets.get(&market_id).expect("non existent market");
+		let orderbook = market.orderbooks.get(&outcome).expect("non existent outcome");
+		let user_data = orderbook.user_data.get(&account_id);
+
+		if user_data.is_none() {return U128(0)}
+
+		return U128(user_data.unwrap().balance);
+	}
 
 	pub fn get_owner(
 		&self
@@ -800,10 +820,11 @@ mod tests {
 		return (runtime, root, accounts);
 	}
 
-	// mod init_tests; 
-	// mod market_order_tests;
-	// mod binary_order_matching_tests;
+	mod binary_order_matching_tests;
 	mod categorical_market_tests;
+	mod init_tests; 
+	mod market_order_tests;
+	
 	// mod market_depth_tests;
 	// mod market_resolution_tests; 
 	// mod claim_earnings_tests;
