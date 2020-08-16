@@ -60,13 +60,16 @@ impl ExternalUser {
     }
 
     pub fn deploy_flux_protocol(&self, runtime: &mut RuntimeStandalone) -> TxResult {
-        let args = json!({}).to_string().as_bytes().to_vec();
+        let args = json!({
+            "fun_token_account_id": fun_token()
+        }).to_string().as_bytes().to_vec();
 
         let tx = self
         .new_tx(runtime, flux_protocol())
         .create_account()
         .transfer(99994508400000000000000000)
         .deploy_contract(MARKETS_BYTES.to_vec())
+        .function_call("init".into(), args, GAS_STANDARD, 0)
         .sign(&self.signer);
         let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
@@ -188,21 +191,21 @@ impl ExternalUser {
         runtime: &mut RuntimeStandalone,
         market_id: U64,
         outcome: U64,
-        spend: U128,
+        shares: U128,
 		price: U128,
 		affiliate_account_id: Option<String>
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
             "outcome": outcome,
-            "spend": spend,
+            "shares": shares,
 			"price": price,
 			"affiliate_account_id": affiliate_account_id
         })
         .to_string()
         .as_bytes()
         .to_vec();
-			
+        			
         let tx = self
         .new_tx(runtime, flux_protocol())
         .function_call("place_order".into(), args, 10000000000000000, 0)
