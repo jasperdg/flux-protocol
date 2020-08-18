@@ -288,59 +288,59 @@ impl Markets {
 		fun_token::transfer(env::predecessor_account_id(), to_return.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
     }
 
-	// pub fn resolute_market(
-	// 	&mut self, 
-	// 	market_id: U64, 
-	// 	winning_outcome: Option<U64>,
-	// 	stake: U128
-	// ) -> Promise {
-	// 	let market_id: u64 = market_id.into();
-	// 	let winning_outcome: Option<u64> = match winning_outcome {
-	// 		Some(outcome) => Some(outcome.into()),
-	// 		None => None
-	// 	};
-	// 	let stake_u128: u128 = stake.into();
-	// 	let market = self.markets.get(&market_id).expect("market doesn't exist");
-	// 	assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
-	// 	assert_eq!(market.resoluted, false, "market is already resoluted");
-	// 	assert_eq!(market.finalized, false, "market is already finalized");
-	// 	assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
+	pub fn resolute_market(
+		&mut self, 
+		market_id: U64, 
+		winning_outcome: Option<U64>,
+		stake: U128
+	) -> Promise {
+		let market_id: u64 = market_id.into();
+		let winning_outcome: Option<u64> = match winning_outcome {
+			Some(outcome) => Some(outcome.into()),
+			None => None
+		};
+		let stake_u128: u128 = stake.into();
+		let market = self.markets.get(&market_id).expect("market doesn't exist");
+		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
+		assert_eq!(market.resoluted, false, "market is already resoluted");
+		assert_eq!(market.finalized, false, "market is already finalized");
+		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
 
-	// 	return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2)
-	// 	.then(
-	// 		flux_protocol::proceed_market_resolution(
-	// 			env::predecessor_account_id(),
-	// 			market_id,
-	// 			winning_outcome,
-	// 			stake_u128,
-	// 			&env::current_account_id(),
-	// 			0,
-	// 			SINGLE_CALL_GAS
-	// 		)
-	// 	);
-	// }
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2)
+		.then(
+			flux_protocol::proceed_market_resolution(
+				env::predecessor_account_id(),
+				market_id,
+				winning_outcome,
+				stake_u128,
+				&env::current_account_id(),
+				0,
+				SINGLE_CALL_GAS
+			)
+		);
+	}
 
-	// pub fn proceed_market_resolution(
-	// 	&mut self,
-	// 	market_id: u64,
-	// 	winning_outcome: Option<u64>,
-	// 	stake: u128,
-	// 	sender: String
-	// ) -> PromiseOrValue<bool> {
-	// 	self.assert_self();
-	// 	let transfer_succeeded = self.is_promise_success();
-	// 	if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
+	pub fn proceed_market_resolution(
+		&mut self,
+		market_id: u64,
+		winning_outcome: Option<u64>,
+		stake: u128,
+		sender: String
+	) -> PromiseOrValue<bool> {
+		self.assert_self();
+		let transfer_succeeded = self.is_promise_success();
+		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
 		
-	// 	let mut market = self.markets.get(&market_id).expect("market doesn't exist");
-	// 	let change: u128 = market.resolute(sender.to_string(), winning_outcome, stake).into();
-	// 	self.markets.insert(&market_id, &market);
-	// 	if change > 0 {
-	// 		let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2);
-	// 		return PromiseOrValue::Promise(prom);
-	// 	} else {
-	// 		return PromiseOrValue::Value(true);
-	// 	}
-	// }
+		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
+		let change: u128 = market.resolute(sender.to_string(), winning_outcome, stake).into();
+		self.markets.insert(&market_id, &market);
+		if change > 0 {
+			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2);
+			return PromiseOrValue::Promise(prom);
+		} else {
+			return PromiseOrValue::Value(true);
+		}
+	}
 
 	// pub fn withdraw_dispute_stake(
 	// 	&mut self, 
@@ -436,157 +436,139 @@ impl Markets {
 	// }
 		
 
-	// pub fn finalize_market(
-	// 	&mut self, 
-	// 	market_id: U64, 
-	// 	winning_outcome: Option<U64>
-	// ) {
-	// 	let market_id: u64 = market_id.into();
-	// 	let winning_outcome: Option<u64> = match winning_outcome {
-	// 		Some(outcome) => Some(outcome.into()),
-	// 		None => None
-	// 	};
+	pub fn finalize_market(
+		&mut self, 
+		market_id: U64, 
+		winning_outcome: Option<U64>
+	) {
+		let market_id: u64 = market_id.into();
+		let winning_outcome: Option<u64> = match winning_outcome {
+			Some(outcome) => Some(outcome.into()),
+			None => None
+		};
 
-	// 	let mut market = self.markets.get(&market_id).unwrap();
-	// 	assert_eq!(market.resoluted, true, "market has to be resoluted before it can be finalized");
-	// 	if market.disputed {
-	// 		assert_eq!(env::predecessor_account_id(), self.creator, "only the judge can resolute disputed markets");
-	// 	} else {
-	// 		let dispute_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("no dispute window found, something went wrong");
-	// 		assert!(env::block_timestamp() / 1000000 >= dispute_window.end_time || dispute_window.round == 2, "dispute window still open")
-	// 	}
+		let mut market = self.markets.get(&market_id).unwrap();
+		assert_eq!(market.resoluted, true, "market has to be resoluted before it can be finalized");
+		if market.disputed {
+			assert_eq!(env::predecessor_account_id(), self.creator, "only the judge can resolute disputed markets");
+		} else {
+			let dispute_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("no dispute window found, something went wrong");
+			assert!(env::block_timestamp() / 1000000 >= dispute_window.end_time || dispute_window.round == 2, "dispute window still open")
+		}
 
-	// 	market.finalize(winning_outcome);
-	// 	self.markets.insert(&market_id, &market);
-	// }
+		market.finalize(winning_outcome);
+		self.markets.insert(&market_id, &market);
+	}
 
-	// pub fn get_open_orders_len(
-	// 	&self, 
-	// 	market_id: U64, 
-	// 	outcome: U64
-	// ) -> U128 {
-	// 	let market_id: u64 = market_id.into();
-	// 	let outcome: u64 = outcome.into();
+	fn get_creator_fee_percentage(&self, market: &Market) -> u128 {
+		return match market.winning_outcome {
+			Some(_) => market.creator_fee_percentage,
+			None => 0
+		}
+	}
 
-	// 	let market = self.markets.get(&market_id).unwrap();
-	// 	let orderbook = market.orderbooks.get(&outcome).unwrap();
-	// 	return U128(orderbook.open_orders.len() as u128);
-	// }
-
-	// pub fn get_filled_orders_len(
-	// 	&self, 
-	// 	market_id: U64, 
-	// 	outcome: U64
-	// ) -> U128 {
-	// 	let market_id: u64 = market_id.into();
-	// 	let outcome: u64 = outcome.into();
-
-	// 	let market = self.markets.get(&market_id).unwrap();
-	// 	let orderbook = market.orderbooks.get(&outcome).unwrap();
-	// 	return U128(orderbook.filled_orders.len() as u128);
-	// }
-
-	// pub fn get_claimable(
-	// 	&self, 
-	// 	market_id: U64, 
-	// 	account_id: String
-	// ) -> U128 {
+	pub fn get_claimable(
+		&self, 
+		market_id: U64, 
+		account_id: String
+	) -> U128 {
 		
-	// 	let market_id: u64 = market_id.into();
-	// 	let market = self.markets.get(&market_id).expect("market doesn't exist");
-	// 	let claimed_earnings = market.claimed_earnings.get(&account_id);
-	// 	assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
-	// 	if claimed_earnings.is_some() { return U128(0); }
-	// 	let mut validity_bond = 0;
-	// 	if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
-	// 		validity_bond = self.creation_bond;
-	// 	}
-	// 	let (winnings, left_in_open_orders, governance_earnings, _) = market.get_claimable_for(account_id.to_string());
-	// 	let total_fee_percentage = market.creator_fee_percentage + market.resolution_fee_percentage;
-	// 	let fee = (winnings * total_fee_percentage + 10000 - 1) / 10000;
+		let market_id: u64 = market_id.into();
+		let market = self.markets.get(&market_id).expect("market doesn't exist");
+		let claimed_earnings = market.claimed_earnings.get(&account_id);
+		assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
+
+		let mut validity_bond = 0;
+		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
+			validity_bond = self.creation_bond;
+		}
+
+		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(account_id.to_string());
 		
-	// 	return (winnings - fee + governance_earnings + left_in_open_orders + validity_bond).into();
-	// }
+		let feeable_if_invalid = match market.winning_outcome {
+			None =>  market.feeable_if_invalid.get(&account_id).unwrap_or(0),
+			_ => 0
+		};
 
-	// pub fn claim_earnings(
-	// 	&mut self, 
-	// 	market_id: U64, 
-	// 	account_id: String
-	// ) -> Promise {
-	// 	let market_id: u64 = market_id.into();
-	// 	let mut market = self.markets.get(&market_id).expect("market doesn't exist");
-	// 	let market_creator = market.creator.to_string();
-	// 	let claimed_earnings = market.claimed_earnings.get(&account_id);
-	// 	assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
-	// 	assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
-	// 	assert_eq!(market.resoluted, true, "market isn't resoluted yet");
-	// 	assert_eq!(market.finalized, true, "market isn't finalized yet");
+		let claimable_if_valid = match market.winning_outcome {
+			Some(_) =>  market.claimable_if_valid.get(&account_id).unwrap_or(0),
+			_ => 0
+		};
 
-	// 	market.claimed_earnings.insert(&account_id, &true);
-	// 	let (winnings, left_in_open_orders, governance_earnings, affiliates) = market.get_claimable_for(account_id.to_string());
-	// 	let mut market_creator_fee = (winnings * market.creator_fee_percentage + 10000 - 1) / 10000;
-	// 	let creator_fee_percentage = market.creator_fee_percentage;
-	// 	let resolution_fee = (winnings * market.resolution_fee_percentage + 10000 - 1) / 10000;
-	// 	let affiliate_fee_percentage = market.affiliate_fee_percentage;
-	// 	let mut paid_to_affiliates = 0;
+		let total_feeable_amount = winnings + feeable_if_invalid;
+		let total_fee_percentage =  market.resolution_fee_percentage + self.get_creator_fee_percentage(&market);
+		let total_fee = (total_feeable_amount * total_fee_percentage + 10000 - 1) / 10000;
 		
-	// 	let mut validity_bond = 0;
-	// 	if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
-	// 		validity_bond = self.creation_bond;
-	// 		market.validity_bond_claimed = true;
-	// 	}
 
-	// 	for (affiliate_account_id, amount_owed) in affiliates {	
-	// 		let affiliate_owed = (amount_owed * affiliate_fee_percentage * creator_fee_percentage + 1000000 - 1) / 1000000;
-	// 		paid_to_affiliates += affiliate_owed;
-	// 		let affiliate_earnings = self.affiliate_earnings.get(&affiliate_account_id).unwrap_or(0);
+		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
 
-	// 		env::log(
-	// 			json!({
-	// 				"type": "added_to_affiliate_earnings".to_string(),
-	// 				"params": {
-	// 					"market_id": U64(market_id),
-	// 					"affiliate": affiliate_account_id,
-	// 					"earned": U128(affiliate_earnings + affiliate_owed),
-	// 				}
-	// 			})
-	// 			.to_string()
-	// 			.as_bytes()
-	// 		);
-	// 		market_creator_fee -= affiliate_owed;
-	// 		self.affiliate_earnings.insert(&affiliate_account_id, &(affiliate_earnings + affiliate_owed));
-	// 	}
+		return (to_claim + validity_bond).into();
+	}
 
-	// 	let total_fee = market_creator_fee + paid_to_affiliates + resolution_fee;
-	// 	let to_claim = winnings + governance_earnings + left_in_open_orders;
+	pub fn claim_earnings(
+		&mut self, 
+		market_id: U64, 
+		account_id: String
+	) {
+		let market_id: u64 = market_id.into();
+		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
+		let market_creator = market.creator.to_string();
+		let claimed_earnings = market.claimed_earnings.get(&account_id);
+		assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
+		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
+		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
+		assert_eq!(market.finalized, true, "market isn't finalized yet");
 
-	// 	let earnings = to_claim - total_fee + validity_bond;
+		market.claimed_earnings.insert(&account_id, &true);
+		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(account_id.to_string());
+
+		let mut validity_bond = 0;
+		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
+			validity_bond = self.creation_bond;
+			market.validity_bond_claimed = true;			
+		}
+
+		let feeable_if_invalid = match market.winning_outcome {
+			None =>  market.feeable_if_invalid.get(&account_id).unwrap_or(0),
+			_ => 0
+		};
+		let claimable_if_valid = match market.winning_outcome {
+			Some(_) =>  market.claimable_if_valid.get(&account_id).unwrap_or(0),
+			_ => 0
+		};
+
+		let total_feeable_amount = winnings + feeable_if_invalid;
+		let resolution_fee = (total_feeable_amount * market.resolution_fee_percentage + 10000 - 1) / 10000;
+		let market_creator_fee = (total_feeable_amount * self.get_creator_fee_percentage(&market) + 10000 - 1) / 10000;
+		let total_fee = resolution_fee + market_creator_fee;
+
+		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
 		
-	// 	if earnings == 0 {panic!("can't claim 0 tokens")}
+		if to_claim == 0 {panic!("can't claim 0 tokens")}
 
-	// 	env::log(
-	// 		json!({
-	// 			"type": "earnings_claimed".to_string(),
-	// 			"params": {
-	// 				"market_id": U64(market_id),
-	// 				"account_id": account_id,
-	// 				"earned": U128(earnings),
-	// 			}
-	// 		})
-	// 		.to_string()
-	// 		.as_bytes()
-	// 	);		
+		env::log(
+			json!({
+				"type": "earnings_claimed".to_string(),
+				"params": {
+					"market_id": U64(market_id),
+					"account_id": account_id,
+					"earned": U128(to_claim),
+				}
+			})
+			.to_string()
+			.as_bytes()
+		);		
 		
-	// 	self.markets.insert(&market_id, &market);
-	// 	if market_creator_fee > 0 {
-	// 		return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
-	// 			fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
-	// 		);
-	// 	} else {
-	// 		return fun_token::transfer(account_id.to_string(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
-	// 	}
+		self.markets.insert(&market_id, &market);
+		if market_creator_fee > 0 {
+			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
+				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
+			);
+		} else {
+			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+		}
 		
-	// }
+	}
 
 	pub fn claim_affiliate_earnings(
 		&mut self,
@@ -636,32 +618,30 @@ impl Markets {
 			.get_market_price(outcome));
 	}
 
-	// pub fn dynamic_market_sell(
-	// 	&mut self,
-	// 	market_id: U64,
-	// 	outcome: U64,
-	// 	shares: U128,
-	// // ) -> Promise{
-	// ) {
-	// 	let market_id: u64 = market_id.into();
-	// 	let outcome: u64 = outcome.into();
-	// 	let shares: u128 = shares.into();
+	pub fn dynamic_market_sell(
+		&mut self,
+		market_id: U64,
+		outcome: U64,
+		shares: U128,
+		min_price: U128
+	// ) -> Promise{
+	) {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		let shares: u128 = shares.into();
+		let min_price: u128 = min_price.into();
 		
-	// 	assert!(shares > 0, "can't sell no shares");
+		assert!(min_price > 0, "min_price need to be higher than 0");
+		assert!(shares > 0, "can't sell 0 shares");
 		
-	// 	let mut market = self.markets.get(&market_id).expect("non existent market");
-	// 	let has_claimed = market.claimed_earnings.get(&env::predecessor_account_id());
-	// 	assert_eq!(has_claimed.is_none(), true, "can't sell shares after claim");
-	// 	let earnings = market.dynamic_market_sell_internal(outcome, shares);
-	// 	assert!(earnings > 0, "no matching orders");
-	// 	self.markets.insert(&market_id, &market);
+		let mut market = self.markets.get(&market_id).expect("non existent market");
+		assert_eq!(market.finalized, false, "can't sell shares after market is finalized");
+		let earnings = market.dynamic_market_sell_internal(outcome, shares, min_price);
+		assert!(earnings > 0, "no matching orders");
+		self.markets.insert(&market_id, &market);
 		
-	// 	let market_creator_fee = earnings * market.creator_fee_percentage / 10000;
-	// 	let resolution_fee = earnings * market.resolution_fee_percentage / 10000;
-	// 	let fees = market_creator_fee + resolution_fee;
-
-	// 	fun_token::transfer(env::predecessor_account_id(), U128(earnings - fees), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
-	// }
+		fun_token::transfer(env::predecessor_account_id(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+	}
 
 	pub fn get_outcome_share_balance(
 		&self,
@@ -820,16 +800,15 @@ mod tests {
 		return (runtime, root, accounts);
 	}
 
-	mod binary_order_matching_tests;
-	mod categorical_market_tests;
-	mod init_tests; 
-	mod market_order_tests;
+	// mod binary_order_matching_tests;
+	// mod categorical_market_tests;
+	// mod init_tests; 
+	// mod market_order_tests;
 	
-	// mod market_depth_tests;
-	// mod market_resolution_tests; 
-	// mod claim_earnings_tests;
-	// mod market_dispute_tests;
-	// mod fee_payout_tests;
 	// mod order_sale_tests; 
+	mod market_resolution_tests; 
+	// mod market_dispute_tests;
+	// mod claim_earnings_tests;
+	// mod fee_payout_tests;
 	// mod validity_bond_tests;
 }

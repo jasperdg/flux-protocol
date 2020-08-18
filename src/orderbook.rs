@@ -28,6 +28,7 @@ pub struct PriceData {
 pub struct AccountData {
 	pub balance: u128,
 	pub spent: u128,
+	pub to_spend: u128,
 	pub open_orders: TreeMap<u128, u128> // Check if we need order id or can just keep track of balance of open orders - for now open order id mapped to price
 }
 
@@ -46,6 +47,7 @@ impl Orderbook {
 		AccountData {
 			balance: 0,
 			spent: 0,
+			to_spend: 0,
 			open_orders: TreeMap::new(format!("{}:open_orders:{}:{}", account_id, self.market_id, self.outcome_id).as_bytes().to_vec())
 		}
 	}
@@ -63,12 +65,6 @@ impl Orderbook {
 	) -> Self {
 		Self {
 			market_id,
-			// open_orders: UnorderedMap::new(format!("open_orders:{}:{}", market_id, outcome).as_bytes().to_vec()),
-			// filled_orders: UnorderedMap::new(format!("filled_orders:{}:{}", market_id, outcome).as_bytes().to_vec()),
-			// spend_by_user: UnorderedMap::new(format!("spend_by_user:{}:{}", market_id, outcome).as_bytes().to_vec()),
-			// orders_by_price: TreeMap::new(format!("orders_by_price:{}:{}", market_id, outcome).as_bytes().to_vec()),
-			// liquidity_by_price: TreeMap::new(format!("liquidity_by_price:{}:{}", market_id, outcome).as_bytes().to_vec()),
-			// orders_by_user: UnorderedMap::new(format!("orders_by_user:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			price_data: TreeMap::new(format!("price_data:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			user_data: UnorderedMap::new(format!("user_data:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			nonce: 0,
@@ -102,6 +98,7 @@ impl Orderbook {
 		let mut user_data = self.user_data.get(&account_id).unwrap_or(self.new_account(account_id.to_string()));
 		user_data.balance += shares_filled;
 		user_data.spent += filled;
+		user_data.to_spend += spend;
 		
 		let left_to_spend = spend - filled;
 
@@ -176,6 +173,7 @@ impl Orderbook {
 	}
 
 
+	// TODO: Test claimable on order cancel
 	pub fn cancel_order(&mut self, order: Order) -> u128 {
 		let mut price_data = self.price_data.get(&order.price).unwrap();
 		let mut user_data = self.user_data.get(&order.creator).unwrap();
@@ -193,6 +191,7 @@ impl Orderbook {
 		}
 		
 		user_data.open_orders.remove(&order.id);
+		user_data.to_spend -= order.spend - order.filled;
 		
 		self.user_data.insert(&order.creator, &user_data);
 
@@ -246,7 +245,6 @@ impl Orderbook {
 		}
 
 		if price_data.orders.len() == 0 {
-			env::log(format!("removing orders").to_string().as_bytes());
 			self.price_data.remove(&order.price);
 		} else {
 			self.price_data.insert(&order.price, &price_data);
@@ -256,28 +254,27 @@ impl Orderbook {
 		self.log_order_filled(&order, shares_to_fill);
 	}
 
+	// todo: doens't need to return shares filled in production
 	pub fn fill_best_orders(
 		&mut self, 
 		mut shares_to_fill: u128
-	) {
+	) -> u128 {
 		let fill_price = match self.price_data.max() {
 			Some(price) => price,
-			None => return
+			None => return 0
 		};
 
 		let orders = self.price_data.get(&fill_price).expect("this price shouldn't exist if there are no orders to be filled").orders;
 
+		let mut shares_filled = 0;
 		for (order_id, order) in orders.iter() {
 			if shares_to_fill < 1 { break;} 
 			let shares_fillable_for_order = (order.spend - order.filled) / order.price;
 
 			// TODO: test that panic is never called
-			if shares_fillable_for_order == 0 {panic!("should never be 0")}
-
+			if shares_fillable_for_order == 0 {panic!("should never be 0")}			
 			let filling = cmp::min(shares_fillable_for_order, shares_to_fill); 
-
-			env::log(format!("to fill: {}, fillable: {}", shares_to_fill, shares_fillable_for_order).to_string().as_bytes());
-			
+			shares_filled += filling;
 			if shares_to_fill < shares_fillable_for_order {
 				self.fill_order(order, filling, false);
 				break;
@@ -287,10 +284,39 @@ impl Orderbook {
 				self.fill_order(order, filling, true);
 				break;
 			}
-			
-			env::log(format!("filling: {}", filling).to_string().as_bytes());
+
 			shares_to_fill -= filling;
 		}
+
+		return shares_filled;
+	}
+
+	pub fn get_depth_up_to_price(&self, max_shares: u128, min_price: u128) -> (u128, u128) {
+		let mut best_price = self.price_data.max().unwrap_or(0);
+		env::log(format!("best price: {}", best_price).to_string().as_bytes());
+		env::log(format!("max shares price: {}", max_shares).to_string().as_bytes());
+		
+		let mut depth = 0;
+		let mut depth_price_prod_sum = 0;
+		while best_price > min_price && max_shares > depth {
+			let shares_left_to_fill = max_shares - depth;
+			let price_data = self.price_data.get(&best_price).expect("Expected there to be a value at this key");
+			let liquidity = cmp::min(shares_left_to_fill, price_data.share_liquidity);
+			depth_price_prod_sum += liquidity * best_price;
+			env::log(format!("liquidity at this price = {}", depth_price_prod_sum).to_string().as_bytes());
+			env::log(format!("liquidity  = {}", liquidity).to_string().as_bytes());
+			depth += liquidity;
+			best_price = self.price_data.lower(&best_price).unwrap_or(0);
+			env::log(format!("new_best price:   = {}", best_price).to_string().as_bytes());
+			env::log(b"");
+			env::log(b"");
+			env::log(b"");
+
+		}
+
+		if depth == 0 {return (0, 0);}
+
+		return (cmp::min(max_shares, depth), depth_price_prod_sum / depth);
 	}
 
 	// // Returns claimable_if_valid
@@ -426,83 +452,5 @@ impl Orderbook {
 	// 	}
 
 	// 	return (claimable, affiliates);
-	// }
-
-    // fn remove_filled_order(
-	// 	&mut self, 
-	// 	order_id : u128
-	// ) {
-    //     // Get filled orders at price
-    //     let order = self.filled_orders.get(&order_id).expect("order with this id doens't exist");
-    //     // Remove order account_id user map
-    //     let mut order_by_user_map = self.orders_by_user.get(&order.creator).unwrap();
-	// 	order_by_user_map.remove(&order_id);
-	// 	self.orders_by_user.insert(&order.creator, &order_by_user_map);
-    //     if order_by_user_map.is_empty() {
-    //         self.orders_by_user.remove(&order.creator);
-    //     }
-    //     self.filled_orders.remove(&order_id);
-    // }
-
-	// // pub fn get_best_price(
-	// // 	&self
-	// // ) -> u128 {
-	// // 	return self.best_price.unwrap();
-	// // }
-
-	// // pub fn get_open_order_value_for(
-	// // 	&self, 
-	// // 	account_id: String
-	// // ) -> u128 {
-	// // 	let mut claimable = 0;
-	// // 	let empty_vec: Vec<u128> = vec![];
-	// // 	let orders_by_user_vec = self.orders_by_user.get(&account_id).unwrap_or(UnorderedMap::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
-
-    // //     for (order_id, _) in orders_by_user_vec.iter() {
-	// // 		let open_order_prom = self.open_orders.get(&order_id);
-	// // 		let order_is_open = !open_order_prom.is_none();
-	// // 		if order_is_open {
-	// // 			let order = self.open_orders.get(&order_id).unwrap();
-	// // 			claimable += order.spend - order.filled;
-	// // 		}
-    // //     }
-	// // 	return claimable;
-	// // }
-
-	// pub fn get_spend_by(
-	// 	&self, 
-	// 	account_id: String
-	// ) -> u128 {
-	// 	return self.spend_by_user.get(&account_id).unwrap_or(0);
-	// }
-
-	// pub fn get_share_balance(
-	// 	&self,
-	// 	account_id: String
-	// ) -> u128 {
-	// 	let orders_by_user = self.orders_by_user.get(&account_id).unwrap_or(UnorderedMap::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
-
-	// 	let mut balance = 0;
-	// 	for (order_id, _) in orders_by_user.iter() {
-	// 		let order = self.open_orders
-	// 		.get(&order_id)
-	// 		.unwrap_or_else(| | {
-	// 			return  self.filled_orders.get(&order_id).expect("order with this id doesn't seem to exist")
-	// 		});
-	// 		balance += order.shares_filled;
-	// 	}
-	// 	return balance;
-	// }
-
-	// pub fn get_liquidity_at_price(
-	// 	&self, 
-	// 	price: u128
-	// ) -> u128 {
-	// 	let spend_liquidity = self.liquidity_by_price.get(&price).unwrap_or(0);
-	// 	if spend_liquidity == 0 {
-	// 		return 0
-	// 	} else {
-	// 		return spend_liquidity / price;
-	// 	}
 	// }
 }

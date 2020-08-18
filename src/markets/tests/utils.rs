@@ -251,12 +251,14 @@ impl ExternalUser {
         runtime: &mut RuntimeStandalone,
         market_id: U64,
         outcome: U64,
-        shares: U128
+        shares: U128,
+        min_price: U128
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
             "outcome": outcome,
             "shares": shares,
+            "min_price": min_price
         })
         .to_string()
         .as_bytes()
