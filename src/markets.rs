@@ -342,98 +342,101 @@ impl Markets {
 		}
 	}
 
-	// pub fn withdraw_dispute_stake(
-	// 	&mut self, 
-	// 	market_id: U64,
-	// 	dispute_round: U64,
-	// 	outcome: Option<U64>
+	pub fn withdraw_dispute_stake(
+		&mut self, 
+		market_id: U64,
+		dispute_round: U64,
+		outcome: Option<U64>
+	) -> Promise {
+		let market_id: u64 = market_id.into();
+		let dispute_round: u64 = dispute_round.into();
+		let outcome: Option<u64> = match outcome {
+			Some(outcome) => Some(outcome.into()),
+			None => None
+		};
+
+		let mut market = self.markets.get(&market_id).expect("invalid market");
+		let to_return = market.cancel_dispute_participation(dispute_round, outcome);
+		self.markets.insert(&market_id, &market);
+		if to_return > 0 {
+			env::log(
+				json!({
+					"type": "withdrawn_unbounded_dispute_stake".to_string(),
+					"params": {
+						"market_id": U64(market_id),
+						"sender": env::predecessor_account_id(),
+						"dispute_round": U64(dispute_round),
+						"outcome": outcome,
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
+			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+		} else {
+			panic!("user has no participation in this dispute");
+		}
+	}
+
+	pub fn dispute_market(
+		&mut self, 
+		market_id: U64, 
+		winning_outcome: Option<U64>,
+		stake: U128
 	// ) -> Promise {
-	// 	let market_id: u64 = market_id.into();
-	// 	let dispute_round: u64 = dispute_round.into();
-	// 	let outcome: Option<u64> = match outcome {
-	// 		Some(outcome) => Some(outcome.into()),
-	// 		None => None
-	// 	};
+	) {
+		let market_id: u64 = market_id.into();
+		let winning_outcome: Option<u64> = match winning_outcome {
+			Some(outcome) => Some(outcome.into()),
+			None => None
+		};
+		let stake_u128: u128 = stake.into();
+        let market = self.markets.get(&market_id).expect("market doesn't exist");
 
-	// 	let mut market = self.markets.get(&market_id).expect("invalid market");
-	// 	let to_return = market.cancel_dispute_participation(dispute_round, outcome);
-	// 	self.markets.insert(&market_id, &market);
-	// 	if to_return > 0 {
-	// 		env::log(
-	// 			json!({
-	// 				"type": "withdrawn_unbounded_dispute_stake".to_string(),
-	// 				"params": {
-	// 					"market_id": U64(market_id),
-	// 					"sender": env::predecessor_account_id(),
-	// 					"dispute_round": U64(dispute_round),
-	// 					"outcome": outcome,
-	// 				}
-	// 			})
-	// 			.to_string()
-	// 			.as_bytes()
-	// 		);
-	// 		return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
-	// 	} else {
-	// 		panic!("user has no participation in this dispute");
-	// 	}
-	// }
+		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
+		assert_eq!(market.finalized, false, "market is already finalized");
+        assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
+        assert!(winning_outcome != market.winning_outcome, "same oucome as last resolution");
+		let resolution_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("Invalid dispute window unwrap");
+		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
 
-	// pub fn dispute_market(
-	// 	&mut self, 
-	// 	market_id: U64, 
-	// 	winning_outcome: Option<U64>,
-	// 	stake: U128
-	// ) -> Promise {
-	// 	let market_id: u64 = market_id.into();
-	// 	let winning_outcome: Option<u64> = match winning_outcome {
-	// 		Some(outcome) => Some(outcome.into()),
-	// 		None => None
-	// 	};
-	// 	let stake_u128: u128 = stake.into();
-    //     let market = self.markets.get(&market_id).expect("market doesn't exist");
+		assert!(env::block_timestamp() / 1000000 < resolution_window.end_time, "dispute window is closed, market can be finalized");
 
-	// 	assert_eq!(market.resoluted, true, "market isn't resoluted yet");
-	// 	assert_eq!(market.finalized, false, "market is already finalized");
-    //     assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
-    //     assert!(winning_outcome != market.winning_outcome, "same oucome as last resolution");
-	// 	let resolution_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("Invalid dispute window unwrap");
-	// 	assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
-	// 	assert!(env::block_timestamp() / 1000000 <= resolution_window.end_time, "dispute window is closed, market can be finalized");
+		// return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2).then(
+		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2).then(
+			flux_protocol::proceed_market_dispute(
+				env::predecessor_account_id(),
+				market_id,
+				winning_outcome,
+				stake_u128,
+				&env::current_account_id(), 
+				0, 
+				SINGLE_CALL_GAS
+			)
+		);
+	}
 
-	// 	return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2).then(
-	// 		flux_protocol::proceed_market_dispute(
-	// 			env::predecessor_account_id(),
-	// 			market_id,
-	// 			winning_outcome,
-	// 			stake_u128,
-	// 			&env::current_account_id(), 
-	// 			0, 
-	// 			SINGLE_CALL_GAS
-	// 		)
-	// 	)
-	// }
+	pub fn proceed_market_dispute(		
+		&mut self,
+		market_id: u64,
+		winning_outcome: Option<u64>,
+		stake: u128,
+		sender: String
+	) -> PromiseOrValue<bool> {
+		self.assert_self();
+		let transfer_succeeded = self.is_promise_success();
+		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
+        let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 
-	// pub fn proceed_market_dispute(		
-	// 	&mut self,
-	// 	market_id: u64,
-	// 	winning_outcome: Option<u64>,
-	// 	stake: u128,
-	// 	sender: String
-	// ) -> PromiseOrValue<bool> {
-	// 	self.assert_self();
-	// 	let transfer_succeeded = self.is_promise_success();
-	// 	if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
-    //     let mut market = self.markets.get(&market_id).expect("market doesn't exist");
+		let change = market.dispute(sender.to_string(), winning_outcome, stake);
 
-	// 	let change = market.dispute(sender.to_string(), winning_outcome, stake);
-
-	// 	self.markets.insert(&market.id, &market);
-	// 	if change > 0 {
-	// 		return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2));
-	// 	} else {
-	// 		return PromiseOrValue::Value(true);
-	// 	}
-	// }
+		self.markets.insert(&market.id, &market);
+		if change > 0 {
+			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2));
+		} else {
+			return PromiseOrValue::Value(true);
+		}
+	}
 		
 
 	pub fn finalize_market(
@@ -502,7 +505,7 @@ impl Markets {
 
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
 
-		return (to_claim + validity_bond).into();
+		return (to_claim).into();
 	}
 
 	pub fn claim_earnings(
@@ -800,15 +803,14 @@ mod tests {
 		return (runtime, root, accounts);
 	}
 
-	// mod binary_order_matching_tests;
-	// mod categorical_market_tests;
-	// mod init_tests; 
-	// mod market_order_tests;
-	
-	// mod order_sale_tests; 
+	mod binary_order_matching_tests;
+	mod categorical_market_tests;
+	mod init_tests; 
+	mod market_order_tests;
+	mod order_sale_tests; 
 	mod market_resolution_tests; 
-	// mod market_dispute_tests;
-	// mod claim_earnings_tests;
-	// mod fee_payout_tests;
-	// mod validity_bond_tests;
+	mod claim_earnings_tests;
+	mod validity_bond_tests;
+	mod fee_payout_tests;
+	mod market_dispute_tests;
 }

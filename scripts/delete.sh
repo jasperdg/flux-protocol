@@ -1,1 +1,1 @@
-near delete fluxprotocol-phase-point-two flux-dev
+near delete u1f92b_u1f680.flux-dev flux-dev

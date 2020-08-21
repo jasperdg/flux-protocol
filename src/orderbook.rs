@@ -184,7 +184,6 @@ impl Orderbook {
 		price_data.orders.remove(&order.id);
 
 		if price_data.orders.len() == 0 {
-			env::log(format!("removing orders").to_string().as_bytes());
 			self.price_data.remove(&order.price);
 		} else {
 			self.price_data.insert(&order.price, &price_data);
@@ -293,9 +292,7 @@ impl Orderbook {
 
 	pub fn get_depth_up_to_price(&self, max_shares: u128, min_price: u128) -> (u128, u128) {
 		let mut best_price = self.price_data.max().unwrap_or(0);
-		env::log(format!("best price: {}", best_price).to_string().as_bytes());
-		env::log(format!("max shares price: {}", max_shares).to_string().as_bytes());
-		
+
 		let mut depth = 0;
 		let mut depth_price_prod_sum = 0;
 		while best_price > min_price && max_shares > depth {
@@ -303,14 +300,9 @@ impl Orderbook {
 			let price_data = self.price_data.get(&best_price).expect("Expected there to be a value at this key");
 			let liquidity = cmp::min(shares_left_to_fill, price_data.share_liquidity);
 			depth_price_prod_sum += liquidity * best_price;
-			env::log(format!("liquidity at this price = {}", depth_price_prod_sum).to_string().as_bytes());
-			env::log(format!("liquidity  = {}", liquidity).to_string().as_bytes());
+
 			depth += liquidity;
 			best_price = self.price_data.lower(&best_price).unwrap_or(0);
-			env::log(format!("new_best price:   = {}", best_price).to_string().as_bytes());
-			env::log(b"");
-			env::log(b"");
-			env::log(b"");
 
 		}
 
@@ -318,139 +310,4 @@ impl Orderbook {
 
 		return (cmp::min(max_shares, depth), depth_price_prod_sum / depth);
 	}
-
-	// // Returns claimable_if_valid
-	// pub fn subtract_shares(
-	// 	&mut self, 
-	// 	shares: u128,
-	// 	sell_price: u128,
-	// ) -> u128 {
-	// 	let orders_by_user = self.orders_by_user.get(&env::predecessor_account_id()).unwrap();
-	// 	let mut shares_to_sell = shares;
-	// 	let mut to_remove = vec![];
-	// 	let mut claimable_if_valid = 0;
-	// 	let mut spend_to_decrement = 0;
-
-	// 	for (order_id, _) in orders_by_user.iter() {
-	// 		if shares_to_sell > 0 {
-	// 			let (mut order, state) = self.get_order_by_id(&order_id);
-	// 			let mut shares_to_calculate_spend = order.shares_filled;
-
-	// 			// if there's more or equal shares to be sold than ths
-	// 			if order.shares_filled <= shares_to_sell {
-	// 				// check if share that is being sold is filled
-	// 				if order.is_filled() {
-	// 					shares_to_sell -= order.shares_filled;
-	// 					to_remove.push(order.id);
-	// 				} else {
-	// 					// if the shares sold are part of an open order - adjust said order
-	// 					order.spend -= order.shares_filled * order.price;
-	// 					order.filled = 0;
-	// 					order.amt_of_shares -= order.shares_filled;
-	// 					order.shares_filled = 0;
-	// 					env::log(
-	// 						json!({
-	// 							"type": "sold_fill_from_order".to_string(),
-	// 							"params": {
-	// 								"order_id": U128(order_id),
-	// 								"market_id": U64(self.market_id),
-	// 								"outcome": U64(self.outcome_id),
-	// 								"updated_spend": U128(order.spend),
-	// 								"updated_filled": U128(order.filled),
-	// 								"updated_amt_of_shares": U128(order.amt_of_shares),
-	// 								"upated_shares_filled": U128(order.shares_filled)
-	// 							}
-	// 						})
-	// 						.to_string()
-	// 						.as_bytes()
-	// 					);
-	// 				}
-	// 			} else {
-	// 				order.spend -= shares_to_sell * order.price;
-	// 				order.filled -= shares_to_sell * order.price;
-	// 				order.amt_of_shares -= shares_to_sell;
-	// 				order.shares_filled = shares_to_sell;
-	// 				shares_to_calculate_spend = shares_to_sell;
-	// 				shares_to_sell = 0;
-
-	// 				env::log(
-	// 					json!({
-	// 						"type": "sold_fill_from_order".to_string(),
-	// 						"params": {
-	// 							"order_id": U128(order_id),
-	// 							"market_id": U64(self.market_id),
-	// 							"outcome": U64(self.outcome_id),
-	// 							"updated_spend": U128(order.spend),
-	// 							"updated_filled": U128(order.filled),
-	// 							"updated_amt_of_shares": U128(order.amt_of_shares),
-	// 							"upated_shares_filled": U128(order.shares_filled)
-	// 						}
-	// 					})
-	// 					.to_string()
-	// 					.as_bytes()
-	// 				);
-	// 			}
-
-	// 			if order.price < sell_price {
-	// 				claimable_if_valid += (sell_price - order.price) * shares_to_calculate_spend;
-	// 				spend_to_decrement += shares_to_calculate_spend * order.price;
-	// 			} else if order.price > sell_price {
-	// 				spend_to_decrement = sell_price * shares_to_calculate_spend;
-	// 			} else {
-	// 				spend_to_decrement += shares_to_calculate_spend * order.price;
-	// 			}
-				
-	// 			if state == "open".to_string() {
-	// 				self.open_orders.insert(&order.id, &order);
-	// 			} else {
-	// 				self.filled_orders.insert(&order.id, &order);
-	// 			}
-
-	// 		} else {
-	// 			break;
-	// 		}
-	// 	}
-
-	// 	for order_id in to_remove {
-	// 		self.remove_filled_order(order_id);
-	// 	}
-
-	// 	let mut spend_by_user = self.spend_by_user.get(&env::predecessor_account_id()).expect("user doens't have any spend left");
-	// 	spend_by_user -= spend_to_decrement;
-	// 	self.spend_by_user.insert(&env::predecessor_account_id(), &spend_by_user);
-	// 	return claimable_if_valid;
-	// }
-
-	// pub fn calc_claimable_amt(
-	// 	&self, 
-	// 	account_id: String
-	// ) -> (u128, HashMap<String, u128>) {
-	// 	let mut claimable = 0;
-	// 	let empty_vec: Vec<u128> = vec![];
-	// 	let orders_by_user_map = self.orders_by_user.get(&account_id).unwrap_or(UnorderedMap::new(format!("user_orders:{}:{}:{}", self.market_id, self.outcome_id, account_id).as_bytes().to_vec()));
-	// 	let mut affiliates: HashMap<String, u128> = HashMap::new();
-	// 	for (order_id, _) in orders_by_user_map.iter() {
-	// 		let order = self.open_orders
-	// 		.get(&order_id)
-	// 		.unwrap_or_else(|| {
-	// 			return self.filled_orders
-	// 			.get(&order_id)
-	// 			.expect("Order by user doesn't seem to exist");
-	// 		});
-			
-	// 		// If there is in fact an affiliate connected to this order
-	// 		if !order.affiliate_account_id.is_none() {
-	// 			let affiliate_account = order.affiliate_account_id.as_ref().unwrap();
-	// 			affiliates
-	// 			.entry(affiliate_account.to_string())
-	// 			.and_modify(|balance| {
-	// 				*balance += order.shares_filled * 100;
-	// 			})
-	// 			.or_insert(order.shares_filled * 100);
-	// 		}
-	// 		claimable += order.shares_filled * 100;
-	// 	}
-
-	// 	return (claimable, affiliates);
-	// }
 }

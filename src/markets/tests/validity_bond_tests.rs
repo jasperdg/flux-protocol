@@ -28,7 +28,7 @@ fn test_validity_market_payout_calc_valid_market() {
 	
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	root.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(U64(0))).expect("market finalization failed unexpectedly"); 
 
 	// let claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
@@ -66,7 +66,7 @@ fn test_validity_market_payout_calc_invalid_market() {
 	
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	root.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), None).expect("market finalization failed unexpectedly"); 
 
 	let claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();

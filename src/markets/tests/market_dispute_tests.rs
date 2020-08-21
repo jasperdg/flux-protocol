@@ -16,18 +16,18 @@ fn test_dispute_valid() {
 
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 
-	alice.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(7)), U128(70), None).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(3), U128(to_dai(1)), U128(10), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(7) / 70), U128(70), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(3), U128(to_dai(1) / 10), U128(10), None).expect("order placement failed unexpectedly");
 	
-	carol.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(1)), U128(10), None).expect("order placement failed unexpectedly");
-	carol.place_order(&mut runtime, U64(0), U64(2), U128(to_dai(1)), U128(10), None).expect("order placement failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(1) / 10), U128(10), None).expect("order placement failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), U64(2), U128(to_dai(1) / 10), U128(10), None).expect("order placement failed unexpectedly");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	
 	carol.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 	
 	let tx_res =alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(10))).expect("market dispute failed unexpectedly"); 
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(U64(0))).expect("market finalization failed unexpectedly"); 
 
 	let expected_claimable_alice = to_dai(10) - to_dai(10) / 100;
@@ -90,7 +90,7 @@ fn test_finalized_market() {
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(U64(0))).expect("market finalization failed unexpectedly"); 
 
 	alice.dispute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(5))).expect("dispute failed");
@@ -134,8 +134,9 @@ fn test_dispute_after_dispute_window() {
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1801000000000;
-	alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("dispute failed");
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
+	let dispute_res = alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("dispute failed");
+	println!("dispute res: {:?}", dispute_res);
 }
 
 #[test]
@@ -156,7 +157,7 @@ fn test_finalize_as_not_owner() {
 	alice.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 	alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(10))).expect("dispute failed");
 
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	let tx_res = alice.finalize_market(&mut runtime, U64(0), Some(U64(0))).expect("market finalization failed as expected"); 
 }
 
@@ -285,7 +286,7 @@ fn test_cancel_dispute_participation() {
 	
 	alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(10))).expect("market dispute failed unexpectedly"); 
 	
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(U64(0))).expect("market finalization failed unexpectedly"); 
 
 	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
@@ -317,7 +318,7 @@ fn test_cancel_dispute_participation_non_bonded_winning_outcome() {
 	
 	alice.dispute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(10))).expect("market dispute failed unexpectedly"); 
 	
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(U64(0))).expect("market finalization failed unexpectedly"); 
 	
 
@@ -345,8 +346,8 @@ fn test_crowdsourced_dispute_correct_resolution() {
 	alice.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	root.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5)), U128(50), None).expect("order placement failed unexpectedly");
-	root.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(5)), U128(50), None).expect("order placement failed unexpectedly");
+	root.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5) / 50), U128(50), None).expect("order placement failed unexpectedly");
+	root.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(5) / 50), U128(50), None).expect("order placement failed unexpectedly");
 
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
@@ -358,7 +359,7 @@ fn test_crowdsourced_dispute_correct_resolution() {
 	carol.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); 
 	alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); 
 	
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(U64(0))).expect("market finalization failed unexpectedly"); 
 
 	let initially_claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
@@ -389,8 +390,8 @@ fn test_crowdsourced_dispute_incorrect_resolution() {
 	alice.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	root.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5)), U128(50), None).expect("order placement failed unexpectedly");
-	root.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(5)), U128(50), None).expect("order placement failed unexpectedly");
+	root.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5) / 50), U128(50), None).expect("order placement failed unexpectedly");
+	root.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(5) / 50), U128(50), None).expect("order placement failed unexpectedly");
 
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
@@ -402,7 +403,7 @@ fn test_crowdsourced_dispute_incorrect_resolution() {
 	carol.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); 
 	alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); 
 	
-	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 1800000000000;
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(U64(1))).expect("market finalization failed unexpectedly"); 
 
 	let initially_claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();

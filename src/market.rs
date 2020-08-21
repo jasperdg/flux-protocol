@@ -407,107 +407,107 @@ impl Market {
 		return to_return;
 	}
 
-	// pub fn dispute(
-	// 	&mut self, 
-	// 	sender: String,
-	// 	winning_outcome: Option<u64>,
-	// 	stake: u128
-	// ) -> u128 {
+	pub fn dispute(
+		&mut self, 
+		sender: String,
+		winning_outcome: Option<u64>,
+		stake: u128
+	) -> u128 {
 
-	// 	let outcome_id = self.to_numerical_outcome(winning_outcome);
-	// 	let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Invalid dispute window unwrap");
-	// 	let full_bond_size = resolution_window.required_bond_size;
-	// 	let mut bond_filled = false;
-	// 	let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
-	// 	let mut to_return = 0;
+		let outcome_id = self.to_numerical_outcome(winning_outcome);
+		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Invalid dispute window unwrap");
+		let full_bond_size = resolution_window.required_bond_size;
+		let mut bond_filled = false;
+		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
+		let mut to_return = 0;
 
-	// 	if staked_on_outcome + stake >= full_bond_size  {
-	// 		bond_filled = true;
-	// 		to_return = staked_on_outcome + stake - full_bond_size;
-	// 		self.disputed = true; // Only as long as Judge exists
-	// 		self.winning_outcome = winning_outcome;
-	// 	}
+		if staked_on_outcome + stake >= full_bond_size  {
+			bond_filled = true;
+			to_return = staked_on_outcome + stake - full_bond_size;
+			self.disputed = true; // Only as long as Judge exists
+			self.winning_outcome = winning_outcome;
+		}
 
-	// 	let mut sender_stake_per_outcome = resolution_window.participants_to_outcome_to_stake
-	// 	.get(&sender)
-	// 	.unwrap_or(UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec()));
-	// 	let stake_in_outcome = sender_stake_per_outcome
-	// 	.get(&outcome_id)
-	// 	.unwrap_or(0);
-	// 	let new_stake = stake_in_outcome + stake - to_return;
-	// 	sender_stake_per_outcome.insert(&outcome_id, &new_stake);
-	// 	resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
+		let mut sender_stake_per_outcome = resolution_window.participants_to_outcome_to_stake
+		.get(&sender)
+		.unwrap_or(UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec()));
+		let stake_in_outcome = sender_stake_per_outcome
+		.get(&outcome_id)
+		.unwrap_or(0);
+		let new_stake = stake_in_outcome + stake - to_return;
+		sender_stake_per_outcome.insert(&outcome_id, &new_stake);
+		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
-	// 	resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - to_return));
+		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - to_return));
 
 		
-	// 	// Check if this order fills the bond
-	// 	if bond_filled {
-	// 		// Set last winning outcome
-	// 		resolution_window.outcome = winning_outcome;
+		// Check if this order fills the bond
+		if bond_filled {
+			// Set last winning outcome
+			resolution_window.outcome = winning_outcome;
 
-	// 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("This can't be None");
-	// 		assert_eq!(staked_on_outcome, full_bond_size, "the total staked on outcome needs to equal full bond size if we get here");
+			let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("This can't be None");
+			assert_eq!(staked_on_outcome, full_bond_size, "the total staked on outcome needs to equal full bond size if we get here");
 
-	// 		let next_resolution_window = ResolutionWindow{
-	// 			round: resolution_window.round + 1,
-	// 			participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-	// 			required_bond_size: resolution_window.required_bond_size * 2,
-	// 			staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-	// 			end_time: env::block_timestamp() / 1000000 + 43200000,
-	// 			outcome: None,
-	// 		};
+			let next_resolution_window = ResolutionWindow{
+				round: resolution_window.round + 1,
+				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
+				required_bond_size: resolution_window.required_bond_size * 2,
+				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
+				end_time: env::block_timestamp() / 1000000 + 43200000,
+				outcome: None,
+			};
 
-	// 		env::log(
-	// 			json!({
-	// 				"type": "resolution_disputed".to_string(),
-	// 				"params": {
-	// 					"market_id": U64(self.id),
-	// 					"sender": sender,
-	// 					"round": U64(resolution_window.round),
-	// 					"staked": U128(stake - to_return),
-	// 					"outcome": U64(outcome_id)
-	// 				}
-	// 			})
-	// 			.to_string()
-	// 			.as_bytes()
-	// 		);
-	// 		env::log(
-	// 			json!({
-	// 				"type": "new_resolution_window".to_string(),
-	// 				"params": {
-	// 					"market_id": U64(self.id),
-	// 					"round": U64(next_resolution_window.round),
-	// 					"required_bond_size": U128(next_resolution_window.required_bond_size),
-	// 					"end_time": U64(next_resolution_window.end_time),	
-	// 				}
-	// 			})
-	// 			.to_string()
-	// 			.as_bytes()
-	// 		);
+			env::log(
+				json!({
+					"type": "resolution_disputed".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"sender": sender,
+						"round": U64(resolution_window.round),
+						"staked": U128(stake - to_return),
+						"outcome": U64(outcome_id)
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
+			env::log(
+				json!({
+					"type": "new_resolution_window".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"round": U64(next_resolution_window.round),
+						"required_bond_size": U128(next_resolution_window.required_bond_size),
+						"end_time": U64(next_resolution_window.end_time),	
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
 
-	// 		self.resolution_windows.push(&next_resolution_window);
-	// 	} else {
-	// 		env::log(
-	// 			json!({
-	// 				"type": "staked_on_dispute".to_string(),
-	// 				"params": {
-	// 					"market_id": U64(self.id),
-	// 					"sender": sender,
-	// 					"round": U64(resolution_window.round),
-	// 					"staked": U128(stake - to_return),
-	// 					"outcome": U64(outcome_id)
-	// 				}
-	// 			})
-	// 			.to_string()
-	// 			.as_bytes()
-	// 		);
-	// 	}
+			self.resolution_windows.push(&next_resolution_window);
+		} else {
+			env::log(
+				json!({
+					"type": "staked_on_dispute".to_string(),
+					"params": {
+						"market_id": U64(self.id),
+						"sender": sender,
+						"round": U64(resolution_window.round),
+						"staked": U128(stake - to_return),
+						"outcome": U64(outcome_id)
+					}
+				})
+				.to_string()
+				.as_bytes()
+			);
+		}
 
-	// 	self.resolution_windows.replace(resolution_window.round, &resolution_window);
+		self.resolution_windows.replace(resolution_window.round, &resolution_window);
 
-	// 	return to_return;
-	// }
+		return to_return;
+	}
 
 	pub fn finalize(
 		&mut self, 
@@ -574,32 +574,30 @@ impl Market {
 			winnings += winning_value;
 		}
 
-
-
 		// Claiming Dispute Earnings
 		let governance_earnings = self.get_dispute_earnings(account_id.to_string());
 		return (winnings, in_open_orders, governance_earnings);
 	}
 
-	// pub fn cancel_dispute_participation(
-	// 	&mut self,
-	// 	round: u64,
+	pub fn cancel_dispute_participation(
+		&mut self,
+		round: u64,
 		
-	// 	outcome: Option<u64>
-	// ) -> u128{
-	// 	let outcome_id = self.to_numerical_outcome(outcome);
-	// 	let mut resolution_window = self.resolution_windows.get(round).expect("dispute round doesn't exist");
-	// 	assert_ne!(outcome, resolution_window.outcome, "you cant cancel dispute stake for bonded outcome");
-	// 	let mut sender_particiaption = resolution_window.participants_to_outcome_to_stake.get(&env::predecessor_account_id()).expect("user didn't paritcipate in this dispute round");
-	// 	let to_return = sender_particiaption.get(&outcome_id).expect("sender didn't pariticipate in this outcome resolution");
-	// 	assert!(to_return > 0, "sender canceled their dispute participation");
+		outcome: Option<u64>
+	) -> u128{
+		let outcome_id = self.to_numerical_outcome(outcome);
+		let mut resolution_window = self.resolution_windows.get(round).expect("dispute round doesn't exist");
+		assert_ne!(outcome, resolution_window.outcome, "you cant cancel dispute stake for bonded outcome");
+		let mut sender_particiaption = resolution_window.participants_to_outcome_to_stake.get(&env::predecessor_account_id()).expect("user didn't paritcipate in this dispute round");
+		let to_return = sender_particiaption.get(&outcome_id).expect("sender didn't pariticipate in this outcome resolution");
+		assert!(to_return > 0, "sender canceled their dispute participation");
 
-	// 	sender_particiaption.insert(&outcome_id, &0);
-	// 	resolution_window.participants_to_outcome_to_stake.insert(&env::predecessor_account_id(), &sender_particiaption);
+		sender_particiaption.insert(&outcome_id, &0);
+		resolution_window.participants_to_outcome_to_stake.insert(&env::predecessor_account_id(), &sender_particiaption);
 
-	// 	self.resolution_windows.replace(resolution_window.round, &resolution_window);
-	// 	return to_return;
-	// }
+		self.resolution_windows.replace(resolution_window.round, &resolution_window);
+		return to_return;
+	}
 
 	fn get_dispute_earnings(
 		&self, 
@@ -673,70 +671,6 @@ impl Market {
 
 		return profit + user_correctly_staked + resolution_reward;
 	}
-
-    // // Updates the best price for an order once initial best price is filled
-	// fn update_next_best_price(
-	// 	&self, 
-	// 	inverse_orderbook_ids: &Vec<u64>, 
-	// 	first_iteration: &bool, 
-	// 	outcome_to_price_share_pointer: &mut HashMap<u64, (u128, u128)>, 
-	// 	best_order_exists: &mut bool, 
-	// 	market_price: &mut u128, 
-	// 	lowest_liquidity: &u128
-	// ) {
-	//     for orderbook_id in inverse_orderbook_ids {
-    //         let orderbook = self.orderbooks.get(&orderbook_id).unwrap();
-    //         if !first_iteration {
-    //             if outcome_to_price_share_pointer.get_mut(orderbook_id).is_none() {continue}
-    //             outcome_to_price_share_pointer.get_mut(orderbook_id).unwrap().1 -= lowest_liquidity;
-    //             let price_liquidity = outcome_to_price_share_pointer.get(orderbook_id).unwrap();
-    //             let liquidity = price_liquidity.1;
-
-    //             if liquidity == 0 {
-    //                 // get next best price
-    //                 let next_best_price_prom = orderbook.orders_by_price.lower(&price_liquidity.0);
-
-    //                 if next_best_price_prom.is_none() {
-    //                     outcome_to_price_share_pointer.remove(orderbook_id);
-    //                     continue;
-    //                 }
-    //                 *best_order_exists = true;
-    //                 let next_best_price = next_best_price_prom.unwrap();
-    //                 let add_to_market_price =  price_liquidity.0 - next_best_price;
-    //                 *market_price += add_to_market_price;
-    //                 outcome_to_price_share_pointer.insert(*orderbook_id, (next_best_price, orderbook.get_liquidity_at_price(next_best_price)));
-    //             }
-    //         }
-    //     }
-	// }
-
-    // // Updates the lowest liquidity available amongst best prices
-	// fn update_lowest_liquidity(
-	// 	&self, 
-	// 	inverse_orderbook_ids: &Vec<u64>, 
-	// 	first_iteration: &bool, 
-	// 	lowest_liquidity: &mut u128, 
-	// 	outcome_to_price_share_pointer: &mut HashMap<u64, (u128, u128)>, 
-	// 	best_order_exists: &mut bool
-	// ) {
-	//     *best_order_exists = false;
-	//     for orderbook_id in inverse_orderbook_ids {
-    //         // Get lowest liquidity at new price
-    //         let orderbook = self.orderbooks.get(&orderbook_id).unwrap();
-    //         if *first_iteration {
-    //             let price = orderbook.best_price;
-    //             if price.is_none() {continue}
-    //             *best_order_exists = true;
-    //             let liquidity = orderbook.get_liquidity_at_price(price.unwrap());
-    //             outcome_to_price_share_pointer.insert(*orderbook_id, (price.unwrap(), liquidity));
-    //         }
-    //         if outcome_to_price_share_pointer.get(orderbook_id).is_none() {continue}
-    //         let liquidity = outcome_to_price_share_pointer.get(orderbook_id).unwrap().1;
-    //         if *lowest_liquidity == 0 {*lowest_liquidity = liquidity}
-    //         else if *lowest_liquidity > liquidity { *lowest_liquidity = liquidity}
-
-    //     }
-	// }
 
 	fn to_loggable_winning_outcome(
 		&self, 
