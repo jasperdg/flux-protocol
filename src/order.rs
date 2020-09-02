@@ -1,5 +1,5 @@
 use std::string::String;
-use borsh::{BorshDeserialize, BorshSerialize};
+use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use near_sdk::{near_bindgen, env};
 

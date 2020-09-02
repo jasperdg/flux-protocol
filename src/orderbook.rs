@@ -6,6 +6,11 @@ use near_sdk::{
 		Vector
 	},
 	json_types::{U128, U64},
+	borsh::{
+		self, 
+		BorshDeserialize, 
+		BorshSerialize
+	}
 };
 use std::{
 	cmp,
@@ -13,7 +18,6 @@ use std::{
 	collections::HashMap
 };
 use serde_json::json;
-use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::order;
 use crate::logger;

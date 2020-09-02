@@ -10,11 +10,14 @@ use near_sdk::{
 		UnorderedMap,
 		TreeMap,
 		Vector
+	},
+	borsh::{
+		self, 
+		BorshDeserialize, 
+		BorshSerialize
 	}
 };
 use serde_json::json;
-
-use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct ResolutionWindow {
