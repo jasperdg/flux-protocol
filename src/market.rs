@@ -30,6 +30,8 @@ use crate::orderbook::{
 	Orderbook
 };
 
+use crate::logger;
+
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Market {
@@ -108,20 +110,6 @@ impl Market {
 
 		resolution_windows.push(&base_resolution_window);
 
-		env::log(
-			json!({
-				"type": "new_resolution_window".to_string(),
-				"params": {
-					"market_id": U64(id),
-					"round": U64(base_resolution_window.round),
-					"required_bond_size": U128(base_resolution_window.required_bond_size),
-					"end_time": U64(base_resolution_window.end_time),
-				}
-			})
-			.to_string()
-			.as_bytes()
-		);
-
 		Self {
 			id,
 			description,
@@ -193,6 +181,7 @@ impl Market {
 		user_data.to_spend -= filled * avg_buy_price;
 		user_data.spent -= filled * avg_buy_price;
 		
+		logger::log_update_user_balance(env::predecessor_account_id(), self.id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
 		orderbook.user_data.insert(&env::predecessor_account_id(), &user_data);
 		self.orderbooks.insert(&outcome, &orderbook);
 		
@@ -214,6 +203,7 @@ impl Market {
 		self.filled_volume += shares_filled * 100;
 		let mut orderbook = self.orderbooks.get(&outcome).unwrap();
 		orderbook.new_order(
+			self.id,
 			account_id,
 			outcome,
 			spend,
@@ -356,50 +346,13 @@ impl Market {
 			};
 
 
-			env::log(
-				json!({
-					"type": "market_resoluted".to_string(),
-					"params": {
-						"market_id": U64(self.id),
-						"sender": sender,
-						"round": U64(resolution_window.round),
-						"staked": U128(stake - to_return),
-						"outcome": U64(outcome_id),
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
-
-			env::log(
-				json!({
-					"type": "new_resolution_window".to_string(),
-					"params": {
-						"market_id": U64(self.id),
-						"round": U64(new_resolution_window.round),
-						"required_bond_size": U128(new_resolution_window.required_bond_size),
-						"end_time": U64(new_resolution_window.end_time),	
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
+			logger::log_market_resoluted(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_new_resolution_window(self.id, new_resolution_window.round, new_resolution_window.required_bond_size, new_resolution_window.end_time);
 			self.resolution_windows.push(&new_resolution_window);
+			
 		}  else {
-			env::log(
-				json!({
-					"type": "staked_on_resolution".to_string(),
-					"params": {
-						"market_id": U64(self.id),
-						"sender": sender,
-						"round": U64(resolution_window.round),
-						"staked": U128(stake - to_return),
-						"outcome": U64(outcome_id),
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
+			logger::log_staked_on_resolution(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+
 		}
 		
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
@@ -458,50 +411,13 @@ impl Market {
 				outcome: None,
 			};
 
-			env::log(
-				json!({
-					"type": "resolution_disputed".to_string(),
-					"params": {
-						"market_id": U64(self.id),
-						"sender": sender,
-						"round": U64(resolution_window.round),
-						"staked": U128(stake - to_return),
-						"outcome": U64(outcome_id)
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
-			env::log(
-				json!({
-					"type": "new_resolution_window".to_string(),
-					"params": {
-						"market_id": U64(self.id),
-						"round": U64(next_resolution_window.round),
-						"required_bond_size": U128(next_resolution_window.required_bond_size),
-						"end_time": U64(next_resolution_window.end_time),	
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
+			logger::log_resolution_disputed(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_new_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
+
 
 			self.resolution_windows.push(&next_resolution_window);
 		} else {
-			env::log(
-				json!({
-					"type": "staked_on_dispute".to_string(),
-					"params": {
-						"market_id": U64(self.id),
-						"sender": sender,
-						"round": U64(resolution_window.round),
-						"staked": U128(stake - to_return),
-						"outcome": U64(outcome_id)
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
+			logger::log_staked_on_dispute(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
 		}
 
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
@@ -520,17 +436,7 @@ impl Market {
             self.winning_outcome = winning_outcome;
 		}
 
-		env::log(
-			json!({
-				"type": "market_finalized".to_string(),
-				"params": {
-					"market_id": U64(self.id),
-					"winning_outcome": U64(self.to_numerical_outcome(self.winning_outcome))
-				}
-			})
-			.to_string()
-			.as_bytes()
-		);
+		logger::log_finalized_market(self.id, self.to_numerical_outcome(self.winning_outcome));
 		
 	    self.finalized = true;
 	}

@@ -61,7 +61,8 @@ impl ExternalUser {
 
     pub fn deploy_flux_protocol(&self, runtime: &mut RuntimeStandalone) -> TxResult {
         let args = json!({
-            "fun_token_account_id": fun_token()
+            "fun_token_account_id": fun_token(),
+            "creator": self.get_account_id(),
         }).to_string().as_bytes().to_vec();
 
         let tx = self
@@ -401,6 +402,7 @@ impl ExternalUser {
         let ans = outcome_into_result(res);
         return ans;
     }
+
     pub fn withdraw_dispute_stake(
         &self,
         runtime: &mut RuntimeStandalone,
@@ -426,6 +428,26 @@ impl ExternalUser {
         runtime.process_all().unwrap();
         let ans = outcome_into_result(res);
         return ans;
+    }
+
+    pub fn get_creator(
+        &self,
+        runtime: &RuntimeStandalone
+    ) -> String {
+        let res = runtime.view_method_call(
+            &(flux_protocol()), 
+            "get_creator", 
+            json!({})
+        .to_string()
+        .as_bytes())
+        .unwrap()
+        .0;
+
+        //TODO: UPDATE THIS CASTING
+        let data: serde_json::Value = serde_json::from_slice(res.as_slice()).unwrap();
+        let market_price = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
+
+        return market_price;
     }
 
     pub fn get_market_price(

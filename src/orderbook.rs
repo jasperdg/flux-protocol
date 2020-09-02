@@ -16,6 +16,8 @@ use serde_json::json;
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::order;
+use crate::logger;
+
 pub type Order = order::Order;
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -83,7 +85,8 @@ impl Orderbook {
 
     // Places order in orderbook
 	pub fn new_order(
-		&mut self, 
+		&mut self,
+		market_id: u64,
 		account_id: String, 
 		outcome: u64, 
 		spend: u128, 
@@ -94,11 +97,13 @@ impl Orderbook {
 		affiliate_account_id: Option<String>
 	){
 		let order_id = self.new_order_id();
-		let new_order = Order::new(order_id, account_id.to_string(), spend, filled, shares, shares_filled, price, affiliate_account_id.clone());
+		let new_order = Order::new(order_id, account_id.to_string(), market_id, spend, filled, shares, shares_filled, price, affiliate_account_id.clone());
 		let mut user_data = self.user_data.get(&account_id).unwrap_or(self.new_account(account_id.to_string()));
 		user_data.balance += shares_filled;
 		user_data.spent += filled;
 		user_data.to_spend += spend;
+
+		logger::log_update_user_balance(account_id.to_string(), market_id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
 		
 		let left_to_spend = spend - filled;
 
@@ -114,28 +119,7 @@ impl Orderbook {
 		if left_to_spend < 100 {
 			self.user_data.insert(&account_id, &user_data);
 
-			env::log(
-				json!({
-					"type": "order_filled_at_placement".to_string(),
-					"params": {
-						"order_id": U128(order_id),
-						"market_id": U64(self.market_id),
-						"account_id": account_id, 
-						"outcome": U64(outcome), 
-						"spend":  U128(spend),
-						"shares":  U128(shares),
-						"fill_price": U128(fill_price),
-						"price":  U128(price),
-						"filled": U128(filled), 
-						"shares_filling": U128(shares_filled),
-						"shares_filled": U128(shares_filled),
-						"affiliate_account_id": affiliate_account_id,
-						"block_height": U64(env::block_index())
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
+			logger::log_order_filled_at_placement(&new_order, outcome, fill_price);
 			return;
 		}
 
@@ -148,32 +132,10 @@ impl Orderbook {
 		price_data.share_liquidity += (spend - filled) / price;
 		self.price_data.insert(&price, &price_data);
 
-		env::log(
-			json!({
-				"type": "order_placed".to_string(),
-				"params": {
-					"order_id": U128(order_id),
-					"market_id": U64(self.market_id),
-					"account_id": account_id, 
-					"outcome": U64(outcome), 
-					"spend":  U128(spend),
-					"fill_price": U128(fill_price),
-					"shares_filling": U128(shares_filled),
-					"shares":  U128(shares),
-					"price":  U128(price),
-					"filled": U128(filled), 
-					"shares_filled": U128(shares_filled),
-					"affiliate_account_id": affiliate_account_id,
-					"block_height": U64(env::block_index())
-				}
-			})
-			.to_string()
-			.as_bytes()
-		);
+		logger::log_order_placed(&new_order, outcome, fill_price);
 	}
 
 
-	// TODO: Test claimable on order cancel
 	pub fn cancel_order(&mut self, order: Order) -> u128 {
 		let mut price_data = self.price_data.get(&order.price).unwrap();
 		let mut user_data = self.user_data.get(&order.creator).unwrap();
@@ -191,33 +153,14 @@ impl Orderbook {
 		
 		user_data.open_orders.remove(&order.id);
 		user_data.to_spend -= order.spend - order.filled;
-		
+		logger::log_update_user_balance(order.creator.to_string(), order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
 		self.user_data.insert(&order.creator, &user_data);
+
+		logger::log_order_closed(&order, self.market_id, self.outcome_id);
 
 		return to_return;
 	}
 
-	fn log_order_filled(&self, order: &Order, shares_to_fill: u128) {
-		env::log(
-			json!({
-			"type": "order_filled".to_string(),
-				"params": {
-					"market_id": U64(self.market_id),
-					"outcome": U64(self.outcome_id),
-					"order_id": U128(order.id),
-					"account_id": order.creator,
-					"shares_filling": U128(shares_to_fill),
-					"filled": U128(order.filled + shares_to_fill * order.price),
-					"price": U128(order.price),
-					"fill_price": U128(order.price),
-					"shares_filled": U128(order.shares_filled + shares_to_fill),
-					"block_height": U64(env::block_index())
-				}
-			})
-			.to_string()
-			.as_bytes()
-		);
-	}
 
 	// TODO: add to affiliate_earnings
 	pub fn fill_order(
@@ -237,6 +180,7 @@ impl Orderbook {
 		if close_order {
 			user_data.open_orders.remove(&order.id);
 			price_data.orders.remove(&order.id);
+			logger::log_order_closed(&order, self.market_id, self.outcome_id);
 		}  else {
 			order.filled += shares_to_fill * order.price;
 			order.shares_filled += shares_to_fill;
@@ -250,7 +194,8 @@ impl Orderbook {
 		}
 
 		self.user_data.insert(&order.creator, &user_data);
-		self.log_order_filled(&order, shares_to_fill);
+		logger::log_order_filled(&order, shares_to_fill, self.market_id, self.outcome_id);
+		logger::log_update_user_balance(order.creator, order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
 	}
 
 	// todo: doens't need to return shares filled in production

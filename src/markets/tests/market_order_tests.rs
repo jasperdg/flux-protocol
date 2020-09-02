@@ -17,6 +17,10 @@ fn test_place_order_insufficient_funds() {
 fn test_order_placement_cancelation_and_market_prices() {
 	let (mut runtime, root, accounts) = init_runtime_env();
 	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+
+	accounts[0].transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
+	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(0), U128(0), "test".to_string()).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -39,7 +43,7 @@ fn test_order_placement_cancelation_and_market_prices() {
 
 	// balance checks: 
 	let expected_contract_balance = 100000;
-	let expected_account_balance = 99999999999999900000;
+	let expected_account_balance = 69999999999999900000;
 	let account_balance: u128 = accounts[0].get_balance(&mut runtime, accounts[0].get_account_id()).into();
 	let contract_balance: u128 = accounts[0].get_balance(&mut runtime, flux_protocol()).into();
 	
@@ -53,12 +57,21 @@ fn test_order_placement_cancelation_and_market_prices() {
 	let tx_res = accounts[0].cancel_order(&mut runtime, U64(0), U64(1), U128(50), U128(1)).expect("order cancelation failed");
 	let tx_res = accounts[0].cancel_order(&mut runtime, U64(0), U64(1), U128(50), U128(0)).expect("order cancelation failed");
 
-	let expected_account_balance = to_dai(100) - validity_bond;
+	let expected_account_balance = to_dai(70) - validity_bond;
 	let expected_contract_balance = 0;
 	let account_balance: u128 = accounts[0].get_balance(&mut runtime, accounts[0].get_account_id()).into();
 	let contract_balance: u128 = accounts[0].get_balance(&mut runtime, flux_protocol()).into();
 
 	assert_eq!(account_balance, expected_account_balance);
 	assert_eq!(contract_balance, validity_bond);
+
+	runtime.current_block().block_timestamp = market_end_timestamp_ns();
+	root.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
+	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
+	root.finalize_market(&mut runtime, U64(0), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
+
+	let claimable = accounts[0].get_claimable(&mut runtime, U64(0), accounts[0].get_account_id());
+
+	assert_eq!(claimable, U128(0));
 
 }

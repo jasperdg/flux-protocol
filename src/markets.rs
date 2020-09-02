@@ -16,6 +16,7 @@ use serde_json::json;
 
 use crate::market;
 use crate::order;
+use crate::logger;
 
 type Market = market::Market;
 type Order = order::Order;
@@ -42,7 +43,6 @@ pub trait FunToken {
     fn get_balance(&self, owner_id: AccountId) -> u128;
 }
 
-
 #[ext_contract]
 pub trait FluxProtocol {
     fn market_creation(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
@@ -62,23 +62,35 @@ impl Default for Markets {
 impl Markets {
 
 	#[init]
-	pub fn init(fun_token_account_id: String) -> Self {
+	pub fn init(
+		creator: String, 
+		fun_token_account_id: String
+	) -> Self {
 		Self {
-			creator: "flux-dev".to_string(),
+			creator,
 			markets: UnorderedMap::new(b"markets".to_vec()),
 			nonce: 0,
 			max_fee_percentage: 500,
 			creation_bond: 25e18 as u128 / 100,
-			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec()), 
+			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec()),
 			fun_token_account_id
 		}
+	}
+
+	pub fn get_creator(&self) -> String {
+		return self.creator.to_string();
+	}
+
+	pub fn set_fun_token (&mut self, fun_token_account_id: String) {
+		assert_eq!(env::predecessor_account_id(), self.creator);
+		self.fun_token_account_id = fun_token_account_id;
 	}
 
 	fn dai_token(
 		&self
 	) -> u128 {
 		let base: u128 = 10;
-		return base.pow(18)
+		return base.pow(18);
 	}
 
 	fn fun_token_account_id(
@@ -170,33 +182,15 @@ impl Markets {
 		let transfer_succeeded = self.is_promise_success();
 		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", self.creation_bond, env::current_account_id()); }
 
-		env::log(
-			json!({
-				"type": "market_creation".to_string(),
-				"params": {
-					"id": U64(self.nonce),
-					"creator": sender,
-					"description": description,
-					"extra_info": extra_info,
-					"outcomes": U64(outcomes),
-					"outcome_tags": outcome_tags,
-					"categories": categories,
-					"end_time": U64(end_time),
-					"creator_fee_percentage": U128(creator_fee_percentage),
-					"resolution_fee_percentage": U128(resolution_fee_percentage),
-					"affiliate_fee_percentage": U128(affiliate_fee_percentage),
-					"api_source": api_source,
-				}
-			})
-			.to_string()
-			.as_bytes()
-		);
-
 		let new_market = Market::new(self.nonce, sender, description, extra_info, outcomes, outcome_tags, categories, end_time, creator_fee_percentage, resolution_fee_percentage, affiliate_fee_percentage ,api_source);
+		logger::log_market_creation(&new_market);
+		let resolution_window = new_market.resolution_windows.get(0).expect("something went wrong during market creation");
+		logger::log_new_resolution_window(new_market.id, resolution_window.round, resolution_window.required_bond_size, resolution_window.end_time);
+
 		let market_id = new_market.id;
 		self.markets.insert(&self.nonce, &new_market);
 		self.nonce = self.nonce + 1;
-		
+
 		
 		return PromiseOrValue::Value(market_id);
 	}
@@ -359,19 +353,8 @@ impl Markets {
 		let to_return = market.cancel_dispute_participation(dispute_round, outcome);
 		self.markets.insert(&market_id, &market);
 		if to_return > 0 {
-			env::log(
-				json!({
-					"type": "withdrawn_unbounded_dispute_stake".to_string(),
-					"params": {
-						"market_id": U64(market_id),
-						"sender": env::predecessor_account_id(),
-						"dispute_round": U64(dispute_round),
-						"outcome": outcome,
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);
+			logger::log_dispute_withdraw(market_id, env::predecessor_account_id(), dispute_round, outcome);
+
 			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		} else {
 			panic!("user has no participation in this dispute");
@@ -383,8 +366,7 @@ impl Markets {
 		market_id: U64, 
 		winning_outcome: Option<U64>,
 		stake: U128
-	// ) -> Promise {
-	) {
+	) -> Promise {
 		let market_id: u64 = market_id.into();
 		let winning_outcome: Option<u64> = match winning_outcome {
 			Some(outcome) => Some(outcome.into()),
@@ -413,7 +395,7 @@ impl Markets {
 				0, 
 				SINGLE_CALL_GAS
 			)
-		);
+		)
 	}
 
 	pub fn proceed_market_dispute(		
@@ -437,7 +419,6 @@ impl Markets {
 			return PromiseOrValue::Value(true);
 		}
 	}
-		
 
 	pub fn finalize_market(
 		&mut self, 
@@ -549,18 +530,7 @@ impl Markets {
 		
 		if to_claim == 0 {panic!("can't claim 0 tokens")}
 
-		env::log(
-			json!({
-				"type": "earnings_claimed".to_string(),
-				"params": {
-					"market_id": U64(market_id),
-					"account_id": account_id,
-					"earned": U128(to_claim),
-				}
-			})
-			.to_string()
-			.as_bytes()
-		);		
+		logger::log_earnings_claimed(market_id, env::predecessor_account_id(), to_claim);
 		
 		self.markets.insert(&market_id, &market);
 		if market_creator_fee > 0 {
@@ -579,17 +549,7 @@ impl Markets {
 	) -> Promise {
 		let affiliate_earnings = self.affiliate_earnings.get(&account_id).expect("account doesn't have any affiliate fees to collect");
 		if affiliate_earnings > 0 {
-			env::log(
-				json!({
-					"type": "affiliate_earnings_claimed".to_string(),
-					"params": {
-						"account_id": account_id,
-						"earned": U128(affiliate_earnings),
-					}
-				})
-				.to_string()
-				.as_bytes()
-			);		
+			logger::log_affiliate_earnings_claimed(account_id.to_string(), affiliate_earnings);
 			self.affiliate_earnings.insert(&account_id, &0);
 			return fun_token::transfer(account_id.to_string(), U128(affiliate_earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		} else {
