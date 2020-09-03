@@ -106,27 +106,26 @@ impl Orderbook {
 		user_data.balance += shares_filled;
 		user_data.spent += filled;
 		user_data.to_spend += spend;
-
+		
 		logger::log_update_user_balance(account_id.to_string(), market_id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
 		
 		let left_to_spend = spend - filled;
-
 		let mut fill_price = 0;
-
+		
 		if shares_filled > 0 {
 			fill_price = filled / shares_filled;
 		}
 		
-
+		
 		// TODO: add to affiliate_earnings
 		// if left_to_spend < 100 the order counts as filled
 		if left_to_spend < 100 {
 			self.user_data.insert(&account_id, &user_data);
-
+			
 			logger::log_order_filled_at_placement(&new_order, outcome, fill_price);
 			return;
 		}
-
+		
 		// TODO: expect that we don't need a reference to the order
 		user_data.open_orders.insert(&order_id, &price);
 		self.user_data.insert(&account_id, &user_data);
@@ -202,7 +201,6 @@ impl Orderbook {
 		logger::log_update_user_balance(order.creator, order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
 	}
 
-	// todo: doens't need to return shares filled in production
 	pub fn fill_best_orders(
 		&mut self, 
 		mut shares_to_fill: u128
@@ -212,29 +210,31 @@ impl Orderbook {
 			None => return 0
 		};
 
-		let orders = self.price_data.get(&fill_price).expect("this price shouldn't exist if there are no orders to be filled").orders;
+		let orders = self.price_data.get(&fill_price).expect("this price shouldn't exist if there are no orders to be filled").orders.to_vec();
 
 		let mut shares_filled = 0;
-		for (order_id, order) in orders.iter() {
+		for (_, order) in orders.iter() {
+			env::log(b"get here6");
 			if shares_to_fill < 1 { break;} 
 			let shares_fillable_for_order = (order.spend - order.filled) / order.price;
 
-			// TODO: test that panic is never called
 			if shares_fillable_for_order == 0 {panic!("should never be 0")}			
 			let filling = cmp::min(shares_fillable_for_order, shares_to_fill); 
 			shares_filled += filling;
 			if shares_to_fill < shares_fillable_for_order {
-				self.fill_order(order, filling, false);
+				self.fill_order(order.clone(), filling, false);
 				break;
 			} else if shares_to_fill > shares_fillable_for_order {
-				self.fill_order(order, filling, true);
+				self.fill_order(order.clone(), filling, true);
 			} else {
-				self.fill_order(order, filling, true);
+				self.fill_order(order.clone(), filling, true);
 				break;
 			}
+			env::log(b"get here7");
 
 			shares_to_fill -= filling;
 		}
+		env::log(b"get here8");
 
 		return shares_filled;
 	}

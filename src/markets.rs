@@ -769,13 +769,13 @@ mod tests {
 	}
 
 	mod binary_order_matching_tests;
-	// mod categorical_market_tests;
-	// mod init_tests; 
-	// mod market_order_tests;
-	// mod order_sale_tests; 
-	// mod market_resolution_tests; 
-	// mod claim_earnings_tests;
-	// mod validity_bond_tests;
-	// mod fee_payout_tests;
-	// mod market_dispute_tests;
+	mod categorical_market_tests;
+	mod init_tests; 
+	mod market_order_tests;
+	mod order_sale_tests; 
+	mod market_resolution_tests; 
+	mod claim_earnings_tests;
+	mod validity_bond_tests;
+	mod fee_payout_tests;
+	mod market_dispute_tests;
 }

@@ -32,14 +32,9 @@ fn partial_binary_order_matching_test() {
 	let res = accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(1000), U128(50), None).expect("order placement tx failed unexpectedly");
 	let res = accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(550), U128(50), None).expect("order placement tx failed unexpectedly");
 	let res = accounts[0].place_order(&mut runtime, U64(0), U64(1), U128(200), U128(50), None).expect("order placement tx failed unexpectedly");
-	// 2750
-	// 2555
 
 	let res = accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(1000), U128(50), None).expect("order placement tx failed unexpectedly");
-	
 	let res = accounts[0].place_order(&mut runtime, U64(0), U64(0), U128(1555), U128(50), None).expect("order placement tx failed unexpectedly");
-
-
 
 	let no_share_balance = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(0));
 	let yes_share_balance = accounts[0].get_outcome_share_balance(&mut runtime, accounts[0].get_account_id(), U64(0), U64(1));

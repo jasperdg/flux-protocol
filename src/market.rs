@@ -204,7 +204,11 @@ impl Market {
 		let (spent, shares_filled) = self.fill_matches(outcome, spend, price);
 
 		self.filled_volume += shares_filled * 100;
+		env::log(b"get here");
+
 		let mut orderbook = self.orderbooks.get(&outcome).unwrap();
+		env::log(b"get here2");
+
 		orderbook.new_order(
 			self.id,
 			account_id,
@@ -235,7 +239,7 @@ impl Market {
 		
 		while spendable > 100 && market_price <= price {
 			let shares_to_fill_at_market_price = cmp::min(spendable / market_price, share_depth.expect("expected there to be share depth"));
-			
+
 			for orderbook_id in  0..self.outcomes {
 				if orderbook_id == outcome {continue;}
 				let mut orderbook = self.orderbooks.get(&orderbook_id).expect("orderbook doens't exist where it should");
