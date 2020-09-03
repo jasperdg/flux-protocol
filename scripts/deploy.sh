@@ -1,1 +1,1 @@
-near deploy --wasmFile res/fungible_token.wasm --accountId flux_fun_token2.flux-dev --masterAccount flux-dev
+near deploy --wasmFile res/flux_protocol.wasm --accountId u1f92b_u1f680.flux-dev --masterAccount flux-dev

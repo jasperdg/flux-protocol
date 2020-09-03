@@ -23,10 +23,10 @@ pub fn log_order_filled(order: &Order, shares_to_fill: u128, market_id: u64, out
 				"order_id": U128(order.id),
 				"account_id": order.creator,
 				"shares_filling": U128(shares_to_fill),
-				"filled": U128(order.filled + shares_to_fill * order.price),
+				"filled": U128(order.filled),
 				"price": U128(order.price),
 				"fill_price": U128(order.price),
-				"shares_filled": U128(order.shares_filled + shares_to_fill),
+				"shares_filled": U128(order.shares_filled),
 				"block_height": U64(env::block_index())
 			}
 		})
