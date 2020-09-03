@@ -204,10 +204,8 @@ impl Market {
 		let (spent, shares_filled) = self.fill_matches(outcome, spend, price);
 
 		self.filled_volume += shares_filled * 100;
-		env::log(b"get here");
 
 		let mut orderbook = self.orderbooks.get(&outcome).unwrap();
-		env::log(b"get here2");
 
 		orderbook.new_order(
 			self.id,

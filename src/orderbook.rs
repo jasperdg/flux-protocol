@@ -214,7 +214,6 @@ impl Orderbook {
 
 		let mut shares_filled = 0;
 		for (_, order) in orders.iter() {
-			env::log(b"get here6");
 			if shares_to_fill < 1 { break;} 
 			let shares_fillable_for_order = (order.spend - order.filled) / order.price;
 
@@ -230,11 +229,9 @@ impl Orderbook {
 				self.fill_order(order.clone(), filling, true);
 				break;
 			}
-			env::log(b"get here7");
 
 			shares_to_fill -= filling;
 		}
-		env::log(b"get here8");
 
 		return shares_filled;
 	}
