@@ -465,7 +465,9 @@ impl Markets {
 		let market_id: u64 = market_id.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 		let claimed_earnings = market.claimed_earnings.get(&account_id);
-		assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
+		if claimed_earnings.is_some() {
+			return U128(0);
+		}
 
 		let mut validity_bond = 0;
 		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
