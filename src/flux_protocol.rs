@@ -8,7 +8,6 @@ use near_sdk::{
 	PromiseResult,
 	collections::{
 		UnorderedMap,
-		Vector,
 	},
 	borsh::{
 		self, 
@@ -17,19 +16,25 @@ use near_sdk::{
 	}
 };
 
-use serde_json::json;
+/** 
+ * @title Flux Protocol
+ */
 
+/*** Import market implementation ***/
 use crate::market;
-use crate::order;
+/*** Import logger implementation ***/
 use crate::logger;
 
+/*** Create market type ***/
 type Market = market::Market;
-type Order = order::Order;
 
+/**
+ * @notice The state struct for the Flux Protocol implementation 
+ */
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
-struct Markets {
-	creator: String,
+struct FluxProtocol {
+	owner: String,
 	markets: UnorderedMap<u64, Market>,
 	nonce: u64,
 	max_fee_percentage: u128,
@@ -38,8 +43,21 @@ struct Markets {
 	fun_token_account_id: String,
 }
 
+/**
+ * @notice A hardcoded amount of gas that's used for external transactions
+ * @dev Currently set to MAX_GAS / 3
+ * TODO: Add affiliate payouts 
+ */
 const SINGLE_CALL_GAS: u64 = 100000000000000;
 
+/*** External Contract Interfaces ***/
+/** @dev To interact with an external contract there needs to be an interface defined in the form of a trait */
+
+/**
+ * @notice Contract interface for the Fungible Token contract we're using:
+ * @dev based on older version of: https://github.com/near/near-sdk-rs/tree/master/examples/fungible-token
+ * TODO: Update FunToken contract
+ */
 #[ext_contract]
 pub trait FunToken {
     fn transfer_from(&mut self, owner_id: String, new_owner_id: String, amount: U128);
@@ -48,6 +66,11 @@ pub trait FunToken {
     fn get_balance(&self, owner_id: AccountId) -> u128;
 }
 
+/**
+ * @notice Contract interface for the Flux Protocol contract itself: 
+ * @dev: We need to define this interface to be able to call Flux Protocol methods in a promise chain, which is required in NEAR promise API
+ *  for more info checkout the Promise api: https://github.com/near/near-sdk-rs/blob/master/near-sdk/src/promise.rs
+ */
 #[ext_contract]
 pub trait FluxProtocol {
     fn market_creation(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
@@ -57,22 +80,38 @@ pub trait FluxProtocol {
 	fn proceed_market_creation(&mut self, sender: String, description: String, extra_info: String, outcomes: u64, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u128, resolution_fee_percentage: u128, affiliate_fee_percentage: u128, api_source: String);
 }
 
-impl Default for Markets {
+
+/**
+ * @dev Flux Protocol contract is unusable until it is initialized and should be initialized in the same transaction as it's deployment
+ 8  checkout the near-cli deploy method: https://github.com/near/near-cli
+ */
+impl Default for FluxProtocol {
     fn default() -> Self {
         panic!("Flux protocol should be initialized before usage")
     }
 }
 
+/**
+ * @notice Flux Protocol implementation
+ */
 #[near_bindgen]
-impl Markets {
+impl FluxProtocol {
 
+	/**
+	 * @notice Initialize the Flux Protocol contract
+	 * @dev should be treated as constructor and fired during deployment, the contract is unusable before the init method succeeded
+	 *  panics if the contract is already initialized
+	 * @param owner Account id of the contract owner, the owner is for now set to solve disputes
+	 * @param fun_token_account_id The account id of the token used for trading
+	 */
 	#[init]
 	pub fn init(
-		creator: String, 
+		owner: String, 
 		fun_token_account_id: String
 	) -> Self {
+		assert!(!env::state_exists(), "Already initialized");
 		Self {
-			creator,
+			owner,
 			markets: UnorderedMap::new(b"markets".to_vec()),
 			nonce: 0,
 			max_fee_percentage: 500,
@@ -82,34 +121,66 @@ impl Markets {
 		}
 	}
 
-	pub fn get_creator(&self) -> String {
-		return self.creator.to_string();
-	}
-
-	pub fn set_fun_token (&mut self, fun_token_account_id: String) {
-		assert_eq!(env::predecessor_account_id(), self.creator);
-		self.fun_token_account_id = fun_token_account_id;
-	}
-
-	fn dai_token(
+	/**
+	 * @notice Returns the owner's account id
+	 * @return owner's account id
+	 */
+	pub fn owner(
 		&self
-	) -> u128 {
-		let base: u128 = 10;
-		return base.pow(18);
+	) -> String {
+		return self.owner.to_string();
 	}
 
+	/**
+	 * @notice Returns the fungible token's account id
+	 * @return Fungible token's account id
+	 */
 	fn fun_token_account_id(
 		&self
 	) -> String {
 		return self.fun_token_account_id.to_string();
 	}
 
+	/**
+	 * @dev Checks if the method called is the contract itself
+	 *  panics if predecessor_account (sender) isn't the FluxProtcol account id
+	 */
 	fn assert_self(
 		&self
 	) {
 		assert_eq!(env::current_account_id(), env::predecessor_account_id(), "this method can only be called by the contract itself"); 
 	}
 
+	/**
+	 * @notice Allows the protocol owner to change the fungible token used in the protocol
+	 * @dev Panics if predecssor_account_id isn't the protocol owner account id
+	 * @param fun_token_account_id the account id of the fungible token that should be used from there on
+	 * TODO: Make sure that each market has an attribute referencing what token was used as the base token for that market. After set_fun_token was called each market created should use the new fun_token_account_id as the base currency
+	 */
+	pub fn set_fun_token (
+		&mut self, 
+		fun_token_account_id: String
+	) {
+		assert_eq!(env::predecessor_account_id(), self.owner);
+		self.fun_token_account_id = fun_token_account_id;
+	}
+	
+	/**
+	 * @notice Kicks off market creation returns a promise that exists of a promise chain
+	 * @dev Panics if market parameters are invalid
+	 *  if outcomes == 2 we assume that it's a binary market and expect outcome_tags to be empty because assume it's ["NO", "YES"]
+	 * @param description A description of the market
+	 * @param extra_info Extra info about the market, these could be specific details like what source should be used to resolve the market etc
+	 * @param outcomes The number out outcomes a market has, min is 2 max is 8
+	 * @param outcome_tags A list of strings where the outcome id corresponds to the index of the outcome_tags array e.g. outcome 0 = outcome_tags[0]
+	 * @param categories A list of categories that describe the market (helps with filtering)
+	 * @param end_time Unix timestamp in miliseconds of when the market stops being tradeable and can be resoluted
+	 * @param creator_fee_percentage Percentage with two decimals so denominated in 1e4 between 0 - 500 where 1 = 0.01% and 100 = 1%
+	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range betwen 1 - 100
+	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
+	 * @return returns a promise chain - this chain tries to escrow the base currency as a validity bond from the market creation and if successful proceed the market creation
+	 * TODO: Should consider not storing categories but just logging them, that way the indexer will pick them up but wills save gas cost
+	 */
 	pub fn create_market(
 		&mut self, 
 		description: String, 
@@ -122,7 +193,6 @@ impl Markets {
 		affiliate_fee_percentage: U128,
 		api_source: String
 	) -> Promise {
-	// ) {
 		let outcomes: u64 = outcomes.into();
 		let end_time: u64 = end_time.into();
 		let creator_fee_percentage: u128 = creator_fee_percentage.into();
@@ -140,9 +210,9 @@ impl Markets {
 		assert!(extra_info.chars().count() < 401, "extra_info can't than 400 characters");
 		assert!(outcomes > 1, "need to have more than 2 outcomes");
 		assert!(outcomes == 2 || outcomes == outcome_tags.len() as u64, "invalid outcomes");
-		assert!(outcomes < 20, "can't have more than 8 outcomes"); // up for change
+		assert!(outcomes < 8, "can't have more than 8 outcomes"); // up for change
 		assert!(end_time > env::block_timestamp() / 1000000, "end_time has to be greater than NOW");
-		assert!(categories.len() < 6, "can't have more than 6 categories");
+		assert!(categories.len() < 8, "can't have more than 8 categories");
 		assert!(creator_fee_percentage <= self.max_fee_percentage, "creator_fee_percentage too high");
 		assert!(affiliate_fee_percentage <= 100, "affiliate_fee_percentage can't be higher than 100");
 
@@ -168,6 +238,24 @@ impl Markets {
 		);
 	}
 
+	/**
+	 * @notice Continues market creation
+	 * @dev Panics if the previous promise (token transfer) failed
+	 *  panics if predecessor account_id isn't the Flux Protocol contract itself
+	 * @param sender The account_id of the original
+	 * @param description A description of the market
+	 * @param extra_info Extra info about the market, these could be specific details like what source should be used to resolve the market etc
+	 * @param outcomes The number out outcomes a market has, min is 2 max is 8
+	 * @param outcome_tags A list of strings where the outcome id corresponds to the index of the outcome_tags array e.g. outcome 0 = outcome_tags[0]
+	 * @param categories A list of categories that describe the market (helps with filtering)
+	 * @param end_time Unix timestamp in miliseconds of when the market stops being tradeable and can be resoluted
+	 * @param creator_fee_percentage Percentage with two decimals so denominated in 1e4 between 0 - 500 where 1 = 0.01% and 100 = 1%
+	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range betwen 1 - 100
+	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
+	 * @return Returns the newly_created market_id
+	 * TODO: Should consider not storing categories but just logging them, that way the indexer will pick them up but wills save gas cost
+	 */
+
 	pub fn proceed_market_creation(
 		&mut self, 
 		sender: String, 
@@ -182,12 +270,26 @@ impl Markets {
 		affiliate_fee_percentage: u128, 
 		api_source: String
 	) -> PromiseOrValue<u64> {
-		self.assert_self();
 		
+		self.assert_self();
 		let transfer_succeeded = self.is_promise_success();
 		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", self.creation_bond, env::current_account_id()); }
 
-		let new_market = Market::new(self.nonce, sender, description, extra_info, outcomes, outcome_tags, categories, end_time, creator_fee_percentage, resolution_fee_percentage, affiliate_fee_percentage ,api_source);
+		let new_market = Market::new(
+			self.nonce, 
+			sender, 
+			description, 
+			extra_info, 
+			outcomes, 
+			outcome_tags, 
+			categories, 
+			end_time, 
+			creator_fee_percentage, 
+			resolution_fee_percentage, 
+			affiliate_fee_percentage,
+			api_source
+		)
+		;
 		logger::log_market_creation(&new_market);
 		let resolution_window = new_market.resolution_windows.get(0).expect("something went wrong during market creation");
 		logger::log_new_resolution_window(new_market.id, resolution_window.round, resolution_window.required_bond_size, resolution_window.end_time);
@@ -439,7 +541,7 @@ impl Markets {
 		let mut market = self.markets.get(&market_id).unwrap();
 		assert_eq!(market.resoluted, true, "market has to be resoluted before it can be finalized");
 		if market.disputed {
-			assert_eq!(env::predecessor_account_id(), self.creator, "only the judge can resolute disputed markets");
+			assert_eq!(env::predecessor_account_id(), self.owner, "only the judge can resolute disputed markets");
 		} else {
 			let dispute_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("no dispute window found, something went wrong");
 			assert!(env::block_timestamp() / 1000000 >= dispute_window.end_time || dispute_window.round == 2, "dispute window still open")
@@ -630,13 +732,6 @@ impl Markets {
 
 		return U128(user_data.unwrap().balance);
 	}
-
-	pub fn get_owner(
-		&self
-	) -> String {
-		return self.creator.to_string();
-	}
-
 
 	pub fn is_promise_success(&self) -> bool {
 		assert_eq!(
