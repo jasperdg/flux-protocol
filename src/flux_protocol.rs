@@ -242,7 +242,7 @@ impl FluxProtocol {
 	 * @notice Continues market creation
 	 * @dev Panics if the previous promise (token transfer) failed
 	 *  panics if predecessor account_id isn't the Flux Protocol contract itself
-	 * @param sender The account_id of the original
+	 * @param sender The account_id that signed the create_market transaction
 	 * @param description A description of the market
 	 * @param extra_info Extra info about the market, these could be specific details like what source should be used to resolve the market etc
 	 * @param outcomes The number out outcomes a market has, min is 2 max is 8
@@ -255,7 +255,6 @@ impl FluxProtocol {
 	 * @return Returns the newly_created market_id
 	 * TODO: Should consider not storing categories but just logging them, that way the indexer will pick them up but wills save gas cost
 	 */
-
 	pub fn proceed_market_creation(
 		&mut self, 
 		sender: String, 
@@ -302,6 +301,16 @@ impl FluxProtocol {
 		return PromiseOrValue::Value(market_id);
 	}
 
+	/** 
+	 * @notice Kicks off order placement
+	 * @dev Panics if the order parameters are invalid
+	 * @param market_id The id of the market
+	 * @param outcome The specific outcome this order wants to buy
+	 * @param shares The amount of shares a user wants to buy denominated in 1e16
+	 * @param price The price the user is willing to pay for this outcome, ranged 1 - 99
+	 * @param affiliate_account_id The account id of the affiliate that sent the user to the platform
+	 * @return Returns a promise chain that will first transfer the funds into escrow on this contract and then will proceed to place the order
+	 */
 	pub fn place_order(
 		&mut self, 
 		market_id: U64, 
@@ -324,7 +333,6 @@ impl FluxProtocol {
 		assert!(outcome < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
 		assert!(env::block_timestamp() / 1000000 < market.end_time, "market has already ended");
-		
 
 		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 10)
 		.then(
@@ -343,6 +351,19 @@ impl FluxProtocol {
 		);
 	}
 
+	/** 
+	 * @notice Kicks off order placement
+	 * @dev Panics if the signer isn't the contract itself
+	 *  panics if the previous promise wasn't successful
+	 * @param sender The signer of the original place_order transaction
+	 * @param market_id The id of the market
+	 * @param outcome The specific outcome this order wants to buy
+	 * @param shares The amount of shares a user wants to buy denominated in 1e16
+	 * @param spend The rounded (down) amount of base tokens to spend on this transaction 
+	 * @param price The price the user is willing to pay for this outcome, ranged 1 - 99
+	 * @param affiliate_account_id The account id of the affiliate that sent the user to the platform
+	 * @return Returns a bool indicating that the tx was successful 
+	 */
 	pub fn proceed_order_placement(
 		&mut self,
 		sender: String,
@@ -363,6 +384,7 @@ impl FluxProtocol {
 		self.markets.insert(&market.id, &market);
 		return PromiseOrValue::Value(true);
 	}
+	
 
 	pub fn cancel_order(
 		&mut self, 
