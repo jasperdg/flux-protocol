@@ -22,7 +22,7 @@ fn test_validity_market_payout_calc_valid_market() {
 
 	let validity_bond = to_dai(25) / 100;
 	let balance: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
-	assert_eq!(balance, to_dai(70) - validity_bond);
+	assert_eq!(balance, to_dai(99999970) - validity_bond);
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	assert_eq!(contract_balance, validity_bond);
 	
@@ -41,7 +41,7 @@ fn test_validity_market_payout_calc_valid_market() {
 	assert_eq!(contract_balance, to_dai(5));
 
 	let balance: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
-	assert_eq!(balance, to_dai(70));
+	assert_eq!(balance, to_dai(99999970));
 }
 
 
@@ -60,7 +60,7 @@ fn test_validity_market_payout_calc_invalid_market() {
 
 	let validity_bond = to_dai(25) / 100;
 	let balance: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
-	assert_eq!(balance, to_dai(70) - validity_bond);
+	assert_eq!(balance, to_dai(99999970) - validity_bond);
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	assert_eq!(contract_balance, validity_bond);
 	
@@ -76,5 +76,5 @@ fn test_validity_market_payout_calc_invalid_market() {
 	assert_eq!(contract_balance, to_dai(5) + validity_bond);
 
 	let balance: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
-	assert_eq!(balance, to_dai(70) - validity_bond);
+	assert_eq!(balance, to_dai(99999970) - validity_bond);
 }

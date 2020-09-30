@@ -152,6 +152,16 @@ impl FluxProtocol {
 	}
 
 	/**
+	 * @dev Checks if the previous promise in the promise chain passed successfully
+	 *  panics if the previous promise in the promise chain was unsuccessful
+	 */
+	fn assert_prev_promise_successful(
+		&self
+	) {
+		assert_eq!(self.is_promise_success(), true, "previous promise failed");
+	}
+
+	/**
 	 * @notice Allows the protocol owner to change the fungible token used in the protocol
 	 * @dev Panics if predecssor_account_id isn't the protocol owner account id
 	 * @param fun_token_account_id the account id of the fungible token that should be used from there on
@@ -269,10 +279,8 @@ impl FluxProtocol {
 		affiliate_fee_percentage: u128, 
 		api_source: String
 	) -> PromiseOrValue<u64> {
-		
 		self.assert_self();
-		let transfer_succeeded = self.is_promise_success();
-		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", self.creation_bond, env::current_account_id()); }
+		self.assert_prev_promise_successful();
 
 		let new_market = Market::new(
 			self.nonce, 
@@ -323,9 +331,7 @@ impl FluxProtocol {
 		let outcome: u64 = outcome.into();
 		let price: u128 = price.into();
 		let shares: u128 = shares.into();
-
 		let rounded_spend = shares * price;
-
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		assert!(rounded_spend >= 10000, "order must be valued at > 10000");
@@ -370,22 +376,28 @@ impl FluxProtocol {
 		market_id: u64, 
 		outcome: u64,
 		shares: u128,
-		spend: u128, 
+		spend: u128,
 		price: u128,
 		affiliate_account_id: Option<String>,
 	) -> PromiseOrValue<bool> {
 		self.assert_self();
-		
-		let transfer_succeeded = self.is_promise_success();
-		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", spend, env::current_account_id()); }
+		self.assert_prev_promise_successful();
 		
 		let mut market = self.markets.get(&market_id).unwrap();
 		market.place_order_internal(sender, outcome, shares, spend, price, affiliate_account_id);
 		self.markets.insert(&market.id, &market);
 		return PromiseOrValue::Value(true);
 	}
-	
 
+	/**
+	 * @notice Cancels an order and returns outstanding open value to order creator
+	 * @dev Panics if the predecessor_account isn't the owner of the order he's trying to cancel
+	 *  Panics if market is already resoluted, open orders are included in the claimable amount 
+	 * @param market_id The id of the market this order was placed on before
+	 * @param outcome The outcome this order was for
+	 * @param price The price this order was placed at, this is necessary because of the way orders are stored
+	 * @param order_id The id of the order that's to be canceled
+	 */
 	pub fn cancel_order(
 		&mut self, 
 		market_id: U64, 
@@ -411,6 +423,18 @@ impl FluxProtocol {
 		fun_token::transfer(env::predecessor_account_id(), to_return.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
     }
 
+	/**
+	 * @notice Kicks off market resolution, supply the outcome data to the 
+	 * @dev Panics if the market hasn't ended yet
+	 *  Panics if the market doens't exist
+	 *  Panics if the market is already resoluted
+	 *  Panics if the market is already finalized
+	 *  Panics if the winning_outcome is invalid
+	 *  Panics if the user doesn't have enough balance / allowance to transfer `stake`
+	 * @param market_id The id of the market to resolute
+	 * @param winning_outcome The winning_outcome according to the staker
+	 * @param stake The amount of stake the user wants to contribute to the resolution round
+	 */
 	pub fn resolute_market(
 		&mut self, 
 		market_id: U64, 
@@ -443,6 +467,14 @@ impl FluxProtocol {
 		);
 	}
 
+	/**
+	 * @notice Proceeds the market resolution if the transfer was successful
+	 * @dev Panics if the previous method (transfer) failed
+	 *  Panics if the predecessor_id isn't equal to the contract id itself
+	 * @param market_id The id of the market to resolute
+	 * @param winning_outcome The winning_outcome according to the staker
+	 * @param stake The amount of stake the user wants to contribute to the resolution round
+	 */
 	pub fn proceed_market_resolution(
 		&mut self,
 		market_id: u64,
@@ -451,10 +483,9 @@ impl FluxProtocol {
 		sender: String
 	) -> PromiseOrValue<bool> {
 		self.assert_self();
-		let transfer_succeeded = self.is_promise_success();
-		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
+		self.assert_prev_promise_successful();
 		
-		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
+		let mut market = self.markets.get(&market_id).unwrap();
 		let change: u128 = market.resolute(sender.to_string(), winning_outcome, stake).into();
 		self.markets.insert(&market_id, &market);
 		if change > 0 {
@@ -510,10 +541,8 @@ impl FluxProtocol {
         assert!(winning_outcome != market.winning_outcome, "same oucome as last resolution");
 		let resolution_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("Invalid dispute window unwrap");
 		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
-
 		assert!(env::block_timestamp() / 1000000 < resolution_window.end_time, "dispute window is closed, market can be finalized");
 
-		// return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2).then(
 		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2).then(
 			flux_protocol::proceed_market_dispute(
 				env::predecessor_account_id(),
@@ -535,8 +564,8 @@ impl FluxProtocol {
 		sender: String
 	) -> PromiseOrValue<bool> {
 		self.assert_self();
-		let transfer_succeeded = self.is_promise_success();
-		if !transfer_succeeded { panic!("transfer failed, make sure the user has a higher balance than: {} and sufficient allowance set for {}", stake, env::current_account_id()); }
+		self.assert_prev_promise_successful();
+
         let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		let change = market.dispute(sender.to_string(), winning_outcome, stake);
@@ -718,7 +747,6 @@ impl FluxProtocol {
 		outcome: U64,
 		shares: U128,
 		min_price: U128
-	// ) -> Promise{
 	) {
 		let market_id: u64 = market_id.into();
 		let outcome: u64 = outcome.into();
@@ -755,7 +783,7 @@ impl FluxProtocol {
 		return U128(user_data.unwrap().balance);
 	}
 
-	pub fn is_promise_success(&self) -> bool {
+	fn is_promise_success(&self) -> bool {
 		assert_eq!(
 			env::promise_results_count(),
 			1,
@@ -888,13 +916,13 @@ mod tests {
 	}
 
 	mod binary_order_matching_tests;
-	// mod categorical_market_tests;
-	// mod init_tests; 
-	// mod market_order_tests;
-	// mod order_sale_tests; 
-	// mod market_resolution_tests; 
-	// mod claim_earnings_tests;
-	// mod validity_bond_tests;
-	// mod fee_payout_tests;
-	// mod market_dispute_tests;
+	mod categorical_market_tests;
+	mod init_tests; 
+	mod market_order_tests;
+	mod order_sale_tests; 
+	mod market_resolution_tests; 
+	mod claim_earnings_tests;
+	mod validity_bond_tests;
+	mod fee_payout_tests;
+	mod market_dispute_tests;
 }

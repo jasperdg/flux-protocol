@@ -37,7 +37,7 @@ fn test_payout() {
 
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
-	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnigns tx failed unexpectedly");;
+	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnigns tx failed unexpectedly");
 	
 	let updated_balance_alice = alice.get_balance(&mut runtime, alice.get_account_id());
 	let updated_balance_carol = alice.get_balance(&mut runtime, carol.get_account_id());

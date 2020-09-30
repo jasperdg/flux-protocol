@@ -62,7 +62,7 @@ impl ExternalUser {
     pub fn deploy_flux_protocol(&self, runtime: &mut RuntimeStandalone) -> TxResult {
         let args = json!({
             "fun_token_account_id": fun_token(),
-            "creator": self.get_account_id(),
+            "owner": self.get_account_id(),
         }).to_string().as_bytes().to_vec();
 
         let tx = self
@@ -430,13 +430,13 @@ impl ExternalUser {
         return ans;
     }
 
-    pub fn get_creator(
+    pub fn get_owner(
         &self,
         runtime: &RuntimeStandalone
     ) -> String {
         let res = runtime.view_method_call(
             &(flux_protocol()), 
-            "get_creator", 
+            "owner", 
             json!({})
         .to_string()
         .as_bytes())

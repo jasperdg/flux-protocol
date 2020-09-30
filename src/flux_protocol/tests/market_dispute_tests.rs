@@ -249,7 +249,7 @@ fn test_stake_refund() {
 }
 
 #[test]
-#[should_panic(expected = "transfer failed, make sure the user has a higher balance than")]
+#[should_panic(expected = "previous promise failed")]
 fn test_insufficient_balance() {
 	let (mut runtime, root, accounts) = init_runtime_env();
 	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");

@@ -43,7 +43,7 @@ fn test_order_placement_cancelation_and_market_prices() {
 
 	// balance checks: 
 	let expected_contract_balance = 100000;
-	let expected_account_balance = 69999999999999900000;
+	let expected_account_balance = 99999969999999999999900000;
 	let account_balance: u128 = accounts[0].get_balance(&mut runtime, accounts[0].get_account_id()).into();
 	let contract_balance: u128 = accounts[0].get_balance(&mut runtime, flux_protocol()).into();
 	
@@ -57,7 +57,7 @@ fn test_order_placement_cancelation_and_market_prices() {
 	let tx_res = accounts[0].cancel_order(&mut runtime, U64(0), U64(1), U128(50), U128(1)).expect("order cancelation failed");
 	let tx_res = accounts[0].cancel_order(&mut runtime, U64(0), U64(1), U128(50), U128(0)).expect("order cancelation failed");
 
-	let expected_account_balance = to_dai(70) - validity_bond;
+	let expected_account_balance = to_dai(99999970) - validity_bond;
 	let expected_contract_balance = 0;
 	let account_balance: u128 = accounts[0].get_balance(&mut runtime, accounts[0].get_account_id()).into();
 	let contract_balance: u128 = accounts[0].get_balance(&mut runtime, flux_protocol()).into();
