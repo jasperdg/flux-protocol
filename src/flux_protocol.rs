@@ -474,6 +474,7 @@ impl FluxProtocol {
 	 * @param market_id The id of the market to resolute
 	 * @param winning_outcome The winning_outcome according to the staker
 	 * @param stake The amount of stake the user wants to contribute to the resolution round
+	 * @param sender The account id of the original tranasaction's signer
 	 */
 	pub fn proceed_market_resolution(
 		&mut self,
@@ -496,31 +497,19 @@ impl FluxProtocol {
 		}
 	}
 
-	pub fn withdraw_dispute_stake(
-		&mut self, 
-		market_id: U64,
-		dispute_round: U64,
-		outcome: Option<U64>
-	) -> Promise {
-		let market_id: u64 = market_id.into();
-		let dispute_round: u64 = dispute_round.into();
-		let outcome: Option<u64> = match outcome {
-			Some(outcome) => Some(outcome.into()),
-			None => None
-		};
-
-		let mut market = self.markets.get(&market_id).expect("invalid market");
-		let to_return = market.cancel_dispute_participation(dispute_round, outcome);
-		self.markets.insert(&market_id, &market);
-		if to_return > 0 {
-			logger::log_dispute_withdraw(market_id, env::predecessor_account_id(), dispute_round, outcome);
-
-			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
-		} else {
-			panic!("user has no participation in this dispute");
-		}
-	}
-
+	/**
+	 * @notice Kicks of a dispute of a certain outcome
+	 * @dev Panics if the market hasn't been resoluted yet
+	 *  Panics if the market doens't exist
+	 *  Panics if the market is already finalized
+	 *  Panics if the winning_outcome is invalid
+	 *  Panics if the disputed outcomeis the same outcome as the previous winning outcome
+	 *  Panics if the sender doesn't have enough balance / allowance to transfer `stake`
+	 *  Panics if the dispute round is > 1. After one initial dispute the market has to be finalized by the owner ("judge")
+	 * @param market_id The id of the market to dispute
+	 * @param winning_outcome The winning_outcome according to the staker
+	 * @param stake The amount of stake the sender wants to contribute to the dispute round
+	 */
 	pub fn dispute_market(
 		&mut self, 
 		market_id: U64, 
@@ -600,6 +589,40 @@ impl FluxProtocol {
 
 		market.finalize(winning_outcome);
 		self.markets.insert(&market_id, &market);
+	}
+
+	/**
+	 * @notice Withdraw your stake on a specific outcome in a resolution or dispute
+	 * @dev Panics if sender don't have any stake in the market / round / outcome
+	 *  Panics if the market doesn't exist
+	 *	Only works as long as the total stake < the stake required for that round, afterwards the stake will be bonded and not withdrawable until market finalization
+	 * @param market_id The id of the market to withdraw the users stake from
+	 * @param dispute_round The round of resolution of dispute the user wants to withdraw from
+	 * @param outcome The outcome the user staked on
+	 */
+	pub fn withdraw_dispute_stake(
+		&mut self, 
+		market_id: U64,
+		dispute_round: U64,
+		outcome: Option<U64>
+	) -> Promise {
+		let market_id: u64 = market_id.into();
+		let dispute_round: u64 = dispute_round.into();
+		let outcome: Option<u64> = match outcome {
+			Some(outcome) => Some(outcome.into()),
+			None => None
+		};
+
+		let mut market = self.markets.get(&market_id).expect("invalid market");
+		let to_return = market.cancel_dispute_participation(dispute_round, outcome);
+		self.markets.insert(&market_id, &market);
+		if to_return > 0 {
+			logger::log_dispute_withdraw(market_id, env::predecessor_account_id(), dispute_round, outcome);
+
+			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+		} else {
+			panic!("user has no participation in this dispute");
+		}
 	}
 
 	fn get_creator_fee_percentage(&self, market: &Market) -> u128 {
