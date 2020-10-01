@@ -121,6 +121,7 @@ impl FluxProtocol {
 		}
 	}
 
+	/*** Getters ***/
 	/**
 	 * @notice Returns the owner's account id
 	 * @return owner's account id
@@ -160,6 +161,139 @@ impl FluxProtocol {
 	) {
 		assert_eq!(self.is_promise_success(), true, "previous promise failed");
 	}
+
+	/**
+	 * @notice returns market volume
+	 * @dev only needed for unit tests
+	 */
+	 pub fn get_market_volume(
+		&self,
+		market_id: U64
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		return self.markets
+		.get(&market_id)
+		.expect("market doesn't exist")
+		.filled_volume.into();
+	}
+
+	/**
+	 * @notice returns market price
+	 * @dev only needed for unit tests
+	 */
+	pub fn get_market_price(
+		&self,
+		market_id: U64,
+		outcome: U64
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		return U128(self.markets
+			.get(&market_id)
+			.expect("market doesn't exist")
+			.get_market_price(outcome));
+	}
+
+	/**
+	 * @notice returns an account their balance in a certain market for a certain outcome
+	 * @dev only needed for unit tests
+	 */
+	pub fn get_outcome_share_balance(
+		&self,
+		account_id: String,
+		market_id: U64,
+		outcome: U64,
+	) -> U128 {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+
+		let market = self.markets.get(&market_id).expect("non existent market");
+		let orderbook = market.orderbooks.get(&outcome).expect("non existent outcome");
+		let user_data = orderbook.user_data.get(&account_id);
+
+		if user_data.is_none() {return U128(0)}
+
+		return U128(user_data.unwrap().balance);
+	}
+
+	/**
+	 * @notice Withdraw your stake on a specific outcome in a resolution or dispute
+	 * @dev Panics if sender don't have any stake in the market / round / outcome
+	 *  Panics if the market doesn't exist
+	 *	Only works as long as the total stake < the stake required for that round, afterwards the stake will be bonded and not withdrawable until market finalization
+	 * @param market A reference to the market where from to return the creator fee
+	 * @return Returns the fee percentage to be paid out to the market creator, if the market turns out to be invalid this will be 0
+	 */
+	 fn get_creator_fee_percentage(&self, market: &Market) -> u128 {
+		return match market.winning_outcome {
+			Some(_) => market.creator_fee_percentage,
+			None => 0
+		}
+	}
+
+	/**
+	 * @notice Calculates and returns the amount a user can claim in a market if the current resolution data is correct
+	 * @param market A reference to the market where from to return the creator fee
+	 * @return Returns the amount of base tokens claimable denominated in 1e18
+	 * TODO: Make sure get_claimable is only callable for finalized markets
+	 */
+	pub fn get_claimable(
+		&self, 
+		market_id: U64, 
+		account_id: String
+	) -> U128 {
+		
+		let market_id: u64 = market_id.into();
+		let market = self.markets.get(&market_id).expect("market doesn't exist");
+		let claimed_earnings = market.claimed_earnings.get(&account_id);
+		if claimed_earnings.is_some() {
+			return U128(0);
+		}
+
+		let mut validity_bond = 0;
+		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
+			validity_bond = self.creation_bond;
+		}
+
+		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(account_id.to_string());
+		
+		let feeable_if_invalid = match market.winning_outcome {
+			None =>  market.feeable_if_invalid.get(&account_id).unwrap_or(0),
+			_ => 0
+		};
+
+		let claimable_if_valid = match market.winning_outcome {
+			Some(_) =>  market.claimable_if_valid.get(&account_id).unwrap_or(0),
+			_ => 0
+		};
+
+		let total_feeable_amount = winnings + feeable_if_invalid;
+		let total_fee_percentage =  market.resolution_fee_percentage + self.get_creator_fee_percentage(&market);
+		let total_fee = (total_feeable_amount * total_fee_percentage + 10000 - 1) / 10000;
+		
+
+		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
+
+		return (to_claim).into();
+	}
+
+	/**
+	 * @dev Panics if the previous promise in the promise chain was unsuccessful
+	 * @return Returns a bool representing the success of the previous promise in a promise chain
+	 */
+	fn is_promise_success(&self) -> bool {
+		assert_eq!(
+			env::promise_results_count(),
+			1,
+			"Contract expected a result on the callback"
+		);
+		match env::promise_result(0) {
+			PromiseResult::Successful(_) => true,
+			_ => false,
+		}
+	}
+
+	/*** Setters ***/
 
 	/**
 	 * @notice Allows the protocol owner to change the fungible token used in the protocol
@@ -680,67 +814,6 @@ impl FluxProtocol {
 	}
 
 	/**
-	 * @notice Withdraw your stake on a specific outcome in a resolution or dispute
-	 * @dev Panics if sender don't have any stake in the market / round / outcome
-	 *  Panics if the market doesn't exist
-	 *	Only works as long as the total stake < the stake required for that round, afterwards the stake will be bonded and not withdrawable until market finalization
-	 * @param market A reference to the market where from to return the creator fee
-	 * @return Returns the fee percentage to be paid out to the market creator, if the market turns out to be invalid this will be 0
-	 */
-	fn get_creator_fee_percentage(&self, market: &Market) -> u128 {
-		return match market.winning_outcome {
-			Some(_) => market.creator_fee_percentage,
-			None => 0
-		}
-	}
-
-	/**
-	 * @notice Calculates and returns the amount a user can claim in a market if the current resolution data is correct
-	 * @param market A reference to the market where from to return the creator fee
-	 * @return Returns the amount of base tokens claimable denominated in 1e18
-	 * TODO: Make sure get_claimable is only callable for finalized markets
-	 */
-	pub fn get_claimable(
-		&self, 
-		market_id: U64, 
-		account_id: String
-	) -> U128 {
-		
-		let market_id: u64 = market_id.into();
-		let market = self.markets.get(&market_id).expect("market doesn't exist");
-		let claimed_earnings = market.claimed_earnings.get(&account_id);
-		if claimed_earnings.is_some() {
-			return U128(0);
-		}
-
-		let mut validity_bond = 0;
-		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
-			validity_bond = self.creation_bond;
-		}
-
-		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(account_id.to_string());
-		
-		let feeable_if_invalid = match market.winning_outcome {
-			None =>  market.feeable_if_invalid.get(&account_id).unwrap_or(0),
-			_ => 0
-		};
-
-		let claimable_if_valid = match market.winning_outcome {
-			Some(_) =>  market.claimable_if_valid.get(&account_id).unwrap_or(0),
-			_ => 0
-		};
-
-		let total_feeable_amount = winnings + feeable_if_invalid;
-		let total_fee_percentage =  market.resolution_fee_percentage + self.get_creator_fee_percentage(&market);
-		let total_fee = (total_feeable_amount * total_fee_percentage + 10000 - 1) / 10000;
-		
-
-		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
-
-		return (to_claim).into();
-	}
-
-	/**
 	 * @notice Claims a users earnings in a finalized market
 	 * @dev Panics if user already claimed earnigns
 	 *  Panics if the market is finalized
@@ -821,75 +894,7 @@ impl FluxProtocol {
 		}	
 	}
 
-	/**
-	 * @notice returns market volume
-	 * @dev only needed for unit tests
-	 */
-	pub fn get_market_volume(
-		&self,
-		market_id: U64
-	) -> U128 {
-		let market_id: u64 = market_id.into();
-		return self.markets
-		.get(&market_id)
-		.expect("market doesn't exist")
-		.filled_volume.into();
-	}
 
-	/**
-	 * @notice returns market price
-	 * @dev only needed for unit tests
-	 */
-	pub fn get_market_price(
-		&self,
-		market_id: U64,
-		outcome: U64
-	) -> U128 {
-		let market_id: u64 = market_id.into();
-		let outcome: u64 = outcome.into();
-		return U128(self.markets
-			.get(&market_id)
-			.expect("market doesn't exist")
-			.get_market_price(outcome));
-	}
-
-	/**
-	 * @notice returns an account their balance in a certain market for a certain outcome
-	 * @dev only needed for unit tests
-	 */
-	pub fn get_outcome_share_balance(
-		&self,
-		account_id: String,
-		market_id: U64,
-		outcome: U64,
-	) -> U128 {
-		let market_id: u64 = market_id.into();
-		let outcome: u64 = outcome.into();
-
-		let market = self.markets.get(&market_id).expect("non existent market");
-		let orderbook = market.orderbooks.get(&outcome).expect("non existent outcome");
-		let user_data = orderbook.user_data.get(&account_id);
-
-		if user_data.is_none() {return U128(0)}
-
-		return U128(user_data.unwrap().balance);
-	}
-
-	/**
-	 * @dev Panics if the previous promise in the promise chain was unsuccessful
-	 * @return Returns a bool representing the success of the previous promise in a promise chain
-	 */
-	fn is_promise_success(&self) -> bool {
-		assert_eq!(
-			env::promise_results_count(),
-			1,
-			"Contract expected a result on the callback"
-		);
-		match env::promise_result(0) {
-			PromiseResult::Successful(_) => true,
-			_ => false,
-		}
-	}
 	
 }
 
