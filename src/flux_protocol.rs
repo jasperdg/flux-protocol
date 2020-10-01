@@ -389,6 +389,43 @@ impl FluxProtocol {
 		return PromiseOrValue::Value(true);
 	}
 
+	/** 
+	 * @notice Sells owned shares at market prices
+	 * @dev Panics if the min_price provided is 0
+	 *  panics if the min_price > 99
+	 *  panics if shares < 1
+	 *  panics if the market is already finalized
+	 *  panics if there are no shares to sell owned by the sender for the min_price
+	 * @param market_id The id of the market to sell shares
+	 * @param outcome The specific outcome this order wants to sell shares
+	 * @param shares The amount of shares a sender wants to sell
+	 * @param min_price The min_price the sender is willing to sell his shares for
+	 */
+	pub fn dynamic_market_sell(
+		&mut self,
+		market_id: U64,
+		outcome: U64,
+		shares: U128,
+		min_price: U128
+	) {
+		let market_id: u64 = market_id.into();
+		let outcome: u64 = outcome.into();
+		let shares: u128 = shares.into();
+		let min_price: u128 = min_price.into();
+		
+		assert!(min_price > 0, "min_price need to be higher than 0");
+		assert!(min_price < 100, "min_price need to be smaller than 100");
+		assert!(shares > 0, "can't sell 0 shares");
+		
+		let mut market = self.markets.get(&market_id).expect("non existent market");
+		assert_eq!(market.finalized, false, "can't sell shares after market is finalized");
+		let earnings = market.dynamic_market_sell_internal(outcome, shares, min_price);
+		assert!(earnings > 0, "no matching orders");
+		self.markets.insert(&market_id, &market);
+		
+		fun_token::transfer(env::predecessor_account_id(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
+	}
+
 	/**
 	 * @notice Cancels an order and returns outstanding open value to order creator
 	 * @dev Panics if the predecessor_account isn't the owner of the order he's trying to cancel
@@ -474,7 +511,7 @@ impl FluxProtocol {
 	 * @param market_id The id of the market to resolute
 	 * @param winning_outcome The winning_outcome according to the staker
 	 * @param stake The amount of stake the user wants to contribute to the resolution round
-	 * @param sender The account id of the original tranasaction's signer
+	 * @param sender The account id of the original transaction's signer
 	 */
 	pub fn proceed_market_resolution(
 		&mut self,
@@ -545,6 +582,16 @@ impl FluxProtocol {
 		)
 	}
 
+
+	/**
+	 * @notice Continues the dispute proces if transfer of funds was successful
+	 * @dev Panics if the previous method (transfer) failed
+	 *  Panics if the predecessor_id isn't equal to the contract id itself
+	 * @param market_id The id of the market to dispute
+	 * @param winning_outcome The winning_outcome according to the staker
+	 * @param stake The amount of stake the sender wants to contribute to the dispute round
+	 * @param sender The account id of the original transaction's signer
+	 */
 	pub fn proceed_market_dispute(		
 		&mut self,
 		market_id: u64,
@@ -556,7 +603,6 @@ impl FluxProtocol {
 		self.assert_prev_promise_successful();
 
         let mut market = self.markets.get(&market_id).expect("market doesn't exist");
-
 		let change = market.dispute(sender.to_string(), winning_outcome, stake);
 
 		self.markets.insert(&market.id, &market);
@@ -567,6 +613,14 @@ impl FluxProtocol {
 		}
 	}
 
+	/**
+	 * @notice Finalizes a market once disputed or the dispute window has been closed
+	 * @dev Panics if the market hasn't been resoluted yet
+	 *  Panics if the market is disputed and finalize is not called by the judge
+	 *	Panics if the dispute window is still open
+	 * @param market_id The id of the market to finalize
+	 * @param winning_outcome Optional in case the market has been disptud, the judges ruling
+	 */
 	pub fn finalize_market(
 		&mut self, 
 		market_id: U64, 
@@ -625,6 +679,14 @@ impl FluxProtocol {
 		}
 	}
 
+	/**
+	 * @notice Withdraw your stake on a specific outcome in a resolution or dispute
+	 * @dev Panics if sender don't have any stake in the market / round / outcome
+	 *  Panics if the market doesn't exist
+	 *	Only works as long as the total stake < the stake required for that round, afterwards the stake will be bonded and not withdrawable until market finalization
+	 * @param market A reference to the market where from to return the creator fee
+	 * @return Returns the fee percentage to be paid out to the market creator, if the market turns out to be invalid this will be 0
+	 */
 	fn get_creator_fee_percentage(&self, market: &Market) -> u128 {
 		return match market.winning_outcome {
 			Some(_) => market.creator_fee_percentage,
@@ -632,6 +694,12 @@ impl FluxProtocol {
 		}
 	}
 
+	/**
+	 * @notice Calculates and returns the amount a user can claim in a market if the current resolution data is correct
+	 * @param market A reference to the market where from to return the creator fee
+	 * @return Returns the amount of base tokens claimable denominated in 1e18
+	 * TODO: Make sure get_claimable is only callable for finalized markets
+	 */
 	pub fn get_claimable(
 		&self, 
 		market_id: U64, 
@@ -672,6 +740,13 @@ impl FluxProtocol {
 		return (to_claim).into();
 	}
 
+	/**
+	 * @notice Claims a users earnings in a finalized market
+	 * @dev Panics if user already claimed earnigns
+	 *  Panics if the market is finalized
+	 * @param market_id The id of the market that earnings are going to be claimed for
+	 * @param account_id The account_id of the user to claim earnings for
+	 */
 	pub fn claim_earnings(
 		&mut self, 
 		market_id: U64, 
@@ -726,6 +801,12 @@ impl FluxProtocol {
 		
 	}
 
+	/**
+	 * @notice Claim the affiliate fees accumulated by a certain account
+	 * @dev Panics if the account doens't have any fees to claim
+	 * @return External contract call to transfer earnings to the user
+	 * TODO: reimplement affiliate fees
+	 */
 	pub fn claim_affiliate_earnings(
 		&mut self,
 		account_id: String
@@ -740,6 +821,10 @@ impl FluxProtocol {
 		}	
 	}
 
+	/**
+	 * @notice returns market volume
+	 * @dev only needed for unit tests
+	 */
 	pub fn get_market_volume(
 		&self,
 		market_id: U64
@@ -751,6 +836,10 @@ impl FluxProtocol {
 		.filled_volume.into();
 	}
 
+	/**
+	 * @notice returns market price
+	 * @dev only needed for unit tests
+	 */
 	pub fn get_market_price(
 		&self,
 		market_id: U64,
@@ -764,30 +853,10 @@ impl FluxProtocol {
 			.get_market_price(outcome));
 	}
 
-	pub fn dynamic_market_sell(
-		&mut self,
-		market_id: U64,
-		outcome: U64,
-		shares: U128,
-		min_price: U128
-	) {
-		let market_id: u64 = market_id.into();
-		let outcome: u64 = outcome.into();
-		let shares: u128 = shares.into();
-		let min_price: u128 = min_price.into();
-		
-		assert!(min_price > 0, "min_price need to be higher than 0");
-		assert!(shares > 0, "can't sell 0 shares");
-		
-		let mut market = self.markets.get(&market_id).expect("non existent market");
-		assert_eq!(market.finalized, false, "can't sell shares after market is finalized");
-		let earnings = market.dynamic_market_sell_internal(outcome, shares, min_price);
-		assert!(earnings > 0, "no matching orders");
-		self.markets.insert(&market_id, &market);
-		
-		fun_token::transfer(env::predecessor_account_id(), U128(earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
-	}
-
+	/**
+	 * @notice returns an account their balance in a certain market for a certain outcome
+	 * @dev only needed for unit tests
+	 */
 	pub fn get_outcome_share_balance(
 		&self,
 		account_id: String,
@@ -806,6 +875,10 @@ impl FluxProtocol {
 		return U128(user_data.unwrap().balance);
 	}
 
+	/**
+	 * @dev Panics if the previous promise in the promise chain was unsuccessful
+	 * @return Returns a bool representing the success of the previous promise in a promise chain
+	 */
 	fn is_promise_success(&self) -> bool {
 		assert_eq!(
 			env::promise_results_count(),
