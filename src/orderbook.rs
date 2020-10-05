@@ -19,52 +19,47 @@ use std::{
 };
 use serde_json::json;
 
+/* Import order impl */
 use crate::order;
+/* Import logger impl */
 use crate::logger;
 
+/* Declare order type */
 pub type Order = order::Order;
 
+/**
+ * @notice PriceData is a struct that holds total liquidity denominated in shares(1e16) and an ordered Map of orders (order_id => Order) for a certain price
+ */
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct PriceData {
 	pub share_liquidity: u128,
 	pub orders: TreeMap<u128, Order>
 }
 
+/**
+ * @notice AccountData is a struct that holds user data for the orderbook's data. It holds the users balance denominated in shares (1e16), it also holds how much the user has spent (denominated in 1e18), how much is still to be spend (open value),
+ *  and also keeps a list of open orders.
+ */
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct AccountData {
-	pub balance: u128,
-	pub spent: u128,
-	pub to_spend: u128,
-	pub open_orders: TreeMap<u128, u128> // Check if we need order id or can just keep track of balance of open orders - for now open order id mapped to price
+	pub balance: u128, // The user's balance denominated in shares (1e16)
+	pub spent: u128, // How much the user has spent (denominated in 1e18)
+	pub to_spend: u128, // How much is still to be spend (in open orders)
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Orderbook {
 	pub market_id: u64,
 	pub outcome_id: u64,
-	pub price_data: TreeMap<u128, PriceData>,
-	pub user_data: UnorderedMap<String, AccountData>,
-	pub nonce: u128,
+	pub price_data: TreeMap<u128, PriceData>, // Ordered map where price => PriceData
+	pub user_data: UnorderedMap<String, AccountData>, // Unordered map where account_id => AccountData
+	pub nonce: u128, // Incrementing nonce to decide on order_ids
 }
 
 impl Orderbook {
-
-	fn new_account(&self, account_id: String) -> AccountData {
-		AccountData {
-			balance: 0,
-			spent: 0,
-			to_spend: 0,
-			open_orders: TreeMap::new(format!("{}:open_orders:{}:{}", account_id, self.market_id, self.outcome_id).as_bytes().to_vec())
-		}
-	}
-
-	fn new_price(&self, price: u128) -> PriceData {
-		PriceData {
-			share_liquidity: 0,
-			orders: TreeMap::new(format!("price_data:{}:{}:{}", self.market_id, self.outcome_id, price).as_bytes().to_vec())
-		}
-	}
-
+	/**
+	 * @notice Initialize new orderbook struct
+	 */
 	pub fn new(
 		market_id: u64,
 		outcome: u64
@@ -75,6 +70,21 @@ impl Orderbook {
 			user_data: UnorderedMap::new(format!("user_data:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			nonce: 0,
 			outcome_id: outcome,
+		}
+	}
+
+	fn new_account(&self, account_id: String) -> AccountData {
+		AccountData {
+			balance: 0,
+			spent: 0,
+			to_spend: 0,
+		}
+	}
+
+	fn new_price(&self, price: u128) -> PriceData {
+		PriceData {
+			share_liquidity: 0,
+			orders: TreeMap::new(format!("price_data:{}:{}:{}", self.market_id, self.outcome_id, price).as_bytes().to_vec())
 		}
 	}
 
@@ -116,8 +126,6 @@ impl Orderbook {
 			fill_price = filled / shares_filled;
 		}
 		
-		
-		// TODO: add to affiliate_earnings
 		// if left_to_spend < 100 the order counts as filled
 		if left_to_spend < 100 {
 			self.user_data.insert(&account_id, &user_data);
@@ -126,8 +134,6 @@ impl Orderbook {
 			return;
 		}
 		
-		// TODO: expect that we don't need a reference to the order
-		user_data.open_orders.insert(&order_id, &price);
 		self.user_data.insert(&account_id, &user_data);
 
 		let mut price_data = self.price_data.get(&price).unwrap_or(self.new_price(price));
@@ -154,7 +160,6 @@ impl Orderbook {
 			self.price_data.insert(&order.price, &price_data);
 		}
 		
-		user_data.open_orders.remove(&order.id);
 		user_data.to_spend -= order.spend - order.filled;
 		logger::log_update_user_balance(order.creator.to_string(), order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
 		self.user_data.insert(&order.creator, &user_data);
@@ -164,7 +169,6 @@ impl Orderbook {
 		return to_return;
 	}
 
-	// TODO: add to affiliate_earnings
 	pub fn fill_order(
 		&mut self, 
 		mut order: Order, 
@@ -180,7 +184,6 @@ impl Orderbook {
 
 
 		if close_order {
-			user_data.open_orders.remove(&order.id);
 			price_data.orders.remove(&order.id);
 			logger::log_order_closed(&order, self.market_id, self.outcome_id);
 		}  else {
