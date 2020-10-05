@@ -712,12 +712,17 @@ impl Market {
 
 		if total_correctly_staked == 0 || total_incorrectly_staked == 0 || user_correctly_staked == 0 {return resolution_reward}
 
+		/* Declare decimals to make sure smallers takers still are rewarded */
 		let decimals = 1e16 as u128;
+		/* Calculate profit from participating in disputes */
 		let profit = ((total_incorrectly_staked * decimals) / (total_correctly_staked / user_correctly_staked)) / decimals; 
 
 		return profit + user_correctly_staked + resolution_reward;
 	}
 
+	/**
+	 * @notice Convert u64 -> U64 within the option
+	 */
 	fn to_loggable_winning_outcome(
 		&self, 
 		winning_outcome: Option<u64>
@@ -728,6 +733,9 @@ impl Market {
 		};
 	}
 
+	/**
+	 * @notice Convert winning_outcome (Option<u64>) -> u64 where None = self.outcomes
+	 */
 	pub fn to_numerical_outcome(
 		&self, 
 		outcome: Option<u64>, 
@@ -736,6 +744,10 @@ impl Market {
 	}
 }
 
+/**
+ * @notice Makes sure market is initialized by the new method
+ * @dev Panics if market isn't initialized with the new method
+ */
 impl Default for Market {
 	fn default() -> Self {
 		panic!("No default state available init with ::new"); 
