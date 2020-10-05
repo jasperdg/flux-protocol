@@ -46,7 +46,6 @@ struct FluxProtocol {
 /**
  * @notice A hardcoded amount of gas that's used for external transactions
  * @dev Currently set to MAX_GAS / 3
- * TODO: Add affiliate payouts 
  */
 const SINGLE_CALL_GAS: u64 = 100000000000000;
 
@@ -56,7 +55,6 @@ const SINGLE_CALL_GAS: u64 = 100000000000000;
 /**
  * @notice Contract interface for the Fungible Token contract we're using:
  * @dev based on older version of: https://github.com/near/near-sdk-rs/tree/master/examples/fungible-token
- * TODO: Update FunToken contract
  */
 #[ext_contract]
 pub trait FunToken {
@@ -73,7 +71,6 @@ pub trait FunToken {
  */
 #[ext_contract]
 pub trait FluxProtocol {
-    fn market_creation(&mut self, sender: String, market_id: u64, outcome: u64, amount_of_shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
     fn proceed_order_placement(&mut self, sender: String, market_id: u64, outcome: u64, shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
     fn proceed_market_resolution(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
 	fn proceed_market_dispute(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
@@ -115,7 +112,7 @@ impl FluxProtocol {
 			nonce: 0,
 			max_fee_percentage: 500,
 			creation_bond: 25e18 as u128 / 100,
-			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec()),
+			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec()), // This Map is not used for for now, we're adding affiliate fees back in on the next V of the protocol
 			fun_token_account_id
 		}
 	}
@@ -234,14 +231,12 @@ impl FluxProtocol {
 	 * @notice Calculates and returns the amount a user can claim in a market if the current resolution data is correct
 	 * @param market A reference to the market where from to return the creator fee
 	 * @return Returns the amount of base tokens claimable denominated in 1e18
-	 * TODO: Make sure get_claimable is only callable for finalized markets
 	 */
 	pub fn get_claimable(
 		&self, 
 		market_id: U64, 
 		account_id: String
 	) -> U128 {
-		
 		let market_id: u64 = market_id.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 		let claimed_earnings = market.claimed_earnings.get(&account_id);
@@ -304,20 +299,6 @@ impl FluxProtocol {
 		assert_eq!(env::predecessor_account_id(), self.owner, "Owner can only be changed by previous owner");
 		self.owner = new_owner;
 	}
-
-	/**
-	 * @notice Allows the protocol owner to change the fungible token used in the protocol
-	 * @dev Panics if predecssor_account_id isn't the protocol owner account id
-	 * @param fun_token_account_id the account id of the fungible token that should be used from there on
-	 * TODO: Make sure that each market has an attribute referencing what token was used as the base token for that market. After set_fun_token was called each market created should use the new fun_token_account_id as the base currency
-	 */
-	pub fn set_fun_token(
-		&mut self, 
-		fun_token_account_id: String
-	) {
-		assert_eq!(env::predecessor_account_id(), self.owner);
-		self.fun_token_account_id = fun_token_account_id;
-	}
 	
 	/**
 	 * @notice Kicks off market creation returns a promise that exists of a promise chain
@@ -333,8 +314,7 @@ impl FluxProtocol {
 	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range betwen 1 - 100
 	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
 	 * @return returns a promise chain - this chain tries to escrow the base currency as a validity bond from the market creation and if successful proceed the market creation
-	 * TODO: Should consider not storing categories but just logging them, that way the indexer will pick them up but wills save gas cost
-	 */
+	 * */
 	pub fn create_market(
 		&mut self, 
 		description: String, 
@@ -407,7 +387,6 @@ impl FluxProtocol {
 	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range betwen 1 - 100
 	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
 	 * @return Returns the newly_created market_id
-	 * TODO: Should consider not storing categories but just logging them, that way the indexer will pick them up but wills save gas cost
 	 */
 	pub fn proceed_market_creation(
 		&mut self, 
@@ -884,30 +863,7 @@ impl FluxProtocol {
 			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		}
 		
-	}
-
-	/**
-	 * @notice Claim the affiliate fees accumulated by a certain account
-	 * @dev Panics if the account doens't have any fees to claim
-	 * @return External contract call to transfer earnings to the user
-	 * TODO: reimplement affiliate fees
-	 */
-	pub fn claim_affiliate_earnings(
-		&mut self,
-		account_id: String
-	) -> Promise {
-		let affiliate_earnings = self.affiliate_earnings.get(&account_id).expect("account doesn't have any affiliate fees to collect");
-		if affiliate_earnings > 0 {
-			logger::log_affiliate_earnings_claimed(account_id.to_string(), affiliate_earnings);
-			self.affiliate_earnings.insert(&account_id, &0);
-			return fun_token::transfer(account_id.to_string(), U128(affiliate_earnings), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
-		} else {
-			panic!("account doesn't have any affiliate fees to collect");
-		}	
-	}
-
-
-	
+	}	
 }
 
 
