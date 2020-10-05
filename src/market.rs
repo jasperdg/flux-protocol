@@ -382,24 +382,36 @@ impl Market {
 
 	/*** Resolution methods ***/
 
-	pub fn resolute(
+	/**
+	 * @notice The resolute method is used to stake on certain outcomes once a market has ended
+	 * @return Returns how many if any of the user's stake needs to be returned
+	 */
+	pub fn resolute_internal(
 		&mut self,
 		sender: String,
 		winning_outcome: Option<u64>, 
 		stake: u128
 	) -> u128 {
+		/* Convert option<u64> to a number where None (invalid) = self.outcomes */
 		let outcome_id = self.to_numerical_outcome(winning_outcome);
+
+		/* Get the most recent resolution window */
 		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Something went wrong during market creation");
-		
 		let mut to_return = 0;
+
+		/* Get how much is currently is staked on the target outcome */
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
 
+		/* Check if the total stake on this outcome >= resolution bond if so the stake will be bonded */
 		if stake + staked_on_outcome >= self.resolute_bond {
+			/* Calculate if anything needs to be returned to the staker */
 			to_return = stake + staked_on_outcome - self.resolute_bond;
+			/* Set winning_outcome - this is not final there could be a dispute */
 			self.winning_outcome = winning_outcome;
 			self.resoluted = true;
 		} 
 
+		/* Update sender's stake state */
 		let mut sender_stake_per_outcome = resolution_window.participants_to_outcome_to_stake
 		.get(&sender)
 		.unwrap_or(UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec()));
@@ -410,14 +422,15 @@ impl Market {
 		sender_stake_per_outcome.insert(&outcome_id, &new_stake);
 		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
+		/* Update resolution_window's stake state */
 		let staked_on_outcome = resolution_window.staked_per_outcome
 		.get(&outcome_id)
 		.unwrap_or(0);
 		let new_stake_on_outcome = staked_on_outcome + stake - to_return;
 		resolution_window.staked_per_outcome.insert(&outcome_id, &new_stake_on_outcome);
 		
+		/* If the market is now resoluted open dispute window */
 		if self.resoluted {
-
 			resolution_window.outcome = winning_outcome;
 			let new_resolution_window = ResolutionWindow {
 				round: resolution_window.round + 1,
@@ -428,7 +441,6 @@ impl Market {
 				outcome: None,
 			};
 
-
 			logger::log_market_resoluted(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
 			logger::log_new_resolution_window(self.id, new_resolution_window.round, new_resolution_window.required_bond_size, new_resolution_window.end_time);
 			self.resolution_windows.push(&new_resolution_window);
@@ -438,12 +450,13 @@ impl Market {
 
 		}
 		
+		/* Re-insert the resolution window after update */
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
 
 		return to_return;
 	}
 
-	pub fn dispute(
+	pub fn dispute_internal(
 		&mut self, 
 		sender: String,
 		winning_outcome: Option<u64>,
@@ -508,7 +521,7 @@ impl Market {
 		return to_return;
 	}
 
-	pub fn finalize(
+	pub fn finalize_internal(
 		&mut self, 
 		winning_outcome: Option<u64>
 	) {
@@ -570,7 +583,7 @@ impl Market {
 		return (winnings, in_open_orders, governance_earnings);
 	}
 
-	pub fn cancel_dispute_participation(
+	pub fn withdraw_resolution_stake_internal(
 		&mut self,
 		round: u64,
 		

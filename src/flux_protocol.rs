@@ -658,7 +658,7 @@ impl FluxProtocol {
 		self.assert_prev_promise_successful();
 		
 		let mut market = self.markets.get(&market_id).unwrap();
-		let change: u128 = market.resolute(sender.to_string(), winning_outcome, stake).into();
+		let change: u128 = market.resolute_internal(sender.to_string(), winning_outcome, stake).into();
 		self.markets.insert(&market_id, &market);
 		if change > 0 {
 			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2);
@@ -737,7 +737,7 @@ impl FluxProtocol {
 		self.assert_prev_promise_successful();
 
         let mut market = self.markets.get(&market_id).expect("market doesn't exist");
-		let change = market.dispute(sender.to_string(), winning_outcome, stake);
+		let change = market.dispute_internal(sender.to_string(), winning_outcome, stake);
 
 		self.markets.insert(&market.id, &market);
 		if change > 0 {
@@ -775,7 +775,7 @@ impl FluxProtocol {
 			assert!(env::block_timestamp() / 1000000 >= dispute_window.end_time || dispute_window.round == 2, "dispute window still open")
 		}
 
-		market.finalize(winning_outcome);
+		market.finalize_internal(winning_outcome);
 		self.markets.insert(&market_id, &market);
 	}
 
@@ -802,7 +802,7 @@ impl FluxProtocol {
 		};
 
 		let mut market = self.markets.get(&market_id).expect("invalid market");
-		let to_return = market.cancel_dispute_participation(dispute_round, outcome);
+		let to_return = market.withdraw_resolution_stake_internal(dispute_round, outcome);
 		self.markets.insert(&market_id, &market);
 		if to_return > 0 {
 			logger::log_dispute_withdraw(market_id, env::predecessor_account_id(), dispute_round, outcome);
