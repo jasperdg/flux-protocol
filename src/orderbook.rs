@@ -311,7 +311,7 @@ impl Orderbook {
 		let mut depth_price_prod_sum = 0;
 
 		/* Loop through all the price from best to worst */
-		while best_price > min_price && max_shares > depth {
+		while best_price >= min_price && max_shares > depth {
 			/* Calculate how many shares are left to fill */
 			let shares_left_to_fill = max_shares - depth;
 			/* Get the price_data at the current best_price */
