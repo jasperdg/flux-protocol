@@ -40,8 +40,4 @@ impl Order {
 			affiliate_account_id
 		}
 	}
-
-	pub fn is_filled(&self) -> bool {
-		return self.spend - self.filled < 100;
-	}
 }
