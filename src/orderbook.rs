@@ -164,7 +164,6 @@ impl Orderbook {
 		return to_return;
 	}
 
-
 	// TODO: add to affiliate_earnings
 	pub fn fill_order(
 		&mut self, 

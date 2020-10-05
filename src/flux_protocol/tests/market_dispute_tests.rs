@@ -15,8 +15,9 @@ fn test_dispute_valid() {
 	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
+	let al_bal: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 
-	alice.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(7) / 70), U128(70), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(1) / 10), U128(70), None).expect("order placement failed unexpectedly");
 	alice.place_order(&mut runtime, U64(0), U64(3), U128(to_dai(1) / 10), U128(10), None).expect("order placement failed unexpectedly");
 	
 	carol.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(1) / 10), U128(10), None).expect("order placement failed unexpectedly");
@@ -24,19 +25,20 @@ fn test_dispute_valid() {
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	
-	carol.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(5))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
+	alice.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(1))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
+	carol.resolute_market(&mut runtime, U64(0), Some(U64(0)), U128(to_dai(4))).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 	
-	let tx_res =alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(10))).expect("market dispute failed unexpectedly"); 
+	let tx_res = alice.dispute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(10))).expect("market dispute failed unexpectedly"); 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(U64(0))).expect("market finalization failed unexpectedly"); 
 
-	let expected_claimable_alice = to_dai(10) - to_dai(10) / 100;
-	let expected_claimable_carol = to_dai(5) + to_dai(10) / 100;
+	let expected_claimable_alice = to_dai(11) - ((to_dai(10) / 100) / 5) * 4;
+	let expected_claimable_carol = to_dai(4) + ((to_dai(10) / 100) / 5) * 4;
 	
 	let initially_claimable_alice: u128 = alice.get_claimable(&mut runtime, U64(0), alice.get_account_id()).into();
 	let initially_claimable_carol: u128 = alice.get_claimable(&mut runtime, U64(0), carol.get_account_id()).into();
-	
 	let validity_bond = to_dai(25) / 100;
+
 	assert_eq!(initially_claimable_alice, expected_claimable_alice + validity_bond);
 	assert_eq!(initially_claimable_carol, expected_claimable_carol);
 
@@ -44,8 +46,8 @@ fn test_dispute_valid() {
 	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();
 	
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
-	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnings tx failed unexpectedly");
 	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id()).expect("claim_earnings tx failed unexpectedly");
+	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id()).expect("claim_earnings tx failed unexpectedly");
 	let balance_after_claim_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	let balance_after_claim_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();
 	

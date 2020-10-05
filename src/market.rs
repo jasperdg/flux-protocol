@@ -384,7 +384,7 @@ impl Market {
 
 	/**
 	 * @notice The resolute method is used to stake on certain outcomes once a market has ended
-	 * @return Returns how many if any of the user's stake needs to be returned
+	 * @return Returns how many if any of the sender's stake needs to be returned
 	 */
 	pub fn resolute_internal(
 		&mut self,
@@ -423,11 +423,7 @@ impl Market {
 		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
 		/* Update resolution_window's stake state */
-		let staked_on_outcome = resolution_window.staked_per_outcome
-		.get(&outcome_id)
-		.unwrap_or(0);
-		let new_stake_on_outcome = staked_on_outcome + stake - to_return;
-		resolution_window.staked_per_outcome.insert(&outcome_id, &new_stake_on_outcome);
+		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - to_return));
 		
 		/* If the market is now resoluted open dispute window */
 		if self.resoluted {
@@ -456,6 +452,10 @@ impl Market {
 		return to_return;
 	}
 
+	/**
+	 * @notice The dispute method is to correct incorrect resolutions posted by the initial resolutor(s)
+	 * @return Returns how many if any of the sender's stake needs to be returned
+	 */
 	pub fn dispute_internal(
 		&mut self, 
 		sender: String,
@@ -481,6 +481,7 @@ impl Market {
 			self.winning_outcome = winning_outcome;
 		}
 
+		/* Add stake to user's stake state */
 		let mut sender_stake_per_outcome = resolution_window.participants_to_outcome_to_stake
 		.get(&sender)
 		.unwrap_or(UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec()));
@@ -491,10 +492,11 @@ impl Market {
 		sender_stake_per_outcome.insert(&outcome_id, &new_stake);
 		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
+		/* Add stake to the window's stake state */
 		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - to_return));
 
 		
-		// Check if this order fills the bond
+		// Check if this order fills the bond - if so open a new resolution window
 		if bond_filled {
 			// Set last winning outcome
 			resolution_window.outcome = winning_outcome;
@@ -514,24 +516,25 @@ impl Market {
 			logger::log_resolution_disputed(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
 			logger::log_new_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
 
-
 			self.resolution_windows.push(&next_resolution_window);
 		} else {
 			logger::log_staked_on_dispute(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
 		}
 
+		// Re-insert the resolution window
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
 
 		return to_return;
 	}
 
+	/**
+	 * @notice Finalize the market outcome, after which earnings can be claimed by all participants
+	 */
 	pub fn finalize_internal(
 		&mut self, 
 		winning_outcome: Option<u64>
 	) {
-		assert_eq!(self.resoluted, true, "market isn't resoluted yet");
-		assert!(winning_outcome == None || winning_outcome.unwrap() < self.outcomes, "invalid outcome");
-	
+		// If the market was disputed the sender of this tx will be the judge and the judge will provide the final verdict being the definite outcome
 	    if self.disputed {
             self.winning_outcome = winning_outcome;
 		}
@@ -543,6 +546,10 @@ impl Market {
 
 	/*** After finalization ***/
 
+	/**
+	 * @notice Calculates the amount a participant can claim in the market
+	 * @return returns a tuple containing: amount claimable through trading, amount still left in open orders, amount claimable through resolution participation
+	 */
 	pub fn get_claimable_internal(
 		&self, 
 		account_id: String
@@ -550,63 +557,92 @@ impl Market {
 		let invalid = self.winning_outcome.is_none();
 		let mut winnings = 0;
 		let mut in_open_orders = 0;
-		// Claiming payouts
+
 		if invalid {
-			
+			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
+				/* Check if the user has any paritipation in this outcome else continue to next outcome */
 				let user_data = match orderbook.user_data.get(&account_id) {
 					Some(user) => user,
 					None => continue
 				};
+
+				/* Calculate and add money in open orders */
 				in_open_orders += user_data.to_spend - user_data.spent;
+				/* Treat filled volume as winnings */
 				winnings += user_data.spent;
 			}
 		} else {
+			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
+				/* Check if the user has any paritipation in this outcome else continue to next outcome */
 				let user_data = match orderbook.user_data.get(&account_id) {
 					Some(user) => user,
 					None => continue
 				};
-
+				/* Calculate and increment in_open_orders with open orders for each outcome */
 				in_open_orders += user_data.to_spend - user_data.spent;
 			}
 
+			/* Get the orderbook of the winning outcome */
 			let winning_orderbook = self.orderbooks.get(&self.to_numerical_outcome(self.winning_outcome)).unwrap();
-			let winning_outcome_user_data = winning_orderbook.user_data.get(&account_id);
 
-			let winning_value = match winning_outcome_user_data {
-				Some(user) => user.balance * 100,
+			/* Check if the user traded in the winning_outcome */
+			let winning_value = match winning_orderbook.user_data.get(&account_id) {
+				Some(user) => user.balance * 100, // Calculate user winnings: shares_owned * 100
 				None => 0
 			};
 
-			winnings += winning_value;
+			/* Set winnings to the amount of participation */
+			winnings = winning_value;
 		}
 
-		// Claiming Dispute Earnings
+		/* Calculate governance earnings */ 
 		let governance_earnings = self.get_dispute_earnings(account_id.to_string());
+
 		return (winnings, in_open_orders, governance_earnings);
 	}
 
+	/**
+	 * @notice Allows users to withdraw the stake they have in a resolution round as long as the amount is not bonded
+	 * @dev Panics if the sender tries to withdraw stake in the bonded outcome
+	 *  Panics if the user hasn't participated in the market
+	 *  Panics if the user has already withdrawn they stake before
+	 * @return Returns amount to transfer to user
+	 */
 	pub fn withdraw_resolution_stake_internal(
 		&mut self,
 		round: u64,
-		
 		outcome: Option<u64>
 	) -> u128{
+		/* Convert option<u64> to a number where None (invalid) = self.outcomes */
 		let outcome_id = self.to_numerical_outcome(outcome);
+
+		/* Get the target resolution window a user wants to withdraw their stake from */
 		let mut resolution_window = self.resolution_windows.get(round).expect("dispute round doesn't exist");
 		assert_ne!(outcome, resolution_window.outcome, "you cant cancel dispute stake for bonded outcome");
 		let mut sender_particiaption = resolution_window.participants_to_outcome_to_stake.get(&env::predecessor_account_id()).expect("user didn't paritcipate in this dispute round");
 		let to_return = sender_particiaption.get(&outcome_id).expect("sender didn't pariticipate in this outcome resolution");
-		assert!(to_return > 0, "sender canceled their dispute participation");
+		assert!(to_return > 0, "Can't withdraw 0");
 
+		/* Set senders stake to 0 and re-insert to resolution window */
 		sender_particiaption.insert(&outcome_id, &0);
 		resolution_window.participants_to_outcome_to_stake.insert(&env::predecessor_account_id(), &sender_particiaption);
 
+		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("Unexpecter error during withdraw resolution");
+		/* Decrement total stake by to_return */
+		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome - to_return));
+		
+		/* Re-insert updated resolution window */
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
+
 		return to_return;
 	}
 
+	/** 
+	 * @notice Calculate the resolution/dispute earnings for a account_id
+	 * @return Returns total earnings from particiapting in resolution/dispute
+	 */
 	fn get_dispute_earnings(
 		&self, 
 		account_id: String
@@ -617,25 +653,27 @@ impl Market {
 		let mut total_incorrectly_staked = 0;
 
 		let winning_outcome_id = self.to_numerical_outcome(self.winning_outcome);
-			
+		
+		/* Loop through all resolution_windows */
 		for window in self.resolution_windows.iter() {
-			// check if round - round 0 - which is the resolution round
+			/* check if round = 0 - which is the resolution round */
 			if window.round == 0 {
+				
 				let claimable_if_invalid = match self.winning_outcome {
 					None => self.total_feeable_if_invalid,
 					_ => 0
 				};
-				// Calculate how much the total fee payout will be 
 
+				/* Calculate how much the total fee payout will be */
 				let total_resolution_fee = self.resolution_fee_percentage * (self.filled_volume + claimable_if_invalid) / 10000;
 		
-				// Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome
+				/* Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome */
 				if self.winning_outcome == window.outcome {
-					// check if the user participated in this outcome
+					/* check if the user participated in this outcome */
 					let resolution_participation = !window.participants_to_outcome_to_stake.get(&account_id).is_none();
 					
 					if resolution_participation {
-						// Check how much of the bond the user participated
+						/* Check how much of the bond the user participated */
 						let correct_outcome_participation = window.participants_to_outcome_to_stake
 						.get(&account_id)
 						.unwrap()
@@ -643,23 +681,23 @@ impl Market {
 						.unwrap_or(0);
 
 						if correct_outcome_participation > 0 {
-							// calculate his relative share of the total_resolution_fee relative to his participation
+							/* calculate his relative share of the total_resolution_fee relative to his participation */
 							resolution_reward += total_resolution_fee * correct_outcome_participation * 100 / window.required_bond_size / 100 + correct_outcome_participation;
 						}
 						
 					} 
 				} else {
-					// If the initial resolution bond wasn't staked on the correct outcome, devide the resolution fee amongst disputors
+					/* If the initial resolution bond wasn't staked on the correct outcome, devide the resolution fee amongst disputors */
 					total_incorrectly_staked += total_resolution_fee + window.required_bond_size;
 				}
 			} else {
-				// If it isn't the first round calculate according to escalation game
+				/* If it isn't the first round calculate according to escalation game */
 				let window_outcome_id = self.to_numerical_outcome(window.outcome);
 
 				if window_outcome_id == winning_outcome_id {
 					let round_participation = window.participants_to_outcome_to_stake
 					.get(&account_id)
-					.unwrap_or(UnorderedMap::new(format!("market:{}:staked_per_outcome:{}:{}", self.id, window.round + 1, account_id).as_bytes().to_vec()))
+					.unwrap_or(UnorderedMap::new(format!("market:{}:staked_per_outcome:{}:{}", self.id, window.round, account_id).as_bytes().to_vec()))
 					.get(&winning_outcome_id)
 					.unwrap_or(0);
 
@@ -672,10 +710,10 @@ impl Market {
 			}
 		}
 
-		if total_correctly_staked == 0 {return resolution_reward}
-	
-		let percentage_earnigns = user_correctly_staked * 100 / total_correctly_staked;
-		let profit = percentage_earnigns * total_incorrectly_staked / 100;
+		if total_correctly_staked == 0 || total_incorrectly_staked == 0 || user_correctly_staked == 0 {return resolution_reward}
+
+		let decimals = 1e16 as u128;
+		let profit = ((total_incorrectly_staked * decimals) / (total_correctly_staked / user_correctly_staked)) / decimals; 
 
 		return profit + user_correctly_staked + resolution_reward;
 	}
@@ -700,6 +738,6 @@ impl Market {
 
 impl Default for Market {
 	fn default() -> Self {
-		panic!("No default state available init with ::new");
+		panic!("No default state available init with ::new"); 
 	}
 }
