@@ -336,7 +336,7 @@ impl Market {
 		assert!(shares_balance >= shares_to_sell, "user doesn't own this many shares");
 		
 		/* Get the amount of shares that we can sell and the average sell price */
-		let (sell_depth, avg_sell_price) = orderbook.get_depth_up_to_price(shares_to_sell, min_price);
+		let (sell_depth, avg_sell_price) = orderbook.get_depth_down_to_price(shares_to_sell, min_price);
 		
 		/* Fill the best orders upto the amount of shares that are sellable */
 		let filled = orderbook.fill_best_orders(sell_depth);
