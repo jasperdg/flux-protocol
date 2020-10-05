@@ -22,7 +22,7 @@ use near_sdk::{
 
 /*** Import market implementation ***/
 use crate::market;
-/*** Import logger implementation ***/
+/*** Import logger methods ***/
 use crate::logger;
 
 /*** Create market type ***/
@@ -257,8 +257,8 @@ impl FluxProtocol {
 
 		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(account_id.to_string());
 		
-		let feeable_if_invalid = match market.winning_outcome {
-			None =>  market.feeable_if_invalid.get(&account_id).unwrap_or(0),
+		let claimable_if_invalid = match market.winning_outcome {
+			None =>  market.claimable_if_invalid.get(&account_id).unwrap_or(0),
 			_ => 0
 		};
 
@@ -267,7 +267,7 @@ impl FluxProtocol {
 			_ => 0
 		};
 
-		let total_feeable_amount = winnings + feeable_if_invalid;
+		let total_feeable_amount = winnings + claimable_if_invalid;
 		let total_fee_percentage =  market.resolution_fee_percentage + self.get_creator_fee_percentage(&market);
 		let total_fee = (total_feeable_amount * total_fee_percentage + 10000 - 1) / 10000;
 		
@@ -843,8 +843,8 @@ impl FluxProtocol {
 			market.validity_bond_claimed = true;			
 		}
 
-		let feeable_if_invalid = match market.winning_outcome {
-			None =>  market.feeable_if_invalid.get(&account_id).unwrap_or(0),
+		let claimable_if_invalid = match market.winning_outcome {
+			None =>  market.claimable_if_invalid.get(&account_id).unwrap_or(0),
 			_ => 0
 		};
 		let claimable_if_valid = match market.winning_outcome {
@@ -852,7 +852,7 @@ impl FluxProtocol {
 			_ => 0
 		};
 
-		let total_feeable_amount = winnings + feeable_if_invalid;
+		let total_feeable_amount = winnings + claimable_if_invalid;
 		let resolution_fee = (total_feeable_amount * market.resolution_fee_percentage + 10000 - 1) / 10000;
 		let market_creator_fee = (total_feeable_amount * self.get_creator_fee_percentage(&market) + 10000 - 1) / 10000;
 		let total_fee = resolution_fee + market_creator_fee;
