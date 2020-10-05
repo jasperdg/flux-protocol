@@ -296,12 +296,24 @@ impl FluxProtocol {
 	/*** Setters ***/
 
 	/**
+	 * @notice Change ownership - will be used to change "judge" to either a multisig or a last resort measure
+	 * @dev Panics if the sender isn't the current owner
+	 */
+	pub fn set_owner(
+		&mut self, 
+		new_owner: String
+	) {
+		assert_eq!(env::predecessor_account_id(), self.owner, "Owner can only be changed by previous owner");
+		self.owner = new_owner;
+	}
+
+	/**
 	 * @notice Allows the protocol owner to change the fungible token used in the protocol
 	 * @dev Panics if predecssor_account_id isn't the protocol owner account id
 	 * @param fun_token_account_id the account id of the fungible token that should be used from there on
 	 * TODO: Make sure that each market has an attribute referencing what token was used as the base token for that market. After set_fun_token was called each market created should use the new fun_token_account_id as the base currency
 	 */
-	pub fn set_fun_token (
+	pub fn set_fun_token(
 		&mut self, 
 		fun_token_account_id: String
 	) {

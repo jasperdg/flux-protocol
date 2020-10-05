@@ -462,18 +462,22 @@ impl Market {
 		winning_outcome: Option<u64>,
 		stake: u128
 	) -> u128 {
-
+		/* Convert option<u64> to a number where None (invalid) = self.outcomes */
 		let outcome_id = self.to_numerical_outcome(winning_outcome);
-		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Invalid dispute window unwrap");
+		
+		/* Get the most recent resolution window */
+		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Something went wrong during market creation");
+		let mut to_return = 0;
 		let full_bond_size = resolution_window.required_bond_size;
 		let mut bond_filled = false;
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
-		let mut to_return = 0;
 
+		/* Check if this stake adds up to an amount >= the bond_size if so dispute will be bonded */
 		if staked_on_outcome + stake >= full_bond_size  {
 			bond_filled = true;
 			to_return = staked_on_outcome + stake - full_bond_size;
-			self.disputed = true; // Only as long as Judge exists
+			self.disputed = true;
+			/* Set winning_outcome to current outcome - will be finalized by Judge */
 			self.winning_outcome = winning_outcome;
 		}
 
