@@ -53,7 +53,7 @@ pub struct Market {
 	pub creation_time: u64,
 	pub end_time: u64,
 	pub orderbooks: UnorderedMap<u64, Orderbook>,
-	pub winning_outcome: Option<u64>, // invalid has outcome id equal self.outcomes
+	pub winning_outcome: Option<u64>,
 	pub resoluted: bool,
 	pub resolute_bond: u128,
 	pub filled_volume: u128,
