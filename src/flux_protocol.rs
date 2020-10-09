@@ -213,12 +213,9 @@ impl FluxProtocol {
 	}
 
 	/**
-	 * @notice Withdraw your stake on a specific outcome in a resolution or dispute
-	 * @dev Panics if sender don't have any stake in the market / round / outcome
-	 *  Panics if the market doesn't exist
-	 *	Only works as long as the total stake < the stake required for that round, afterwards the stake will be bonded and not withdrawable until market finalization
+	 * @notice Returns the market's creator_fee. If the market is resoluted as invalid the creator's fee is slashed so this method returns 0. 
 	 * @param market A reference to the market where from to return the creator fee
-	 * @return Returns the fee percentage to be paid out to the market creator, if the market turns out to be invalid this will be 0
+	 * @return Returns a u128 integer representing the creator_fee_percentage denominated in 1e4, meaning 1 == 0.01%
 	 */
 	 fn get_creator_fee_percentage(&self, market: &Market) -> u128 {
 		return match market.winning_outcome {
@@ -427,7 +424,6 @@ impl FluxProtocol {
 		self.markets.insert(&self.nonce, &new_market);
 		self.nonce = self.nonce + 1;
 
-		
 		return PromiseOrValue::Value(market_id);
 	}
 
