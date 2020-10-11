@@ -10,19 +10,25 @@
 
 ## Pre-requisites
 To develop Rust contracts you would need to:
+* (On Linux make sure you have `llvm`, `make`, `clang` and `librocksdb-dev` installed)
+
 * Install [Rustup](https://rustup.rs/):
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
-* Add wasm target to your toolchain:
+* Install the nightly toolchain.rs nightly version.
+```bash
+rustup install nightly-2020-05-15
+```
+* Add wasm target to your toolchains:
 ```bash
 rustup target add wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown --toolchain nightly-2020-05-15
 ```
 * Clone the Flux Protocol repo 
 ```bash
 git clone https://github.com/jasperdg/flux-protocol.git
 ```
-* (On Linux make sure you have `build-essentials`, `clang` and `librocksdb-dev` installed)
 
 ## Running tests
 Navigate to the protocol directory

@@ -29,7 +29,7 @@ type TxResult = Result<ExecutionOutcome, ExecutionOutcome>;
 
 lazy_static::lazy_static! {
     static ref MARKETS_BYTES: &'static [u8] = include_bytes!("../../../res/flux_protocol.wasm").as_ref();
-    static ref FUNGIBLE_TOKEN_BYTES: &'static [u8] = include_bytes!("../../../res/fungible_token.wasm").as_ref();
+    static ref FUNGIBLE_TOKEN_BYTES: &'static [u8] = include_bytes!("../../../fungible_token.wasm").as_ref();
 }
 
 pub fn ntoy(near_amount: Balance) -> Balance {
