@@ -18,10 +18,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```bash
 rustup target add wasm32-unknown-unknown
 ```
-* Clone the Flux monorepo 
-```
+* Clone the Flux Protocol repo 
+```bash
 git clone https://github.com/jasperdg/flux-protocol.git
 ```
+* (On Linux make sure you have `build-essentials`, `clang` and `librocksdb-dev` installed)
 
 ## Running tests
 Navigate to the protocol directory

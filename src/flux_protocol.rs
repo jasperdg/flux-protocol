@@ -359,6 +359,7 @@ impl FluxProtocol {
 
 		if outcomes == 2 {assert!(outcome_tags.len() == 0)}
 
+		/* Promise chain, call external token contract to transfer funds from user to flux protocol contract. Then self call proceed market creation. */
 		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), self.creation_bond.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
 			flux_protocol::proceed_market_creation(
 				env::predecessor_account_id(), 
@@ -803,7 +804,6 @@ impl FluxProtocol {
 		self.markets.insert(&market_id, &market);
 		if to_return > 0 {
 			logger::log_dispute_withdraw(market_id, env::predecessor_account_id(), dispute_round, outcome);
-
 			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		} else {
 			panic!("user has no participation in this dispute");
