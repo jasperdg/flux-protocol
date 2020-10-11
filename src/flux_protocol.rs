@@ -813,7 +813,8 @@ impl FluxProtocol {
 	/**
 	 * @notice Claims a users earnings in a finalized market
 	 * @dev Panics if user already claimed earnigns
-	 *  Panics if the market is finalized
+	 *  Panics if the market is not finalized
+	 *  Panics if the user has 0 tokens to claim
 	 * @param market_id The id of the market that earnings are going to be claimed for
 	 * @param account_id The account_id of the user to claim earnings for
 	 */
@@ -825,15 +826,21 @@ impl FluxProtocol {
 		let market_id: u64 = market_id.into();
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		let market_creator = market.creator.to_string();
+
+		/* Check if account_id has claimed earnings in this market, if so return 0 */
 		let claimed_earnings = market.claimed_earnings.get(&account_id);
 		assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
 		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
 		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
 		assert_eq!(market.finalized, true, "market isn't finalized yet");
 
+		/* Make sure it is noted that user claimed earnings to avoid double claims */
 		market.claimed_earnings.insert(&account_id, &true);
+		
+		/* Get how much would be claimable for account_id, governance earnings relates to wht we call "market governance" or the dispute resolution process */
 		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(account_id.to_string());
 
+		/* If account_id is the market creator, and if the market was resoluted as being valid. If this is the case account_id is eligable to receive the validity bond back */ 
 		let mut validity_bond = 0;
 		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
 			validity_bond = self.creation_bond;
@@ -849,23 +856,31 @@ impl FluxProtocol {
 			_ => 0
 		};
 
+		/* Calculate the sum of winnings + claimable_if_invalid to determain what amount of funds can be feed */
 		let total_feeable_amount = winnings + claimable_if_invalid;
+
+		/* Calculate total fee percentage */
 		let resolution_fee = (total_feeable_amount * market.resolution_fee_percentage + 10000 - 1) / 10000;
 		let market_creator_fee = (total_feeable_amount * self.get_creator_fee_percentage(&market) + 10000 - 1) / 10000;
 		let total_fee = resolution_fee + market_creator_fee;
 
+		/* Calculate the total amount claimable */
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
 		
 		if to_claim == 0 {panic!("can't claim 0 tokens")}
 
 		logger::log_earnings_claimed(market_id, env::predecessor_account_id(), to_claim);
 		
+		/* Reinsert market instance to update claim state */
 		self.markets.insert(&market_id, &market);
+
 		if market_creator_fee > 0 {
+			/* If the market_creator_fee > 0; first transfer funds to the user, and after that transfer the fee to the market creator */
 			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
 				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS)
 			);
 		} else {
+			/* If the market_creator_fee == 0; Just transfer the user his earnings */
 			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		}
 		
