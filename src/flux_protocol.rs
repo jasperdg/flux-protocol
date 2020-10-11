@@ -236,16 +236,20 @@ impl FluxProtocol {
 	) -> U128 {
 		let market_id: u64 = market_id.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
+
+		/* Check if account_id has claimed earnings in this market, if so return 0 */
 		let claimed_earnings = market.claimed_earnings.get(&account_id);
 		if claimed_earnings.is_some() {
 			return U128(0);
 		}
 
 		let mut validity_bond = 0;
+		/* If account_id is the market creator, and if the market was resoluted as being valid. If this is the case account_id is eligable to receive the validity bond back */ 
 		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
 			validity_bond = self.creation_bond;
 		}
 
+		/* Get how much would be claimable for account_id, governance earnings relates to wht we call "market governance" or the dispute resolution process */
 		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(account_id.to_string());
 		
 		let claimable_if_invalid = match market.winning_outcome {
@@ -258,13 +262,19 @@ impl FluxProtocol {
 			_ => 0
 		};
 
+		/* Calculate the sum of winnings + claimable_if_invalid to determain what amount of funds can be feed */
 		let total_feeable_amount = winnings + claimable_if_invalid;
+
+		/* Calculate total fee percentage */
 		let total_fee_percentage =  market.resolution_fee_percentage + self.get_creator_fee_percentage(&market);
+
+		/* Calculate total fee */
 		let total_fee = (total_feeable_amount * total_fee_percentage + 10000 - 1) / 10000;
 		
+		/* Calculate the total amount claimable */
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
 
-		return (to_claim).into();
+		return U128(to_claim);
 	}
 
 	/**

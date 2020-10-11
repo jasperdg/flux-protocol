@@ -27,11 +27,16 @@ git clone https://github.com/jasperdg/flux-protocol.git
 Navigate to the protocol directory
 
 ```
-cd protocol
+cd flux-protocol
+```
+
+Create a res directory:
+```
+mkdir res
 ```
 
 Run the test
 
 ```
-cargo test --package flux-protocol
+bash scripts/test.sh
 ```
