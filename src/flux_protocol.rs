@@ -203,10 +203,12 @@ impl FluxProtocol {
 		let market_id: u64 = market_id.into();
 		let outcome: u64 = outcome.into();
 
+		/* Get user_data for an outcome in a market */
 		let market = self.markets.get(&market_id).expect("non existent market");
 		let orderbook = market.orderbooks.get(&outcome).expect("non existent outcome");
 		let user_data = orderbook.user_data.get(&account_id);
 
+		/* If there is no data for this account_id return 0 */
 		if user_data.is_none() {return U128(0)}
 
 		return U128(user_data.unwrap().balance);
@@ -359,7 +361,7 @@ impl FluxProtocol {
 
 		if outcomes == 2 {assert!(outcome_tags.len() == 0)}
 
-		/* Promise chain, call external token contract to transfer funds from user to flux protocol contract. Then self call proceed market creation. */
+		/* Promise chain, call external token contract to transfer funds from user to flux protocol contract. Then self call proceed_market_creation. */
 		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), self.creation_bond.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
 			flux_protocol::proceed_market_creation(
 				env::predecessor_account_id(), 
@@ -394,7 +396,7 @@ impl FluxProtocol {
 	 * @param creator_fee_percentage Percentage with two decimals so denominated in 1e4 between 0 - 500 where 1 = 0.01% and 100 = 1%
 	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range betwen 1 - 100
 	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
-	 * @return Returns the newly_created market_id
+	 * @return Returns the newly created market_id
 	 */
 	pub fn proceed_market_creation(
 		&mut self, 
@@ -410,9 +412,12 @@ impl FluxProtocol {
 		affiliate_fee_percentage: u128, 
 		api_source: String
 	) -> PromiseOrValue<u64> {
+		/* Make sure that the caller of this method is the contract itself */
 		self.assert_self();
+		/* Make sure the previous promise in the promise chain was succesful */
 		self.assert_prev_promise_successful();
 
+		/* Create new market instance */
 		let new_market = Market::new(
 			self.nonce, 
 			sender, 
@@ -427,12 +432,19 @@ impl FluxProtocol {
 			affiliate_fee_percentage,
 			api_source
 		);
-		logger::log_market_creation(&new_market);
+		
+		/* Get the newly created market's resolution_window */
 		let resolution_window = new_market.resolution_windows.get(0).expect("something went wrong during market creation");
+
+		logger::log_market_creation(&new_market);
 		logger::log_new_resolution_window(new_market.id, resolution_window.round, resolution_window.required_bond_size, resolution_window.end_time);
 
 		let market_id = new_market.id;
+		
+		/* Re-insert the markets into the markets map with the market_id as key */
 		self.markets.insert(&self.nonce, &new_market);
+
+		/* Increment nonce, for next market's id */
 		self.nonce = self.nonce + 1;
 
 		return PromiseOrValue::Value(market_id);
@@ -469,6 +481,7 @@ impl FluxProtocol {
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
 		assert!(env::block_timestamp() / 1000000 < market.end_time, "market has already ended");
 
+		/* Attempt to transfer deposit the tokens from the user to this contract, then continue order placement */
 		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 10)
 		.then(
 			flux_protocol::proceed_order_placement( 
@@ -489,7 +502,7 @@ impl FluxProtocol {
 	/** 
 	 * @notice Kicks off order placement
 	 * @dev Panics if the signer isn't the contract itself
-	 *  panics if the previous promise wasn't successful
+	 *  panics if the previous promise wasn't successful due to lack of balance or allowance
 	 * @param sender The signer of the original place_order transaction
 	 * @param market_id The id of the market
 	 * @param outcome The specific outcome this order wants to buy
@@ -509,10 +522,12 @@ impl FluxProtocol {
 		price: u128,
 		affiliate_account_id: Option<String>,
 	) -> PromiseOrValue<bool> {
+		/* Make sure that the caller of this method is the contract itself */
 		self.assert_self();
+		/* Make sure the previous promise in the promise chain was succesful */
 		self.assert_prev_promise_successful();
 		
-		let mut market = self.markets.get(&market_id).unwrap();
+		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		market.place_order_internal(sender, outcome, shares, spend, price, affiliate_account_id);
 		self.markets.insert(&market.id, &market);
 		return PromiseOrValue::Value(true);
@@ -578,14 +593,20 @@ impl FluxProtocol {
 		
 		let mut market = self.markets.get(&market_id).unwrap();
 		assert_eq!(market.resoluted, false);
+		/* Get corresponding outcome orderbook */
 		let mut orderbook = market.orderbooks.get(&outcome).unwrap();
 		let price_data = orderbook.price_data.get(&price).expect("order at this price doesn't exist");
-		let order = price_data.orders.get(&order_id).expect("order with this id doesn't exist");
+		let order = price_data.orders.get(&order_id).expect("order with this id doesn't exist or is already canceled");
 		assert!(env::predecessor_account_id() == order.creator, "not this user's order");
 
+		/* Cancel the order, this returns how much value was left in the open order */
 		let to_return = orderbook.cancel_order(order);
+		
+		/* Reinsert the orderbook and market to update state */
 		market.orderbooks.insert(&outcome, &orderbook);
 		self.markets.insert(&market_id, &market);
+
+		/* Transfer value left in open order to order owner */
 		fun_token::transfer(env::predecessor_account_id(), to_return.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
     }
 
@@ -620,6 +641,7 @@ impl FluxProtocol {
 		assert_eq!(market.finalized, false, "market is already finalized");
 		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
 
+		/* Transfer from sender to contract then proceed resolution */
 		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2)
 		.then(
 			flux_protocol::proceed_market_resolution(
