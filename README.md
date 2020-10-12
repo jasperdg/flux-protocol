@@ -22,7 +22,7 @@ rustup install nightly-2020-05-15
 ```
 * Add wasm target to your toolchains:
 ```bash
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown --toolchain stable
 rustup target add wasm32-unknown-unknown --toolchain nightly-2020-05-15
 ```
 * Clone the Flux Protocol repo 
