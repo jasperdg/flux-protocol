@@ -672,11 +672,18 @@ impl FluxProtocol {
 		stake: u128,
 		sender: String
 	) -> PromiseOrValue<bool> {
+		/* Make sure that the caller of this method is the contract itself */
 		self.assert_self();
+		/* Make sure the previous promise in the promise chain was succesful */
 		self.assert_prev_promise_successful();
+
 		let mut market = self.markets.get(&market_id).unwrap();
+		
+		/* Resolute the market, which returns how much of the stake the sender overpaid */
 		let change: u128 = market.resolute_internal(sender.to_string(), winning_outcome, stake).into();
 		self.markets.insert(&market_id, &market);
+
+		/* If the sender overstaked return amount to the sender  */
 		if change > 0 {
 			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2);
 			return PromiseOrValue::Promise(prom);
@@ -721,6 +728,7 @@ impl FluxProtocol {
 		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
 		assert!(env::block_timestamp() / 1000000 < resolution_window.end_time, "dispute window is closed, market can be finalized");
 
+		/* Transfer from sender to contract then proceed dispute */
 		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2).then(
 			flux_protocol::proceed_market_dispute(
 				env::predecessor_account_id(),
@@ -751,13 +759,19 @@ impl FluxProtocol {
 		stake: u128,
 		sender: String
 	) -> PromiseOrValue<bool> {
+		/* Make sure that the caller of this method is the contract itself */
 		self.assert_self();
+		/* Make sure the previous promise in the promise chain was succesful */
 		self.assert_prev_promise_successful();
 
         let mut market = self.markets.get(&market_id).expect("market doesn't exist");
+		
+		/* Resolute the market, which returns how much of the stake the sender overpaid */
 		let change = market.dispute_internal(sender.to_string(), winning_outcome, stake);
 
 		self.markets.insert(&market.id, &market);
+		
+		/* If the sender overstaked return amount to the sender  */
 		if change > 0 {
 			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2));
 		} else {
@@ -780,6 +794,8 @@ impl FluxProtocol {
 		winning_outcome: Option<U64>
 	) {
 		let market_id: u64 = market_id.into();
+
+		/* Convert winning_outcome parameter into a Option<u64> */
 		let winning_outcome: Option<u64> = match winning_outcome {
 			Some(outcome) => Some(outcome.into()),
 			None => None
@@ -788,13 +804,17 @@ impl FluxProtocol {
 		let mut market = self.markets.get(&market_id).unwrap();
 		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, true, "market has to be resoluted before it can be finalized");
+
 		if market.disputed {
+			/* If the market is disputed this means that the market is to be finalized by the owner */
 			assert_eq!(env::predecessor_account_id(), self.owner, "only the judge can resolute disputed markets");
 		} else {
+			/* If the market is not disputed it can be resoluted as soon as the dispute window is closed */
 			let dispute_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("no dispute window found, something went wrong");
 			assert!(env::block_timestamp() / 1000000 >= dispute_window.end_time || dispute_window.round == 2, "dispute window still open")
 		}
 
+		/* Finalize the market and re-insert it to update state */
 		market.finalize_internal(winning_outcome);
 		self.markets.insert(&market_id, &market);
 	}
@@ -816,6 +836,8 @@ impl FluxProtocol {
 	) -> Promise {
 		let market_id: u64 = market_id.into();
 		let dispute_round: u64 = dispute_round.into();
+
+		/* Convert winning_outcome parameter into a Option<u64> */
 		let outcome: Option<u64> = match outcome {
 			Some(outcome) => Some(outcome.into()),
 			None => None
@@ -823,8 +845,11 @@ impl FluxProtocol {
 
 		let mut market = self.markets.get(&market_id).expect("invalid market");
 		let to_return = market.withdraw_resolution_stake_internal(dispute_round, outcome);
-		self.markets.insert(&market_id, &market);
+
+		/* If the user has stake to withdraw transfer the stake back to the user */
 		if to_return > 0 {
+			/* Re-insert the market into the markets struct to update state */
+			self.markets.insert(&market_id, &market);
 			logger::log_dispute_withdraw(market_id, env::predecessor_account_id(), dispute_round, outcome);
 			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS);
 		} else {
