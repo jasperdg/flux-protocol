@@ -25,11 +25,11 @@ use crate::logger;
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct ResolutionWindow {
 	pub round: u64, // 0 = resolution round | >0 = dispute round
-	pub participants_to_outcome_to_stake: UnorderedMap<AccountId, UnorderedMap<u64, u128>>, // Maps participant account_id => outcome => stake_in_outcome
+	pub participants_to_outcome_to_stake: UnorderedMap<AccountId, UnorderedMap<u8, u128>>, // Maps participant account_id => outcome => stake_in_outcome
 	pub required_bond_size: u128, // Total bond_size required to move on to next round of escalation
-	pub staked_per_outcome: UnorderedMap<u64, u128>, // Staked per outcome
+	pub staked_per_outcome: UnorderedMap<u8, u128>, // Staked per outcome
 	pub end_time: u64, // Unix timestamp in ms representing when Dispute round is over
-	pub outcome: Option<u64>, // Bonded outcome of this window
+	pub outcome: Option<u8>, // Bonded outcome of this window
 }
 
 /** 
@@ -41,13 +41,13 @@ pub struct Market {
 	pub description: String,
 	pub extra_info: String,
 	pub creator: AccountId,
-	pub outcomes: u64,
+	pub outcomes: u8,
 	pub outcome_tags: Vector<String>,
 	pub categories: Vector<String>,
 	pub creation_time: u64,
 	pub end_time: u64,
-	pub orderbooks: UnorderedMap<u64, Orderbook>,
-	pub winning_outcome: Option<u64>, // If market is finalized and winning_outcome == None, market is deemed invalid
+	pub orderbooks: UnorderedMap<u8, Orderbook>,
+	pub winning_outcome: Option<u8>, // If market is finalized and winning_outcome == None, market is deemed invalid
 	pub resoluted: bool,
 	pub resolute_bond: u128,
 	pub filled_volume: u128,
@@ -76,7 +76,7 @@ impl Market {
 		account_id: AccountId, 
 		description: String, 
 		extra_info: String, 
-		outcomes: u64, 
+		outcomes: u8, 
 		outcome_tags: Vec<String>, 
 		categories: Vec<String>, 
 		end_time: u64, 
@@ -168,7 +168,7 @@ impl Market {
 	pub fn place_order_internal(
 		&mut self, 
 		account_id: AccountId, 
-		outcome: u64, 
+		outcome: u8, 
 		shares: u128, 
 		spend: u128, 
 		price: u128,
@@ -206,7 +206,7 @@ impl Market {
 	 * */ 
 	fn fill_matches(
 		&mut self, 
-		outcome: u64,
+		outcome: u8,
 		to_spend: u128, 
 		price: u128
 	) -> (u128, u128) {
@@ -261,7 +261,7 @@ impl Market {
 	 */
 	pub fn get_market_price(
 		&self, 
-		outcome: u64
+		outcome: u8
 	) -> u128 {
 		let mut market_price = 100;
  		for (orderbook_id, orderbook) in self.orderbooks.iter() {
@@ -280,7 +280,7 @@ impl Market {
 	 */
 	pub fn get_market_price_and_min_liquidity(
 		&self, 
-		outcome: u64
+		outcome: u8
 	) -> (u128, Option<u128>) {
 		let mut market_price = 100;
 		let mut min_liquidity = None;
@@ -315,7 +315,7 @@ impl Market {
 	 */
 	pub fn dynamic_market_sell_internal(
 		&mut self,
-		outcome: u64,
+		outcome: u8,
 		shares_to_sell: u128,
 		min_price: u128,
 	) -> u128 {
@@ -382,7 +382,7 @@ impl Market {
 	pub fn resolute_internal(
 		&mut self,
 		sender: AccountId,
-		winning_outcome: Option<u64>, 
+		winning_outcome: Option<u8>, 
 		stake: u128
 	) -> u128 {
 		/* Convert option<u64> to a number where None (invalid) = self.outcomes */
@@ -452,7 +452,7 @@ impl Market {
 	pub fn dispute_internal(
 		&mut self, 
 		sender: AccountId,
-		winning_outcome: Option<u64>,
+		winning_outcome: Option<u8>,
 		stake: u128
 	) -> u128 {
 		/* Convert option<u64> to a number where None (invalid) = self.outcomes */
@@ -525,7 +525,7 @@ impl Market {
 	 */
 	pub fn finalize_internal(
 		&mut self, 
-		winning_outcome: Option<u64>
+		winning_outcome: Option<u8>
 	) {
 		// If the market was disputed the sender of this tx will be the judge and the judge will provide the final verdict being the definite outcome
 	    if self.disputed {
@@ -606,7 +606,7 @@ impl Market {
 	pub fn withdraw_resolution_stake_internal(
 		&mut self,
 		round: u64,
-		outcome: Option<u64>
+		outcome: Option<u8>
 	) -> u128{
 		/* Convert option<u64> to a number where None (invalid) = self.outcomes */
 		let outcome_id = self.to_numerical_outcome(outcome);
@@ -718,8 +718,8 @@ impl Market {
 	 */
 	pub fn to_numerical_outcome(
 		&self, 
-		outcome: Option<u64>, 
-	) -> u64 {
+		outcome: Option<u8>, 
+	) -> u8 {
 		return outcome.unwrap_or(self.outcomes);
 	}
 }

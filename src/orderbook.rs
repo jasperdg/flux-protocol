@@ -44,7 +44,7 @@ pub struct AccountData {
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Orderbook {
 	pub market_id: u64,
-	pub outcome_id: u64,
+	pub outcome_id: u8,
 	pub price_data: TreeMap<u128, PriceData>, // Ordered map where price => PriceData
 	pub user_data: UnorderedMap<AccountId, AccountData>, // Unordered map where account_id => AccountData
 	pub nonce: u128, // Incrementing nonce to decide on order_ids
@@ -56,7 +56,7 @@ impl Orderbook {
 	 */
 	pub fn new(
 		market_id: u64,
-		outcome: u64
+		outcome: u8
 	) -> Self {
 		Self {
 			market_id,
@@ -109,7 +109,7 @@ impl Orderbook {
 		&mut self,
 		market_id: u64,
 		account_id: AccountId, 
-		outcome: u64, 
+		outcome: u8, 
 		spend: u128, 
 		shares: u128, 
 		price: u128, 

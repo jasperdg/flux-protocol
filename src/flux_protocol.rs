@@ -20,14 +20,13 @@ use near_sdk::{
  * QSP TODO:
  * [high] add specication for `is_promise_success` incl. commit hash when introduced
  * [high] Potential overflow due to artithmitics - add checked_<op> for each non-secured arithmitic operation
- * [info] Percentages should be u32, instead of u128 in Market struct
- * [info] Outcome storage takes more space than needed - change to u16
  * [Medium] Incorrect total fee calculation - better documentation, double check this is the correct calculation
  * [low] Standardize percentage precision
  * [Low] Constant maximum gas amount may not be enough
  * [Low] Initialization does not check if owner and external contract ids are valid
  * 
  * ** Best practices **
+ * TODO: add standardized to_winning_outcome in utils
  * After standardizing percentages add central util paramater to perform artithmatic operations using said percentages
  * Add calc_percentage_round_up util function
  * */
@@ -89,10 +88,10 @@ pub trait FunToken {
  */
 #[ext_contract]
 pub trait FluxProtocol {
-    fn proceed_order_placement(&mut self, sender: AccountId, market_id: u64, outcome: u64, shares: u128, spend: u128, price: u128, affiliate_account_id: Option<AccountId>);
-    fn proceed_market_resolution(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u64>, stake: u128);
-	fn proceed_market_dispute(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u64>, stake: u128);
-	fn proceed_market_creation(&mut self, sender: AccountId, description: String, extra_info: String, outcomes: u64, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u32, resolution_fee_percentage: u32, affiliate_fee_percentage: u32, api_source: String);
+    fn proceed_order_placement(&mut self, sender: AccountId, market_id: u64, outcome: u8, shares: u128, spend: u128, price: u128, affiliate_account_id: Option<AccountId>);
+    fn proceed_market_resolution(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u8>, stake: u128);
+	fn proceed_market_dispute(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u8>, stake: u128);
+	fn proceed_market_creation(&mut self, sender: AccountId, description: String, extra_info: String, outcomes: u8, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u32, resolution_fee_percentage: u32, affiliate_fee_percentage: u32, api_source: String);
 }
 
 
@@ -179,10 +178,9 @@ impl FluxProtocol {
 	pub fn get_market_price(
 		&self,
 		market_id: U64,
-		outcome: U64
+		outcome: u8
 	) -> U128 {
 		let market_id: u64 = market_id.into();
-		let outcome: u64 = outcome.into();
 		return U128(self.markets
 			.get(&market_id)
 			.expect("market doesn't exist")
@@ -197,10 +195,9 @@ impl FluxProtocol {
 		&self,
 		account_id: AccountId,
 		market_id: U64,
-		outcome: U64,
+		outcome: u8,
 	) -> U128 {
 		let market_id: u64 = market_id.into();
-		let outcome: u64 = outcome.into();
 
 		/* Get user_data for an outcome in a market */
 		let market = self.markets.get(&market_id).expect("non existent market");
@@ -311,7 +308,7 @@ impl FluxProtocol {
 		&mut self, 
 		description: String, 
 		extra_info: String, 
-		outcomes: U64,
+		outcomes: u8,
 		outcome_tags: Vec<String>,
 		categories: Vec<String>,
 		end_time: U64,
@@ -319,7 +316,6 @@ impl FluxProtocol {
 		affiliate_fee_percentage: u32,
 		api_source: String
 	) -> Promise {
-		let outcomes: u64 = outcomes.into();
 		let end_time: u64 = end_time.into();
 
 		for outcome_tag in &outcome_tags {
@@ -333,7 +329,7 @@ impl FluxProtocol {
 		assert!(description.chars().count() < 201, "description can't than 200 characters");
 		assert!(extra_info.chars().count() < 401, "extra_info can't than 400 characters");
 		assert!(outcomes > 1, "need to have more than 2 outcomes");
-		assert!(outcomes == 2 || outcomes == outcome_tags.len() as u64, "invalid outcomes");
+		assert!(outcomes == 2 || outcomes == outcome_tags.len() as u8, "invalid outcomes");
 		assert!(outcomes < 8, "can't have more than 8 outcomes"); // up for change
 		assert!(end_time > env::block_timestamp() / 1000000, "end_time has to be greater than NOW");
 		assert!(categories.len() < 8, "can't have more than 8 categories");
@@ -384,7 +380,7 @@ impl FluxProtocol {
 		sender: AccountId, 
 		description: String, 
 		extra_info: String, 
-		outcomes: u64, 
+		outcomes: u8, 
 		outcome_tags: Vec<String>, 
 		categories: Vec<String>, 
 		end_time: u64, 
@@ -444,13 +440,12 @@ impl FluxProtocol {
 	pub fn place_order(
 		&mut self, 
 		market_id: U64, 
-		outcome: U64,
+		outcome: u8,
 		shares: U128,
 		price: U128,
 		affiliate_account_id: Option<AccountId>
 	) -> Promise {
 		let market_id: u64 = market_id.into();
-		let outcome: u64 = outcome.into();
 		let price: u128 = price.into();
 		let shares: u128 = shares.into();
 		let rounded_spend = shares * price;
@@ -497,7 +492,7 @@ impl FluxProtocol {
 		&mut self,
 		sender: AccountId,
 		market_id: u64, 
-		outcome: u64,
+		outcome: u8,
 		shares: u128,
 		spend: u128,
 		price: u128,
@@ -529,12 +524,11 @@ impl FluxProtocol {
 	pub fn dynamic_market_sell(
 		&mut self,
 		market_id: U64,
-		outcome: U64,
+		outcome: u8,
 		shares: U128,
 		min_price: U128
 	) {
 		let market_id: u64 = market_id.into();
-		let outcome: u64 = outcome.into();
 		let shares: u128 = shares.into();
 		let min_price: u128 = min_price.into();
 		
@@ -563,12 +557,11 @@ impl FluxProtocol {
 	pub fn cancel_order(
 		&mut self, 
 		market_id: U64, 
-		outcome: U64,
+		outcome: u8,
 		price: U128,
 		order_id: U128
 	) {
 		let market_id: u64 = market_id.into();
-		let outcome: u64 = outcome.into();
 		let order_id: u128 = order_id.into();
 		let price: u128 = price.into();
 		
@@ -606,11 +599,11 @@ impl FluxProtocol {
 	pub fn resolute_market(
 		&mut self, 
 		market_id: U64, 
-		winning_outcome: Option<U64>,
+		winning_outcome: Option<u8>,
 		stake: U128
 	) -> Promise {
 		let market_id: u64 = market_id.into();
-		let winning_outcome: Option<u64> = match winning_outcome {
+		let winning_outcome: Option<u8> = match winning_outcome {
 			Some(outcome) => Some(outcome.into()),
 			None => None
 		};
@@ -649,7 +642,7 @@ impl FluxProtocol {
 	pub fn proceed_market_resolution(
 		&mut self,
 		market_id: u64,
-		winning_outcome: Option<u64>,
+		winning_outcome: Option<u8>,
 		stake: u128,
 		sender: AccountId
 	) -> PromiseOrValue<bool> {
@@ -689,11 +682,11 @@ impl FluxProtocol {
 	pub fn dispute_market(
 		&mut self, 
 		market_id: U64, 
-		winning_outcome: Option<U64>,
+		winning_outcome: Option<u8>,
 		stake: U128
 	) -> Promise {
 		let market_id: u64 = market_id.into();
-		let winning_outcome: Option<u64> = match winning_outcome {
+		let winning_outcome: Option<u8> = match winning_outcome {
 			Some(outcome) => Some(outcome.into()),
 			None => None
 		};
@@ -736,7 +729,7 @@ impl FluxProtocol {
 	pub fn proceed_market_dispute(		
 		&mut self,
 		market_id: u64,
-		winning_outcome: Option<u64>,
+		winning_outcome: Option<u8>,
 		stake: u128,
 		sender: AccountId
 	) -> PromiseOrValue<bool> {
@@ -772,12 +765,12 @@ impl FluxProtocol {
 	pub fn finalize_market(
 		&mut self, 
 		market_id: U64, 
-		winning_outcome: Option<U64>
+		winning_outcome: Option<u8>
 	) {
 		let market_id: u64 = market_id.into();
 
 		/* Convert winning_outcome parameter into a Option<u64> */
-		let winning_outcome: Option<u64> = match winning_outcome {
+		let winning_outcome: Option<u8> = match winning_outcome {
 			Some(outcome) => Some(outcome.into()),
 			None => None
 		};
@@ -813,13 +806,13 @@ impl FluxProtocol {
 		&mut self, 
 		market_id: U64,
 		dispute_round: U64,
-		outcome: Option<U64>
+		outcome: Option<u8>
 	) -> Promise {
 		let market_id: u64 = market_id.into();
 		let dispute_round: u64 = dispute_round.into();
 
 		/* Convert winning_outcome parameter into a Option<u64> */
-		let outcome: Option<u64> = match outcome {
+		let outcome: Option<u8> = match outcome {
 			Some(outcome) => Some(outcome.into()),
 			None => None
 		};
@@ -964,7 +957,7 @@ mod tests {
 	}
 
 	fn outcome_tags(
-		number_of_outcomes: u64
+		number_of_outcomes: u8
 	) -> Vec<String> {
 		let mut outcomes: Vec<String> = vec![];
 		for _ in 0..number_of_outcomes {

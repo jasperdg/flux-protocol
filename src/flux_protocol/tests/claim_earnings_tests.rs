@@ -5,7 +5,7 @@ fn test_payout() {
 	let (mut runtime, root, accounts) = init_runtime_env();
 	runtime.current_block().block_timestamp = current_block_timestamp();
 	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), U64(4), outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string()).unwrap();
+	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string()).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	let alice = &accounts[0];
@@ -15,11 +15,11 @@ fn test_payout() {
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(10))).expect("allowance couldn't be set");
 	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(10))).expect("allowance couldn't be set");
 	
-	carol.place_order(&mut runtime, U64(0), U64(0), U128(1428), U128(70), None).expect("tx failed unexpectedly");
-	carol.place_order(&mut runtime, U64(0), U64(3), U128(10000), U128(10), None).expect("tx failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), 0, U128(1428), U128(70), None).expect("tx failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), 3, U128(10000), U128(10), None).expect("tx failed unexpectedly");
 	
-	alice.place_order(&mut runtime, U64(0), U64(1), U128(10000), U128(10), None).expect("tx failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(2), U128(10000), U128(10), None).expect("tx failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(10000), U128(10), None).expect("tx failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 2, U128(10000), U128(10), None).expect("tx failed unexpectedly");
 
 	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();

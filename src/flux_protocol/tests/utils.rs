@@ -155,7 +155,7 @@ impl ExternalUser {
         runtime: &mut RuntimeStandalone,
         description: String,
         extra_info: String,
-        outcomes: U64,
+        outcomes: u8,
         outcome_tags: Vec<String>,
         categories: Vec<String>,
         end_time: U64,
@@ -191,7 +191,7 @@ impl ExternalUser {
         &self,
         runtime: &mut RuntimeStandalone,
         market_id: U64,
-        outcome: U64,
+        outcome: u8,
         shares: U128,
 		price: U128,
 		affiliate_account_id: Option<String>
@@ -222,7 +222,7 @@ impl ExternalUser {
         &self,
         runtime: &mut RuntimeStandalone,
         market_id: U64,
-        outcome: U64,
+        outcome: u8,
         price: U128,
         order_id: U128
     ) -> TxResult {
@@ -251,7 +251,7 @@ impl ExternalUser {
         &self,
         runtime: &mut RuntimeStandalone,
         market_id: U64,
-        outcome: U64,
+        outcome: u8,
         shares: U128,
         min_price: U128
     ) -> TxResult {
@@ -280,7 +280,7 @@ impl ExternalUser {
         &self,
         runtime: &mut RuntimeStandalone,
         market_id: U64,
-        winning_outcome: Option<U64>,
+        winning_outcome: Option<u8>,
         stake: U128
     ) -> TxResult {
         let args = json!({
@@ -307,7 +307,7 @@ impl ExternalUser {
         &self,
         runtime: &mut RuntimeStandalone,
         market_id: U64,
-        winning_outcome: Option<U64>,
+        winning_outcome: Option<u8>,
         stake: U128
     ) -> TxResult {
         let args = json!({
@@ -334,7 +334,7 @@ impl ExternalUser {
         &self,
         runtime: &mut RuntimeStandalone,
         market_id: U64,
-        winning_outcome: Option<U64>,
+        winning_outcome: Option<u8>,
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
@@ -408,7 +408,7 @@ impl ExternalUser {
         runtime: &mut RuntimeStandalone,
         market_id: U64,
         dispute_round: U64,
-        outcome: Option<U64>
+        outcome: Option<u8>
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
@@ -454,7 +454,7 @@ impl ExternalUser {
         &self, 
         runtime: &RuntimeStandalone, 
         market_id: U64, 
-        outcome: U64
+        outcome: u8
     ) -> U128 {
         let market_price_json = runtime
         .view_method_call(
@@ -479,7 +479,7 @@ impl ExternalUser {
         runtime: &RuntimeStandalone, 
         account_id: String, 
         market_id: U64, 
-        outcome: U64
+        outcome: u8
     ) -> U128 {
         let market_price_json = runtime
         .view_method_call(
@@ -507,7 +507,7 @@ impl ExternalUser {
         &self, 
         runtime: &RuntimeStandalone, 
         market_id: U64, 
-        outcome: U64,
+        outcome: u8,
         shares: U128
     ) -> (U128, U128) {
         let market_price_json = runtime
@@ -537,7 +537,7 @@ impl ExternalUser {
         &self, 
         runtime: &RuntimeStandalone,  
         market_id: U64, 
-        outcome: U64
+        outcome: u8
     ) -> U128 {
         let market_price_json = runtime
         .view_method_call(
@@ -564,7 +564,7 @@ impl ExternalUser {
         &self, 
         runtime: &RuntimeStandalone,  
         market_id: U64, 
-        outcome: U64
+        outcome: u8
     ) -> U128 {
         let market_price_json = runtime
         .view_method_call(
@@ -616,7 +616,7 @@ impl ExternalUser {
         &self, 
         runtime: &RuntimeStandalone,  
         market_id: U64, 
-        outcome: U64,
+        outcome: u8,
         price: U128
     ) -> U128 {
         let market_price_json = runtime
@@ -645,7 +645,7 @@ impl ExternalUser {
         &self, 
         runtime: &RuntimeStandalone,  
         market_id: U64, 
-        outcome: U64,
+        outcome: u8,
         spend: U128,
         price: U128
     ) -> U128 {

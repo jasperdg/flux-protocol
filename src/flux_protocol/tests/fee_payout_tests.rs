@@ -11,24 +11,24 @@ fn fee_distribution_test() {
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	let tx_res = carol.create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 400, 50, "test".to_string()).unwrap();
+	let tx_res = carol.create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 400, 50, "test".to_string()).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	alice.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 0, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
 	
-	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), U64(1), U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");
 
 	let filled_volume: u128 = alice.get_market_volume(&mut runtime, U64(0)).into();
 	assert_eq!(filled_volume, to_dai(10));
 	
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
-	root.resolute_market(&mut runtime, U64(0), Some(U64(1)), U128(to_dai(5))).expect("market resolution failed unexpectedly");
+	root.resolute_market(&mut runtime, U64(0), Some(1), U128(to_dai(5))).expect("market resolution failed unexpectedly");
 	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
-	root.finalize_market(&mut runtime, U64(0), Some(U64(1))).expect("market resolution failed unexpectedly");
+	root.finalize_market(&mut runtime, U64(0), Some(1)).expect("market resolution failed unexpectedly");
 
 	let resolution_fee_percentage = 1;
 
