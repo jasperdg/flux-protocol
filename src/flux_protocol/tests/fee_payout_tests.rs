@@ -11,7 +11,7 @@ fn fee_distribution_test() {
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	let tx_res = carol.create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), U128(400), U128(50), "test".to_string()).unwrap();
+	let tx_res = carol.create_market(&mut runtime, empty_string(), empty_string(), U64(2), outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 400, 50, "test".to_string()).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	alice.place_order(&mut runtime, U64(0), U64(0), U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id())).expect("order placement failed unexpectedly");

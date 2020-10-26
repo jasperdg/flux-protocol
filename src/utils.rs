@@ -16,7 +16,7 @@ pub fn assert_self() {
  *  panics if the previous promise in the promise chain was unsuccessful
  */
 pub fn assert_prev_promise_successful() {
-    assert_eq!(is_promise_success(), true, "previous promise failed");
+    assert!(is_promise_success(), "previous promise failed");
 }
 
 /**

@@ -159,8 +159,8 @@ impl ExternalUser {
         outcome_tags: Vec<String>,
         categories: Vec<String>,
         end_time: U64,
-        creator_fee_percentage: U128,
-        affiliate_fee_percentage: U128,
+        creator_fee_percentage: u32,
+        affiliate_fee_percentage: u32,
         api_source: String,
     ) -> TxResult {
         let args = json!({

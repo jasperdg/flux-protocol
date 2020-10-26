@@ -64,9 +64,9 @@ pub fn log_market_creation(market: &Market) {
 				"outcome_tags": market.outcome_tags.to_vec(),
 				"categories": market.categories.to_vec(),
 				"end_time": U64(market.end_time),
-				"creator_fee_percentage": U128(market.creator_fee_percentage),
-				"resolution_fee_percentage": U128(market.resolution_fee_percentage),
-				"affiliate_fee_percentage": U128(market.affiliate_fee_percentage),
+				"creator_fee_percentage": market.creator_fee_percentage,
+				"resolution_fee_percentage": market.resolution_fee_percentage,
+				"affiliate_fee_percentage": market.affiliate_fee_percentage,
 				"api_source": market.api_source,
 			}
 		})

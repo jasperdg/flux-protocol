@@ -53,9 +53,9 @@ pub struct Market {
 	pub filled_volume: u128,
 	pub disputed: bool,
 	pub finalized: bool,
-	pub creator_fee_percentage: u128,
-	pub resolution_fee_percentage: u128,
-	pub affiliate_fee_percentage: u128,
+	pub creator_fee_percentage: u32,
+	pub resolution_fee_percentage: u32,
+	pub affiliate_fee_percentage: u32,
 	pub claimable_if_valid: UnorderedMap<AccountId, u128>,
 	pub claimable_if_invalid: UnorderedMap<AccountId, u128>,
 	pub total_feeable_if_invalid: u128,
@@ -80,9 +80,9 @@ impl Market {
 		outcome_tags: Vec<String>, 
 		categories: Vec<String>, 
 		end_time: u64, 
-		creator_fee_percentage: u128, 
-		resolution_fee_percentage: u128, 
-		affiliate_fee_percentage: u128,
+		creator_fee_percentage: u32, 
+		resolution_fee_percentage: u32, 
+		affiliate_fee_percentage: u32,
 		api_source: String,
 	) -> Self {
 
@@ -658,7 +658,7 @@ impl Market {
 				};
 
 				/* Calculate how much the total fee payout will be */
-				let total_resolution_fee = self.resolution_fee_percentage * (self.filled_volume + claimable_if_invalid) / 10000;
+				let total_resolution_fee = self.resolution_fee_percentage as u128 * (self.filled_volume + claimable_if_invalid) / 10000;
 		
 				/* Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome */
 				if self.winning_outcome == window.outcome {
