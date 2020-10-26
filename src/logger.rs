@@ -1,5 +1,6 @@
 use near_sdk::{
 	env,
+	AccountId,
 	json_types::{
 		U64,
 		U128
@@ -74,7 +75,7 @@ pub fn log_market_creation(market: &Market) {
 	);
 }
 
-pub fn log_dispute_withdraw(market_id: u64, sender: String, dispute_round: u64, outcome: Option<u64>) {
+pub fn log_dispute_withdraw(market_id: u64, sender: AccountId, dispute_round: u64, outcome: Option<u64>) {
 	env::log(
 		json!({
 			"type": "withdrawn_unbounded_dispute_stake".to_string(),
@@ -90,7 +91,7 @@ pub fn log_dispute_withdraw(market_id: u64, sender: String, dispute_round: u64, 
 	);
 }
 
-pub fn log_earnings_claimed(market_id: u64, sender: String, amount: u128) {
+pub fn log_earnings_claimed(market_id: u64, sender: AccountId, amount: u128) {
 	env::log(
 		json!({
 			"type": "earnings_claimed".to_string(),
@@ -105,7 +106,7 @@ pub fn log_earnings_claimed(market_id: u64, sender: String, amount: u128) {
 	);		
 }
 
-pub fn log_affiliate_earnings_claimed(sender: String, amount: u128) {
+pub fn log_affiliate_earnings_claimed(sender: AccountId, amount: u128) {
 	env::log(
 		json!({
 			"type": "affiliate_earnings_claimed".to_string(),
@@ -119,7 +120,7 @@ pub fn log_affiliate_earnings_claimed(sender: String, amount: u128) {
 	);		
 }
 
-pub fn log_market_resoluted(market_id: u64, sender: String, round: u64, staked: u128, outcome: u64) {
+pub fn log_market_resoluted(market_id: u64, sender: AccountId, round: u64, staked: u128, outcome: u64) {
 	env::log(
 		json!({
 			"type": "market_resoluted".to_string(),
@@ -152,7 +153,7 @@ pub fn log_new_resolution_window(market_id: u64, round: u64, bond_size: u128, en
 	);
 }
 
-pub fn log_staked_on_resolution(market_id: u64, sender: String, round: u64, staked: u128, outcome: u64) {
+pub fn log_staked_on_resolution(market_id: u64, sender: AccountId, round: u64, staked: u128, outcome: u64) {
 	env::log(
 		json!({
 			"type": "staked_on_resolution".to_string(),
@@ -169,7 +170,7 @@ pub fn log_staked_on_resolution(market_id: u64, sender: String, round: u64, stak
 	)
 }
 
-pub fn log_resolution_disputed(market_id: u64, sender: String, round: u64, staked: u128, outcome: u64) {
+pub fn log_resolution_disputed(market_id: u64, sender: AccountId, round: u64, staked: u128, outcome: u64) {
 	env::log(
 		json!({
 			"type": "resolution_disputed".to_string(),
@@ -186,7 +187,7 @@ pub fn log_resolution_disputed(market_id: u64, sender: String, round: u64, stake
 	);
 }
 
-pub fn log_staked_on_dispute(market_id: u64, sender: String, round: u64, staked: u128, outcome: u64) {
+pub fn log_staked_on_dispute(market_id: u64, sender: AccountId, round: u64, staked: u128, outcome: u64) {
 	env::log(
 		json!({
 			"type": "staked_on_dispute".to_string(),
@@ -217,7 +218,7 @@ pub fn log_finalized_market(market_id: u64, winning_outcome: u64) {
 	);
 }
 
-pub fn log_update_user_balance(account_id: String, market_id: u64, outcome: u64, balance: u128, to_spend: u128, spent: u128) {
+pub fn log_update_user_balance(account_id: AccountId, market_id: u64, outcome: u64, balance: u128, to_spend: u128, spent: u128) {
 	env::log(
 		json!({
 			"type": "updated_user_balance".to_string(),

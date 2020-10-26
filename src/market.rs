@@ -1,9 +1,7 @@
 use std::cmp;
 use near_sdk::{
 	env,
-	json_types::{
-		U64
-	},
+	AccountId,
 	collections::{
 		UnorderedMap,
 		Vector
@@ -27,7 +25,7 @@ use crate::logger;
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct ResolutionWindow {
 	pub round: u64, // 0 = resolution round | >0 = dispute round
-	pub participants_to_outcome_to_stake: UnorderedMap<String, UnorderedMap<u64, u128>>, // Maps participant account_id => outcome => stake_in_outcome
+	pub participants_to_outcome_to_stake: UnorderedMap<AccountId, UnorderedMap<u64, u128>>, // Maps participant account_id => outcome => stake_in_outcome
 	pub required_bond_size: u128, // Total bond_size required to move on to next round of escalation
 	pub staked_per_outcome: UnorderedMap<u64, u128>, // Staked per outcome
 	pub end_time: u64, // Unix timestamp in ms representing when Dispute round is over
@@ -42,7 +40,7 @@ pub struct Market {
 	pub id: u64,
 	pub description: String,
 	pub extra_info: String,
-	pub creator: String,
+	pub creator: AccountId,
 	pub outcomes: u64,
 	pub outcome_tags: Vector<String>,
 	pub categories: Vector<String>,
@@ -58,13 +56,13 @@ pub struct Market {
 	pub creator_fee_percentage: u128,
 	pub resolution_fee_percentage: u128,
 	pub affiliate_fee_percentage: u128,
-	pub claimable_if_valid: UnorderedMap<String, u128>,
-	pub claimable_if_invalid: UnorderedMap<String, u128>,
+	pub claimable_if_valid: UnorderedMap<AccountId, u128>,
+	pub claimable_if_invalid: UnorderedMap<AccountId, u128>,
 	pub total_feeable_if_invalid: u128,
 	pub api_source: String,
 	pub resolution_windows: Vector<ResolutionWindow>,
 	pub validity_bond_claimed: bool,
-	pub claimed_earnings: UnorderedMap<String, bool>
+	pub claimed_earnings: UnorderedMap<AccountId, bool>
 }
 
 impl Market {
@@ -75,7 +73,7 @@ impl Market {
 	 */
 	pub fn new(
 		id: u64, 
-		account_id: String, 
+		account_id: AccountId, 
 		description: String, 
 		extra_info: String, 
 		outcomes: u64, 
@@ -169,12 +167,12 @@ impl Market {
 
 	pub fn place_order_internal(
 		&mut self, 
-		account_id: String, 
+		account_id: AccountId, 
 		outcome: u64, 
 		shares: u128, 
 		spend: u128, 
 		price: u128,
-		affiliate_account_id: Option<String>
+		affiliate_account_id: Option<AccountId>
 	) {
 		/* Try to fill matching orders, returns how much was eventually spent and how many shares were bought */
 		let (spent, shares_filled) = self.fill_matches(outcome, spend, price);
@@ -343,13 +341,12 @@ impl Market {
 		let avg_buy_price = user_data.spent / user_data.balance;
 
 		/* Represents how much should be added to the claimable_if_valid map,  */
-		let mut claimable_if_valid = 0;
 		let mut sell_price = avg_sell_price;
 
 		if avg_sell_price > avg_buy_price {
 			let cur_claimable_if_valid = self.claimable_if_valid.get(&env::predecessor_account_id()).unwrap_or(0);
 			sell_price = avg_buy_price;
-			claimable_if_valid =  (avg_sell_price - avg_buy_price) * sell_depth;
+			let claimable_if_valid =  (avg_sell_price - avg_buy_price) * sell_depth;
 			
 			/* The delta between avg sell price and avg buy price should still be fee'd if the market is invalid  */
 			self.total_feeable_if_invalid += claimable_if_valid;
@@ -384,7 +381,7 @@ impl Market {
 	 */
 	pub fn resolute_internal(
 		&mut self,
-		sender: String,
+		sender: AccountId,
 		winning_outcome: Option<u64>, 
 		stake: u128
 	) -> u128 {
@@ -454,7 +451,7 @@ impl Market {
 	 */
 	pub fn dispute_internal(
 		&mut self, 
-		sender: String,
+		sender: AccountId,
 		winning_outcome: Option<u64>,
 		stake: u128
 	) -> u128 {
@@ -548,7 +545,7 @@ impl Market {
 	 */
 	pub fn get_claimable_internal(
 		&self, 
-		account_id: String
+		account_id: AccountId
 	) -> (u128, u128, u128) {
 		let invalid = self.winning_outcome.is_none();
 		let mut winnings = 0;
@@ -641,7 +638,7 @@ impl Market {
 	 */
 	fn get_dispute_earnings(
 		&self, 
-		account_id: String
+		account_id: AccountId
 	) -> u128 {
 		let mut user_correctly_staked = 0;
 		let mut resolution_reward = 0;
@@ -714,19 +711,6 @@ impl Market {
 		let profit = ((total_incorrectly_staked * decimals) / (total_correctly_staked / user_correctly_staked)) / decimals; 
 
 		return profit + user_correctly_staked + resolution_reward;
-	}
-
-	/**
-	 * @notice Convert u64 -> U64 within the option
-	 */
-	fn to_loggable_winning_outcome(
-		&self, 
-		winning_outcome: Option<u64>
-	) -> Option<U64> {
-		return match winning_outcome {
-			Some(outcome) => Some(U64(outcome)),
-			None => None
-		};
 	}
 
 	/**

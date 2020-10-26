@@ -1,11 +1,11 @@
 use near_sdk::{
 	near_bindgen, 
-	env, 
+	env,
+	AccountId,
 	ext_contract, 
  	Promise, 
 	PromiseOrValue, 
 	json_types::{U128, U64},
-	PromiseResult,
 	collections::{
 		UnorderedMap,
 	},
@@ -28,12 +28,10 @@ use near_sdk::{
  * [Low] Initialization does not check if owner and external contract ids are valid
  * 
  * ** Best practices **
- * Remove unused imports
- * Remove unused variables
- * Remove unused parameters
  * Change string types where it revers to an account_id to AccountId type
  * Change flux_protocol.rs L158 remove middle parameter
- * Put utility functions in utility file
+ * After standardizing percentages add central util paramater to perform artithmatic operations using said percentages
+ * Add calc_percentage_round_up util function
  * */
 
 /** 
@@ -56,13 +54,13 @@ type Market = market::Market;
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 struct FluxProtocol {
-	owner: String,
+	owner: AccountId,
 	markets: UnorderedMap<u64, Market>,
 	nonce: u64,
 	max_fee_percentage: u128,
 	creation_bond: u128, 
-	affiliate_earnings: UnorderedMap<String, u128>,
-	fun_token_account_id: String,
+	affiliate_earnings: UnorderedMap<AccountId, u128>,
+	fun_token_account_id: AccountId,
 }
 
 /**
@@ -80,8 +78,8 @@ const SINGLE_CALL_GAS: u64 = 100000000000000;
  */
 #[ext_contract]
 pub trait FunToken {
-    fn transfer_from(&mut self, owner_id: String, new_owner_id: String, amount: U128);
-    fn transfer(&mut self, new_owner_id: String, amount: U128);
+    fn transfer_from(&mut self, owner_id: AccountId, new_owner_id: AccountId, amount: U128);
+    fn transfer(&mut self, new_owner_id: AccountId, amount: U128);
     fn get_total_supply(&self) -> u128;
     fn get_balance(&self, owner_id: AccountId) -> u128;
 }
@@ -93,10 +91,10 @@ pub trait FunToken {
  */
 #[ext_contract]
 pub trait FluxProtocol {
-    fn proceed_order_placement(&mut self, sender: String, market_id: u64, outcome: u64, shares: u128, spend: u128, price: u128, affiliate_account_id: Option<String>);
-    fn proceed_market_resolution(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
-	fn proceed_market_dispute(&mut self, sender: String, market_id: u64, winning_outcome: Option<u64>, stake: u128);
-	fn proceed_market_creation(&mut self, sender: String, description: String, extra_info: String, outcomes: u64, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u128, resolution_fee_percentage: u128, affiliate_fee_percentage: u128, api_source: String);
+    fn proceed_order_placement(&mut self, sender: AccountId, market_id: u64, outcome: u64, shares: u128, spend: u128, price: u128, affiliate_account_id: Option<AccountId>);
+    fn proceed_market_resolution(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u64>, stake: u128);
+	fn proceed_market_dispute(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u64>, stake: u128);
+	fn proceed_market_creation(&mut self, sender: AccountId, description: String, extra_info: String, outcomes: u64, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u128, resolution_fee_percentage: u128, affiliate_fee_percentage: u128, api_source: String);
 }
 
 
@@ -124,8 +122,8 @@ impl FluxProtocol {
 	 */
 	#[init]
 	pub fn init(
-		owner: String, 
-		fun_token_account_id: String
+		owner: AccountId, 
+		fun_token_account_id: AccountId
 	) -> Self {
 		assert!(!env::state_exists(), "Already initialized");
 		Self {
@@ -146,7 +144,7 @@ impl FluxProtocol {
 	 */
 	pub fn owner(
 		&self
-	) -> String {
+	) -> AccountId {
 		return self.owner.to_string();
 	}
 
@@ -156,7 +154,7 @@ impl FluxProtocol {
 	 */
 	fn fun_token_account_id(
 		&self
-	) -> String {
+	) -> AccountId {
 		return self.fun_token_account_id.to_string();
 	}
 
@@ -199,7 +197,7 @@ impl FluxProtocol {
 	 */
 	pub fn get_outcome_share_balance(
 		&self,
-		account_id: String,
+		account_id: AccountId,
 		market_id: U64,
 		outcome: U64,
 	) -> U128 {
@@ -237,7 +235,7 @@ impl FluxProtocol {
 	pub fn get_claimable(
 		&self, 
 		market_id: U64, 
-		account_id: String
+		account_id: AccountId
 	) -> U128 {
 		let market_id: u64 = market_id.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
@@ -290,7 +288,7 @@ impl FluxProtocol {
 	 */
 	pub fn set_owner(
 		&mut self, 
-		new_owner: String
+		new_owner: AccountId
 	) {
 		assert_eq!(env::predecessor_account_id(), self.owner, "Owner can only be changed by previous owner");
 		self.owner = new_owner;
@@ -387,7 +385,7 @@ impl FluxProtocol {
 	 */
 	pub fn proceed_market_creation(
 		&mut self, 
-		sender: String, 
+		sender: AccountId, 
 		description: String, 
 		extra_info: String, 
 		outcomes: u64, 
@@ -453,7 +451,7 @@ impl FluxProtocol {
 		outcome: U64,
 		shares: U128,
 		price: U128,
-		affiliate_account_id: Option<String>
+		affiliate_account_id: Option<AccountId>
 	) -> Promise {
 		let market_id: u64 = market_id.into();
 		let outcome: u64 = outcome.into();
@@ -501,13 +499,13 @@ impl FluxProtocol {
 	 */
 	pub fn proceed_order_placement(
 		&mut self,
-		sender: String,
+		sender: AccountId,
 		market_id: u64, 
 		outcome: u64,
 		shares: u128,
 		spend: u128,
 		price: u128,
-		affiliate_account_id: Option<String>,
+		affiliate_account_id: Option<AccountId>,
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
 		utils::assert_self();
@@ -657,7 +655,7 @@ impl FluxProtocol {
 		market_id: u64,
 		winning_outcome: Option<u64>,
 		stake: u128,
-		sender: String
+		sender: AccountId
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
 		utils::assert_self();
@@ -744,7 +742,7 @@ impl FluxProtocol {
 		market_id: u64,
 		winning_outcome: Option<u64>,
 		stake: u128,
-		sender: String
+		sender: AccountId
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
 		utils::assert_self();
@@ -855,7 +853,7 @@ impl FluxProtocol {
 	pub fn claim_earnings(
 		&mut self, 
 		market_id: U64, 
-		account_id: String
+		account_id: AccountId
 	) {
 		let market_id: u64 = market_id.into();
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
@@ -937,31 +935,31 @@ mod tests {
 		return amt * 1e18 as u128;
 	}
 
-	fn flux_protocol() -> String {
+	fn flux_protocol() -> AccountId {
 		return "flux_protocol".to_string();
 	}
 
-	fn judge() -> String {
+	fn judge() -> AccountId {
 		return "flux-dev".to_string();
 	}
 
-	fn affiliate() -> String {
+	fn affiliate() -> AccountId {
 		return "affiliate".to_string();
 	}
 
-	fn alice() -> String {
+	fn alice() -> AccountId {
 		return "alice.near".to_string();
 	}
 
-	fn carol() -> String {
+	fn carol() -> AccountId {
 		return "carol.near".to_string();
 	}
 
-	fn bob() -> String {
+	fn bob() -> AccountId {
 		return "bob.near".to_string();
 	}
 
-	fn empty_string() -> String {
+	fn empty_string() -> AccountId {
 		return "".to_string();
 	}
 
@@ -994,7 +992,7 @@ mod tests {
 	}
 
 	fn get_context(
-		predecessor_account_id: String, 
+		predecessor_account_id: AccountId, 
 		block_timestamp: u64
 	) -> VMContext {
 

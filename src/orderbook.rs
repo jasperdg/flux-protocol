@@ -1,4 +1,5 @@
 use near_sdk::{
+	AccountId,
 	collections::{
 		UnorderedMap,
 		TreeMap,
@@ -45,7 +46,7 @@ pub struct Orderbook {
 	pub market_id: u64,
 	pub outcome_id: u64,
 	pub price_data: TreeMap<u128, PriceData>, // Ordered map where price => PriceData
-	pub user_data: UnorderedMap<String, AccountData>, // Unordered map where account_id => AccountData
+	pub user_data: UnorderedMap<AccountId, AccountData>, // Unordered map where account_id => AccountData
 	pub nonce: u128, // Incrementing nonce to decide on order_ids
 }
 
@@ -70,7 +71,7 @@ impl Orderbook {
 	 * @notice Initialize a new AccountData instance
 	 * @return Returns AccountData struct
 	 */
-	fn new_account(&self, account_id: String) -> AccountData {
+	fn new_account(&self) -> AccountData {
 		AccountData {
 			balance: 0,
 			spent: 0,
@@ -107,21 +108,21 @@ impl Orderbook {
 	pub fn new_order(
 		&mut self,
 		market_id: u64,
-		account_id: String, 
+		account_id: AccountId, 
 		outcome: u64, 
 		spend: u128, 
 		shares: u128, 
 		price: u128, 
 		filled: u128, 
 		shares_filled: u128,
-		affiliate_account_id: Option<String>
+		affiliate_account_id: Option<AccountId>
 	){
 		let order_id = self.new_order_id();
 		/* Create new order instance */
 		let new_order = Order::new(order_id, account_id.to_string(), market_id, spend, filled, shares, shares_filled, price, affiliate_account_id.clone());
 
 		/* Get user_data and if it doesn't exist create new instance */
-		let mut user_data = self.user_data.get(&account_id).unwrap_or(self.new_account(account_id.to_string()));
+		let mut user_data = self.user_data.get(&account_id).unwrap_or(self.new_account());
 
 		/* Update user data */
 		user_data.balance += shares_filled;
