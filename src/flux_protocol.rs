@@ -34,8 +34,6 @@ use near_sdk::{
  * Change string types where it revers to an account_id to AccountId type
  * Change flux_protocol.rs L158 remove middle parameter
  * Put utility functions in utility file
- * 
- * 
  * */
 
 /** 
@@ -46,6 +44,8 @@ use near_sdk::{
 use crate::market;
 /*** Import logger methods ***/
 use crate::logger;
+/*** Import utils ***/
+use crate::utils;
 
 /*** Create market type ***/
 type Market = market::Market;
@@ -158,26 +158,6 @@ impl FluxProtocol {
 		&self
 	) -> String {
 		return self.fun_token_account_id.to_string();
-	}
-
-	/**
-	 * @dev Checks if the method called is the contract itself
-	 *  panics if predecessor_account (sender) isn't the FluxProtcol account id
-	 */
-	fn assert_self(
-		&self
-	) {
-		assert_eq!(env::current_account_id(), env::predecessor_account_id(), "this method can only be called by the contract itself"); 
-	}
-
-	/**
-	 * @dev Checks if the previous promise in the promise chain passed successfully
-	 *  panics if the previous promise in the promise chain was unsuccessful
-	 */
-	fn assert_prev_promise_successful(
-		&self
-	) {
-		assert_eq!(self.is_promise_success(), true, "previous promise failed");
 	}
 
 	/**
@@ -302,22 +282,6 @@ impl FluxProtocol {
 		return U128(to_claim);
 	}
 
-	/**
-	 * @dev Panics if the previous promise in the promise chain was unsuccessful
-	 * @return Returns a bool representing the success of the previous promise in a promise chain
-	 */
-	fn is_promise_success(&self) -> bool {
-		assert_eq!(
-			env::promise_results_count(),
-			1,
-			"Contract expected a result on the callback"
-		);
-		match env::promise_result(0) {
-			PromiseResult::Successful(_) => true,
-			_ => false,
-		}
-	}
-
 	/*** Setters ***/
 
 	/**
@@ -382,7 +346,7 @@ impl FluxProtocol {
 		assert!(creator_fee_percentage <= self.max_fee_percentage, "creator_fee_percentage too high");
 		assert!(affiliate_fee_percentage <= 100, "affiliate_fee_percentage can't be higher than 100");
 
-		if outcomes == 2 {assert!(outcome_tags.len() == 0)}
+		if outcomes == 2 {assert!(outcome_tags.len() == 0, "If a binary markets the outcomes are always asumed to be ['NO', 'YES']")}
 
 		/* Promise chain, call external token contract to transfer funds from user to flux protocol contract. Then self call proceed_market_creation. */
 		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), self.creation_bond.into(), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS).then(
@@ -436,9 +400,9 @@ impl FluxProtocol {
 		api_source: String
 	) -> PromiseOrValue<u64> {
 		/* Make sure that the caller of this method is the contract itself */
-		self.assert_self();
+		utils::assert_self();
 		/* Make sure the previous promise in the promise chain was succesful */
-		self.assert_prev_promise_successful();
+		utils::assert_prev_promise_successful();
 
 		/* Create new market instance */
 		let new_market = Market::new(
@@ -499,7 +463,7 @@ impl FluxProtocol {
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		assert!(rounded_spend >= 10000, "order must be valued at > 10000");
-		assert!(price > 0 && price < 100, "price can only be between 0 - 100");
+		assert!(price > 0 && price < 100, "price can only be between 1 - 99");
 		assert!(outcome < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
 		assert!(env::block_timestamp() / 1000000 < market.end_time, "market has already ended");
@@ -546,9 +510,9 @@ impl FluxProtocol {
 		affiliate_account_id: Option<String>,
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
-		self.assert_self();
+		utils::assert_self();
 		/* Make sure the previous promise in the promise chain was succesful */
-		self.assert_prev_promise_successful();
+		utils::assert_prev_promise_successful();
 		
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		market.place_order_internal(sender, outcome, shares, spend, price, affiliate_account_id);
@@ -696,9 +660,9 @@ impl FluxProtocol {
 		sender: String
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
-		self.assert_self();
+		utils::assert_self();
 		/* Make sure the previous promise in the promise chain was succesful */
-		self.assert_prev_promise_successful();
+		utils::assert_prev_promise_successful();
 
 		let mut market = self.markets.get(&market_id).unwrap();
 		
@@ -783,9 +747,9 @@ impl FluxProtocol {
 		sender: String
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
-		self.assert_self();
+		utils::assert_self();
 		/* Make sure the previous promise in the promise chain was succesful */
-		self.assert_prev_promise_successful();
+		utils::assert_prev_promise_successful();
 
         let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		

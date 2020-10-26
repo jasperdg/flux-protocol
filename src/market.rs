@@ -1,14 +1,11 @@
 use std::cmp;
 use near_sdk::{
-	near_bindgen, 
 	env,
 	json_types::{
-		U64,
-		U128
+		U64
 	},
 	collections::{
 		UnorderedMap,
-		TreeMap,
 		Vector
 	},
 	borsh::{
@@ -17,7 +14,6 @@ use near_sdk::{
 		BorshSerialize
 	}
 };
-use serde_json::json;
 
 /*** Import orderbook implementation ***/
 use crate::orderbook::Orderbook;
@@ -217,7 +213,7 @@ impl Market {
 		price: u128
 	) -> (u128, u128) {
 		/* Gets the current market price and depth at that current price */
-		let (mut market_price, mut share_depth) = self.get_market_price_and_min_liquidty(outcome);
+		let (mut market_price, mut share_depth) = self.get_market_price_and_min_liquidity(outcome);
 
 		if market_price > price { return (0, 0) }
 
@@ -252,7 +248,7 @@ impl Market {
 			spendable -= shares_to_fill_at_market_price * market_price;
 			shares_filled += shares_to_fill_at_market_price;
 			spent += shares_to_fill_at_market_price * market_price;
-			let (updated_market_price, updated_share_depth) = self.get_market_price_and_min_liquidty(outcome);
+			let (updated_market_price, updated_share_depth) = self.get_market_price_and_min_liquidity(outcome);
 			market_price = updated_market_price;
 			share_depth = updated_share_depth;
 		}
@@ -284,7 +280,7 @@ impl Market {
 	 *  depth = min liquidity available at the oposing outcomes' best price
 	 * @return the market price and returns depth at this market price
 	 */
-	pub fn get_market_price_and_min_liquidty(
+	pub fn get_market_price_and_min_liquidity(
 		&self, 
 		outcome: u64
 	) -> (u128, Option<u128>) {

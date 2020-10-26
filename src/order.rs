@@ -1,7 +1,6 @@
 use std::string::String;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use near_sdk::{near_bindgen, env};
 
 #[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize, Debug, Clone)]
 pub struct Order {

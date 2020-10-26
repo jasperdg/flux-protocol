@@ -6,6 +6,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[macro_use]
 #[allow(dead_code)]
 mod logger;
+mod utils;
 mod order;
 mod orderbook;
 mod market;
