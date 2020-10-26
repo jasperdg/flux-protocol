@@ -16,6 +16,28 @@ use near_sdk::{
 	}
 };
 
+/**
+ * QSP TODO:
+ * [high] add specication for `is_promise_success` incl. commit hash when introduced
+ * [high] Potential overflow due to artithmitics - add checked_<op> for each non-secured arithmitic operation
+ * [info] Percentages should be u32, instead of u128 in Market struct
+ * [info] Outcome storage takes more space than needed - change to u16
+ * [Medium] Incorrect total fee calculation - better documentation, double check this is the correct calculation
+ * [low] Standardize percentage precision
+ * [Low] Constant maximum gas amount may not be enough
+ * [Low] Initialization does not check if owner and external contract ids are valid
+ * 
+ * ** Best practices **
+ * Remove unused imports
+ * Remove unused variables
+ * Remove unused parameters
+ * Change string types where it revers to an account_id to AccountId type
+ * Change flux_protocol.rs L158 remove middle parameter
+ * Put utility functions in utility file
+ * 
+ * 
+ * */
+
 /** 
  * @title Flux Protocol
  */
@@ -38,7 +60,7 @@ struct FluxProtocol {
 	markets: UnorderedMap<u64, Market>,
 	nonce: u64,
 	max_fee_percentage: u128,
-	creation_bond: u128,
+	creation_bond: u128, 
 	affiliate_earnings: UnorderedMap<String, u128>,
 	fun_token_account_id: String,
 }
@@ -111,7 +133,7 @@ impl FluxProtocol {
 			markets: UnorderedMap::new(b"markets".to_vec()),
 			nonce: 0,
 			max_fee_percentage: 500,
-			creation_bond: 25e18 as u128 / 100,
+			creation_bond: 25e16 as u128,
 			affiliate_earnings: UnorderedMap::new(b"affiliate_earnings".to_vec()), // This Map is not used for for now, we're adding affiliate fees back in on the next V of the protocol
 			fun_token_account_id
 		}
@@ -168,9 +190,10 @@ impl FluxProtocol {
 	) -> U128 {
 		let market_id: u64 = market_id.into();
 		return self.markets
-		.get(&market_id)
-		.expect("market doesn't exist")
-		.filled_volume.into();
+			.get(&market_id)
+			.expect("market doesn't exist")
+			.filled_volume
+			.into();
 	}
 
 	/**
@@ -191,7 +214,7 @@ impl FluxProtocol {
 	}
 
 	/**
-	 * @notice returns an account their balance in a certain market for a certain outcome
+	 * @notice returns an account's balance in a certain market for a certain outcome
 	 * @dev only needed for unit tests
 	 */
 	pub fn get_outcome_share_balance(
@@ -216,7 +239,7 @@ impl FluxProtocol {
 
 	/**
 	 * @notice Returns the market's creator_fee. If the market is resoluted as invalid the creator's fee is slashed so this method returns 0. 
-	 * @param market A reference to the market where from to return the creator fee
+	 * @param market A reference to the market where the fee_percentage should be returned from
 	 * @return Returns a u128 integer representing the creator_fee_percentage denominated in 1e4, meaning 1 == 0.01%
 	 */
 	 fn get_creator_fee_percentage(&self, market: &Market) -> u128 {
@@ -264,7 +287,7 @@ impl FluxProtocol {
 			_ => 0
 		};
 
-		/* Calculate the sum of winnings + claimable_if_invalid to determain what amount of funds can be feed */
+		/* Calculate the sum of winnings + claimable_if_invalid to determined what amount of funds can be feed */
 		let total_feeable_amount = winnings + claimable_if_invalid;
 
 		/* Calculate total fee percentage */
