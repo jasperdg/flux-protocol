@@ -53,9 +53,9 @@ pub struct Market {
 	pub filled_volume: u128,
 	pub disputed: bool,
 	pub finalized: bool,
-	pub creator_fee_percentage: u32,
-	pub resolution_fee_percentage: u32,
-	pub affiliate_fee_percentage: u32,
+	pub creator_fee_percentage: u32, // Denominated in 1e4 so 2 percentage point percentage
+	pub resolution_fee_percentage: u32, // Denominated in 1e4 so 2 percentage point percentage
+	pub affiliate_fee_percentage: u32, // Denominated in 1e4 so 2 percentage point percentage - this is a percentage of the creator fee not of the total amount
 	pub claimable_if_valid: UnorderedMap<AccountId, u128>,
 	pub claimable_if_invalid: UnorderedMap<AccountId, u128>,
 	pub total_feeable_if_invalid: u128,

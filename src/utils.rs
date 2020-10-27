@@ -1,7 +1,10 @@
 use near_sdk::{
     env,
+    json_types::{U64},
     PromiseResult
 };
+
+const SINGLE_CALL_GAS: u64 = 100000000000000;
 
 /**
  * @dev Checks if the method called is the contract itself
@@ -20,6 +23,14 @@ pub fn assert_prev_promise_successful() {
 }
 
 /**
+ * @dev Checks if the previous promise in the promise chain passed successfully
+ *  panics if the previous promise in the promise chain was unsuccessful
+ */
+pub fn assert_gas_arr_validity(gas_arr: &Option<Vec<U64>>, num_of_promises: usize) {
+    assert!(gas_arr.is_none() || gas_arr.as_ref().unwrap().len() == num_of_promises, "if custom gas vals are provided there needs to be a specified value for each of the external transactions");
+}
+
+/**
  * @dev Panics if the previous promise in the promise chain was unsuccessful
  * @return Returns a bool representing the success of the previous promise in a promise chain
  */
@@ -33,4 +44,12 @@ pub fn is_promise_success() -> bool {
         PromiseResult::Successful(_) => true,
         _ => false,
     }
+}
+
+/**
+ * @notice Parse a gas array to return the gas amount for a certain tx
+ * @return Returns the amount of gas to be attached to the transaction
+ */
+pub fn get_gas_for_tx(gas_arr: &Option<Vec<U64>>, index: usize) -> u64 {
+    return (*gas_arr.as_ref().unwrap_or(&vec![]).get(index).unwrap_or(&U64(SINGLE_CALL_GAS))).into();
 }
