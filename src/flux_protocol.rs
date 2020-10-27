@@ -29,6 +29,9 @@ use near_sdk::{
  * TODO: add standardized to_winning_outcome in utils
  * After standardizing percentages add central util paramater to perform artithmatic operations using said percentages
  * Add calc_percentage_round_up util function
+ * 
+ * ** self identified todos **
+ * change dispute round storage type to u16 
  * */
 
 /** 
@@ -94,7 +97,6 @@ pub trait FluxProtocol {
 	fn proceed_market_creation(&mut self, sender: AccountId, description: String, extra_info: String, outcomes: u8, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u32, resolution_fee_percentage: u32, affiliate_fee_percentage: u32, api_source: String);
 }
 
-
 /**
  * @dev Flux Protocol contract is unusable until it is initialized and should be initialized in the same transaction as it's deployment
  8  checkout the near-cli deploy method: https://github.com/near/near-cli
@@ -123,6 +125,8 @@ impl FluxProtocol {
 		fun_token_account_id: AccountId
 	) -> Self {
 		assert!(!env::state_exists(), "Already initialized");
+		assert!(env::is_valid_account_id(owner.as_bytes()), "Invalid account_id for owner");
+		assert!(env::is_valid_account_id(fun_token_account_id.as_bytes()), "Invalid account_id for FunToken");
 		Self {
 			owner,
 			markets: UnorderedMap::new(b"markets".to_vec()),
