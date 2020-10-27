@@ -4,7 +4,11 @@ use near_sdk::{
     PromiseResult
 };
 
-const SINGLE_CALL_GAS: u64 = 100000000000000;
+/**
+ * @notice A hardcoded amount of gas that's used for external transactions
+ * @dev Currently set to MAX_GAS / 3
+ */
+pub const SINGLE_CALL_GAS: u64 = 100000000000000;
 
 /**
  * @dev Checks if the method called is the contract itself

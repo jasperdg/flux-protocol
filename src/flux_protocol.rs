@@ -61,12 +61,6 @@ struct FluxProtocol {
 	fun_token_account_id: AccountId,
 }
 
-/**
- * @notice A hardcoded amount of gas that's used for external transactions
- * @dev Currently set to MAX_GAS / 3
- */
-const SINGLE_CALL_GAS: u64 = 100000000000000;
-
 /*** External Contract Interfaces ***/
 /** @dev To interact with an external contract there needs to be an interface defined in the form of a trait */
 
@@ -476,7 +470,7 @@ impl FluxProtocol {
 				affiliate_account_id,
 				&env::current_account_id(), 
 				0,
-				utils::get_gas_for_tx(&gas_arr, 0) * 2 - SINGLE_CALL_GAS / 10
+				utils::get_gas_for_tx(&gas_arr, 0) * 2 - utils::SINGLE_CALL_GAS / 10
 			)
 		);
 	}
