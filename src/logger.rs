@@ -25,8 +25,8 @@ pub fn log_order_filled(order: &Order, shares_to_fill: u128, market_id: u64, out
 				"account_id": order.creator,
 				"shares_filling": U128(shares_to_fill),
 				"filled": U128(order.filled),
-				"price": U128(order.price),
-				"fill_price": U128(order.price),
+				"price": order.price,
+				"fill_price": order.price,
 				"shares_filled": U128(order.shares_filled),
 				"block_height": U64(env::block_index())
 			}
@@ -248,7 +248,7 @@ pub fn log_order_filled_at_placement(order: &Order, outcome: u8, fill_price: u12
 				"spend":  U128(order.spend),
 				"shares":  U128(order.shares),
 				"fill_price": U128(fill_price),
-				"price":  U128(order.price),
+				"price": order.price,
 				"filled": U128(order.filled), 
 				"shares_filling": U128(order.shares_filled),
 				"shares_filled": U128(order.shares_filled),
@@ -273,7 +273,7 @@ pub fn log_order_placed(order: &Order, outcome: u8, fill_price: u128) {
 				"spend":  U128(order.spend),
 				"shares":  U128(order.shares),
 				"fill_price": U128(fill_price),
-				"price":  U128(order.price),
+				"price":  order.price,
 				"filled": U128(order.filled), 
 				"shares_filling": U128(order.shares_filled),
 				"shares_filled": U128(order.shares_filled),

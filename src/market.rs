@@ -171,7 +171,7 @@ impl Market {
 		outcome: u8, 
 		shares: u128, 
 		spend: u128, 
-		price: u128,
+		price: u16,
 		affiliate_account_id: Option<AccountId>
 	) {
 		/* Try to fill matching orders, returns how much was eventually spent and how many shares were bought */
@@ -208,7 +208,7 @@ impl Market {
 		&mut self, 
 		outcome: u8,
 		to_spend: u128, 
-		price: u128
+		price: u16
 	) -> (u128, u128) {
 		/* Gets the current market price and depth at that current price */
 		let (mut market_price, mut share_depth) = self.get_market_price_and_min_liquidity(outcome);
@@ -225,7 +225,7 @@ impl Market {
 		/* If spendable <= 100 we can get overflows due to rounding errors */
 		while spendable > 100 && market_price <= price {
 			/* Calc the amount of shares to fill at the current price which is the min between the amount spendable / price and depth */
-			let shares_to_fill_at_market_price = cmp::min(spendable / market_price, share_depth.expect("expected there to be share depth"));
+			let shares_to_fill_at_market_price = cmp::min(spendable / market_price as u128, share_depth.expect("expected there to be share depth"));
 
 			/* Loop through all other orderbooks and fill the shares to fill */
 			for orderbook_id in  0..self.outcomes {
@@ -243,9 +243,9 @@ impl Market {
 			}
 
 			/* Update tracking variables */
-			spendable -= shares_to_fill_at_market_price * market_price;
+			spendable -= shares_to_fill_at_market_price * market_price as u128;
 			shares_filled += shares_to_fill_at_market_price;
-			spent += shares_to_fill_at_market_price * market_price;
+			spent += shares_to_fill_at_market_price * market_price as u128;
 			let (updated_market_price, updated_share_depth) = self.get_market_price_and_min_liquidity(outcome);
 			market_price = updated_market_price;
 			share_depth = updated_share_depth;
@@ -262,7 +262,7 @@ impl Market {
 	pub fn get_market_price(
 		&self, 
 		outcome: u8
-	) -> u128 {
+	) -> u16 {
 		let mut market_price = 100;
  		for (orderbook_id, orderbook) in self.orderbooks.iter() {
 			if orderbook_id == outcome {continue};
@@ -281,7 +281,7 @@ impl Market {
 	pub fn get_market_price_and_min_liquidity(
 		&self, 
 		outcome: u8
-	) -> (u128, Option<u128>) {
+	) -> (u16, Option<u128>) {
 		let mut market_price = 100;
 		let mut min_liquidity = None;
 
@@ -317,7 +317,7 @@ impl Market {
 		&mut self,
 		outcome: u8,
 		shares_to_sell: u128,
-		min_price: u128,
+		min_price: u16,
 	) -> u128 {
 		let mut orderbook = self.orderbooks.get(&outcome).unwrap();
 

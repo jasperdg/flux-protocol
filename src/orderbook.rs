@@ -45,7 +45,7 @@ pub struct AccountData {
 pub struct Orderbook {
 	pub market_id: u64,
 	pub outcome_id: u8,
-	pub price_data: TreeMap<u128, PriceData>, // Ordered map where price => PriceData
+	pub price_data: TreeMap<u16, PriceData>, // Ordered map where price => PriceData
 	pub user_data: UnorderedMap<AccountId, AccountData>, // Unordered map where account_id => AccountData
 	pub nonce: u128, // Incrementing nonce to decide on order_ids
 }
@@ -112,7 +112,7 @@ impl Orderbook {
 		outcome: u8, 
 		spend: u128, 
 		shares: u128, 
-		price: u128, 
+		price: u16, 
 		filled: u128, 
 		shares_filled: u128,
 		affiliate_account_id: Option<AccountId>
@@ -150,11 +150,11 @@ impl Orderbook {
 		}
 		
 		/* Store the order by updating the price data, if there were no orders at this order's price create a new order instance */
-		let mut price_data = self.price_data.get(&price).unwrap_or(self.new_price(price));
+		let mut price_data = self.price_data.get(&price).unwrap_or(self.new_price(price as u128));
 		/* Insert order into open orders at price */
 		price_data.orders.insert(&order_id, &new_order);
 		/* Update liquidity by shares still open */
-		price_data.share_liquidity += (spend - filled) / price;
+		price_data.share_liquidity += (spend - filled) / price as u128;
 		/* Re-insert price_data to update state */
 		self.price_data.insert(&price, &price_data);
 
@@ -173,7 +173,7 @@ impl Orderbook {
 		let to_return = order.spend - order.filled; 
 
 		/* Update price data */
-		price_data.share_liquidity -= to_return / order.price;
+		price_data.share_liquidity -= to_return / order.price as u128;
 		price_data.orders.remove(&order.id);
 
 		/* If there are no orders left at the price remove the price_data entry for this price, else re-insert the price_data to update state */
@@ -221,7 +221,7 @@ impl Orderbook {
 			if shares_to_fill == 0 { break;} 
 
 			/* Calc how many shares can still be filled for this order */
-			let shares_fillable_for_order = (order.spend - order.filled) / order.price;
+			let shares_fillable_for_order = (order.spend - order.filled) / order.price as u128;
 
 			/* Get the min amount of shares fillable between shares_to_fill and shares_fillable_for_order */
 			let filling = cmp::min(shares_fillable_for_order, shares_to_fill); 
@@ -262,7 +262,7 @@ impl Orderbook {
 
 		/* Update price and user data accordingly */
 		user_data.balance += shares_to_fill;
-		user_data.spent += shares_to_fill * order.price;
+		user_data.spent += shares_to_fill * order.price as u128;
 		/* Re-insert user_data to update state */
 
 		self.user_data.insert(&order.creator, &user_data);
@@ -275,7 +275,7 @@ impl Orderbook {
 			price_data.orders.remove(&order.id);
 			logger::log_order_closed(&order, self.market_id, self.outcome_id);
 		}  else {
-			order.filled += shares_to_fill * order.price;
+			order.filled += shares_to_fill * order.price as u128;
 			order.shares_filled += shares_to_fill;
 			price_data.orders.insert(&order.id, &order);
 		}
@@ -296,7 +296,7 @@ impl Orderbook {
 	 * @notice Calculate share depth down to a min_price
 	 * @return Returns a tuple where the first index is depth and the second index is the average price to be paid per share
 	 */
-	pub fn get_depth_down_to_price(&self, max_shares: u128, min_price: u128) -> (u128, u128) {
+	pub fn get_depth_down_to_price(&self, max_shares: u128, min_price: u16) -> (u128, u128) {
 		/* Get the best price for outcome */
 		let mut best_price = self.price_data.max().unwrap_or(0);
 
@@ -315,7 +315,7 @@ impl Orderbook {
 			let liquidity = cmp::min(shares_left_to_fill, price_data.share_liquidity);
 
 			/* Increment price sum by product of liquidity and price */
-			depth_price_prod_sum += liquidity * best_price;
+			depth_price_prod_sum += liquidity * best_price as u128;
 
 			/* Increment depth by share_liquidity */
 			depth += liquidity;

@@ -11,7 +11,7 @@ pub struct Order {
 	pub filled: u128,
 	pub shares: u128,
 	pub shares_filled: u128,
-	pub price: u128,
+	pub price: u16,
 	pub affiliate_account_id: Option<AccountId>
 }
 
@@ -24,7 +24,7 @@ impl Order {
 		filled: u128, 
 		shares: u128, 
 		shares_filled: u128,
-		price: u128, 
+		price: u16, 
 		affiliate_account_id: Option<AccountId>
 	) -> Self {
 		Order {

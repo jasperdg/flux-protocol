@@ -83,7 +83,7 @@ pub trait FunToken {
  */
 #[ext_contract]
 pub trait FluxProtocol {
-    fn proceed_order_placement(&mut self, sender: AccountId, market_id: u64, outcome: u8, shares: u128, spend: u128, price: u128, affiliate_account_id: Option<AccountId>);
+    fn proceed_order_placement(&mut self, sender: AccountId, market_id: u64, outcome: u8, shares: u128, spend: u128, price: u16, affiliate_account_id: Option<AccountId>);
     fn proceed_market_resolution(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u8>, stake: u128);
 	fn proceed_market_dispute(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u8>, stake: u128);
 	fn proceed_market_creation(&mut self, sender: AccountId, description: String, extra_info: String, outcomes: u8, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u32, resolution_fee_percentage: u32, affiliate_fee_percentage: u32, api_source: String);
@@ -175,12 +175,12 @@ impl FluxProtocol {
 		&self,
 		market_id: U64,
 		outcome: u8
-	) -> U128 {
+	) -> u16 {
 		let market_id: u64 = market_id.into();
-		return U128(self.markets
+		return self.markets
 			.get(&market_id)
 			.expect("market doesn't exist")
-			.get_market_price(outcome));
+			.get_market_price(outcome);
 	}
 
 	/**
@@ -440,14 +440,13 @@ impl FluxProtocol {
 		market_id: U64, 
 		outcome: u8,
 		shares: U128,
-		price: U128,
+		price: u16,
 		affiliate_account_id: Option<AccountId>,
 		gas_arr: Option<Vec<U64>>
 	) -> Promise {
 		let market_id: u64 = market_id.into();
-		let price: u128 = price.into();
 		let shares: u128 = shares.into();
-		let rounded_spend = shares * price;
+		let rounded_spend = shares * price as u128;
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		utils::assert_gas_arr_validity(&gas_arr, 2);
@@ -495,7 +494,7 @@ impl FluxProtocol {
 		outcome: u8,
 		shares: u128,
 		spend: u128,
-		price: u128,
+		price: u16,
 		affiliate_account_id: Option<AccountId>,
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
@@ -526,12 +525,11 @@ impl FluxProtocol {
 		market_id: U64,
 		outcome: u8,
 		shares: U128,
-		min_price: U128,
+		min_price: u16,
 		gas_arr: Option<Vec<U64>>
 	) {
 		let market_id: u64 = market_id.into();
 		let shares: u128 = shares.into();
-		let min_price: u128 = min_price.into();
 		
 		utils::assert_gas_arr_validity(&gas_arr, 1);
 		assert!(min_price > 0, "min_price need to be higher than 0");
@@ -560,13 +558,12 @@ impl FluxProtocol {
 		&mut self, 
 		market_id: U64, 
 		outcome: u8,
-		price: U128,
+		price: u16,
 		order_id: U128,
 		gas_arr: Option<Vec<U64>>
 	) {
 		let market_id: u64 = market_id.into();
 		let order_id: u128 = order_id.into();
-		let price: u128 = price.into();
 		
 		let mut market = self.markets.get(&market_id).unwrap();
 
@@ -1044,14 +1041,15 @@ mod tests {
 		return (runtime, root, accounts);
 	}
 
-	mod init_tests;
-	mod binary_order_matching_tests;
-	mod categorical_market_tests;
-	mod market_order_tests;
-	mod order_sale_tests; 
-	mod market_resolution_tests; 
-	mod claim_earnings_tests;
-	mod validity_bond_tests;
-	mod fee_payout_tests;
-	mod market_dispute_tests;
+	// mod init_tests;
+	// mod binary_order_matching_tests;
+	// mod categorical_market_tests;
+	// mod market_order_tests;
+	// mod order_sale_tests; 
+	// mod market_resolution_tests; 
+	// mod claim_earnings_tests;
+	// mod validity_bond_tests;
+	// mod fee_payout_tests;
+	// mod market_dispute_tests;
+	mod custom_gas_tests;
 }
