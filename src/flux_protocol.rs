@@ -84,8 +84,8 @@ pub trait FunToken {
 #[ext_contract]
 pub trait FluxProtocol {
     fn proceed_order_placement(&mut self, sender: AccountId, market_id: u64, outcome: u8, shares: u128, spend: u128, price: u16, affiliate_account_id: Option<AccountId>);
-    fn proceed_market_resolution(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u8>, stake: u128);
-	fn proceed_market_dispute(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u8>, stake: u128);
+    fn proceed_market_resolution(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u8>, stake: u128, gas: u64);
+	fn proceed_market_dispute(&mut self, sender: AccountId, market_id: u64, winning_outcome: Option<u8>, stake: u128, gas: u64);
 	fn proceed_market_creation(&mut self, sender: AccountId, description: String, extra_info: String, outcomes: u8, outcome_tags: Vec<String>, categories: Vec<String>, end_time: u64, creator_fee_percentage: u32, resolution_fee_percentage: u32, affiliate_fee_percentage: u32, api_source: String);
 }
 
@@ -613,7 +613,7 @@ impl FluxProtocol {
 		let stake_u128: u128 = stake.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
-		utils::assert_gas_arr_validity(&gas_arr, 2);
+		utils::assert_gas_arr_validity(&gas_arr, 3);
 		assert!(stake_u128 >= 1e16 as u128, "stake needs to greater than 1e16");
 		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
 		assert_eq!(market.resoluted, false, "market is already resoluted");
@@ -621,6 +621,8 @@ impl FluxProtocol {
 		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
 
 		/* Transfer from sender to contract then proceed resolution */
+		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(utils::SINGLE_CALL_GAS))).into();
+		//  gas_arr.unwrap_or(emtpy_vec).get(&2)
 		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0) / 2)
 		.then(
 			flux_protocol::proceed_market_resolution(
@@ -628,6 +630,7 @@ impl FluxProtocol {
 				market_id,
 				winning_outcome,
 				stake_u128,
+				external_gas,
 				&env::current_account_id(),
 				0,
 				utils::get_gas_for_tx(&gas_arr, 1)
@@ -650,13 +653,12 @@ impl FluxProtocol {
 		winning_outcome: Option<u8>,
 		stake: u128,
 		sender: AccountId,
-		gas_arr: Option<Vec<U64>>,
+		gas: u64,
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
 		utils::assert_self();
 		/* Make sure the previous promise in the promise chain was succesful */
 		utils::assert_prev_promise_successful();
-		utils::assert_gas_arr_validity(&gas_arr, 1);
 
 		let mut market = self.markets.get(&market_id).unwrap();
 		
@@ -666,7 +668,7 @@ impl FluxProtocol {
 
 		/* If the sender overstaked return amount to the sender  */
 		if change > 0 {
-			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0) / 2);
+			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas / 2);
 			return PromiseOrValue::Promise(prom);
 		} else {
 			return PromiseOrValue::Value(true);
@@ -711,6 +713,8 @@ impl FluxProtocol {
 		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
 		assert!(env::block_timestamp() / 1000000 < resolution_window.end_time, "dispute window is closed, market can be finalized");
 
+		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(utils::SINGLE_CALL_GAS))).into();
+
 		/* Transfer from sender to contract then proceed dispute */
 		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0) / 2).then(
 			flux_protocol::proceed_market_dispute(
@@ -718,13 +722,13 @@ impl FluxProtocol {
 				market_id,
 				winning_outcome,
 				stake_u128,
+				external_gas,
 				&env::current_account_id(), 
 				0, 
 				utils::get_gas_for_tx(&gas_arr, 1)
 			)
 		)
 	}
-
 
 	/**
 	 * @notice Continues the dispute proces if transfer of funds was successful
@@ -741,14 +745,12 @@ impl FluxProtocol {
 		winning_outcome: Option<u8>,
 		stake: u128,
 		sender: AccountId,
-		gas_arr: Option<Vec<U64>>,
+		gas: u64,
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
 		utils::assert_self();
 		/* Make sure the previous promise in the promise chain was succesful */
 		utils::assert_prev_promise_successful();
-		utils::assert_gas_arr_validity(&gas_arr, 1);
-
         let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		
 		/* Resolute the market, which returns how much of the stake the sender overpaid */
@@ -758,7 +760,7 @@ impl FluxProtocol {
 		
 		/* If the sender overstaked return amount to the sender  */
 		if change > 0 {
-			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0) / 2));
+			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas / 2));
 		} else {
 			return PromiseOrValue::Value(true);
 		}
@@ -890,7 +892,8 @@ impl FluxProtocol {
 			Some(_) =>  market.claimable_if_valid.get(&account_id).unwrap_or(0),
 			_ => 0
 		};
-
+		
+		utils::assert_gas_arr_validity(&gas_arr, 1);
 		/* Calculate the sum of winnings + claimable_if_invalid to determain what amount of funds can be feed */
 		let total_feeable_amount = winnings + claimable_if_invalid;
 
@@ -910,13 +913,11 @@ impl FluxProtocol {
 		self.markets.insert(&market_id, &market);
 
 		if market_creator_fee > 0 {
-			utils::assert_gas_arr_validity(&gas_arr, 2);
 			/* If the market_creator_fee > 0; first transfer funds to the user, and after that transfer the fee to the market creator */
 			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0)).then(
 				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0))
 			);
 		} else {
-			utils::assert_gas_arr_validity(&gas_arr, 1);
 			/* If the market_creator_fee == 0; Just transfer the user his earnings */
 			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0));
 		}
