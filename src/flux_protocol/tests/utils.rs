@@ -162,6 +162,7 @@ impl ExternalUser {
         creator_fee_percentage: u32,
         affiliate_fee_percentage: u32,
         api_source: String,
+        gas_arr: Option<Vec<U64>>
     ) -> TxResult {
         let args = json!({
             "description": description,
@@ -173,6 +174,7 @@ impl ExternalUser {
             "creator_fee_percentage": creator_fee_percentage,
             "affiliate_fee_percentage": affiliate_fee_percentage,
             "api_source": api_source,
+            "gas_arr": gas_arr
         })
         .to_string()
         .as_bytes()
@@ -194,14 +196,16 @@ impl ExternalUser {
         outcome: u8,
         shares: U128,
 		price: U128,
-		affiliate_account_id: Option<String>
+        affiliate_account_id: Option<String>,
+        gas_arr: Option<Vec<U64>>
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
             "outcome": outcome,
             "shares": shares,
 			"price": price,
-			"affiliate_account_id": affiliate_account_id
+            "affiliate_account_id": affiliate_account_id,
+            "gas_arr": gas_arr
         })
         .to_string()
         .as_bytes()
@@ -224,13 +228,15 @@ impl ExternalUser {
         market_id: U64,
         outcome: u8,
         price: U128,
-        order_id: U128
+        order_id: U128,
+        gas_arr: Option<Vec<U64>>
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
             "outcome": outcome,
             "price": price,
             "order_id": order_id,
+            "gas_arr": gas_arr
         })
         .to_string()
         .as_bytes()
@@ -253,13 +259,15 @@ impl ExternalUser {
         market_id: U64,
         outcome: u8,
         shares: U128,
-        min_price: U128
+        min_price: U128,
+        gas_arr: Option<Vec<U64>>
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
             "outcome": outcome,
             "shares": shares,
-            "min_price": min_price
+            "min_price": min_price,
+            "gas_arr": gas_arr
         })
         .to_string()
         .as_bytes()
@@ -281,12 +289,14 @@ impl ExternalUser {
         runtime: &mut RuntimeStandalone,
         market_id: U64,
         winning_outcome: Option<u8>,
-        stake: U128
+        stake: U128,
+        gas_arr: Option<Vec<U64>>
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
             "winning_outcome": winning_outcome,
             "stake": stake,
+            "gas_arr": gas_arr
         })
         .to_string()
         .as_bytes()
@@ -308,12 +318,14 @@ impl ExternalUser {
         runtime: &mut RuntimeStandalone,
         market_id: U64,
         winning_outcome: Option<u8>,
-        stake: U128
+        stake: U128,
+        gas_arr: Option<Vec<U64>>
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
             "winning_outcome": winning_outcome,
             "stake": stake,
+            "gas_arr": gas_arr
         })
         .to_string()
         .as_bytes()
@@ -359,11 +371,13 @@ impl ExternalUser {
         &self,
         runtime: &mut RuntimeStandalone,
 		market_id: U64, 
-		account_id: String
+        account_id: String,
+        gas_arr: Option<Vec<U64>>
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
             "account_id": account_id,
+            "gas_arr": gas_arr
         })
         .to_string()
         .as_bytes()
@@ -380,40 +394,19 @@ impl ExternalUser {
         return ans;
     }
 
-    pub fn claim_affiliate_earnings(
-        &self,
-        runtime: &mut RuntimeStandalone,
-        account_id: String
-    ) -> TxResult {
-        let args = json!({
-            "account_id": account_id
-        })
-        .to_string()
-        .as_bytes()
-        .to_vec();
-        
-        let tx = self
-        .new_tx(runtime, flux_protocol())
-        .function_call("claim_affiliate_earnings".into(), args, 10000000000000000, 0)
-        .sign(&self.signer);
-		
-		let res = runtime.resolve_tx(tx).unwrap();
-        runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
-    }
-
     pub fn withdraw_dispute_stake(
         &self,
         runtime: &mut RuntimeStandalone,
         market_id: U64,
         dispute_round: U64,
-        outcome: Option<u8>
+        outcome: Option<u8>,
+        gas_arr: Option<Vec<U64>>
     ) -> TxResult {
         let args = json!({
             "market_id": market_id,
             "dispute_round": dispute_round,
             "outcome": outcome,
+            "gas_arr": gas_arr
         })
         .to_string()
         .as_bytes()
