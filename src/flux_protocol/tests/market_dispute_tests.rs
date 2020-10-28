@@ -17,11 +17,11 @@ fn test_dispute_valid() {
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	let al_bal: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 
-	alice.place_order(&mut runtime, U64(0), 0, U128(to_dai(1) / 10), U128(70), None, None).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), 3, U128(to_dai(1) / 10), U128(10), None, None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 0, U128(to_dai(1) / 10), 70, None, None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 3, U128(to_dai(1) / 10), 10, None, None).expect("order placement failed unexpectedly");
 	
-	carol.place_order(&mut runtime, U64(0), 1, U128(to_dai(1) / 10), U128(10), None, None).expect("order placement failed unexpectedly");
-	carol.place_order(&mut runtime, U64(0), 2, U128(to_dai(1) / 10), U128(10), None, None).expect("order placement failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), 1, U128(to_dai(1) / 10), 10, None, None).expect("order placement failed unexpectedly");
+	carol.place_order(&mut runtime, U64(0), 2, U128(to_dai(1) / 10), 10, None, None).expect("order placement failed unexpectedly");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	
@@ -348,8 +348,8 @@ fn test_crowdsourced_dispute_correct_resolution() {
 	alice.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	root.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), None, None).expect("order placement failed unexpectedly");
-	root.place_order(&mut runtime, U64(0), 0, U128(to_dai(5) / 50), U128(50), None, None).expect("order placement failed unexpectedly");
+	root.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), 50, None, None).expect("order placement failed unexpectedly");
+	root.place_order(&mut runtime, U64(0), 0, U128(to_dai(5) / 50), 50, None, None).expect("order placement failed unexpectedly");
 
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
@@ -392,8 +392,8 @@ fn test_crowdsourced_dispute_incorrect_resolution() {
 	alice.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 
 	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	root.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), None, None).expect("order placement failed unexpectedly");
-	root.place_order(&mut runtime, U64(0), 0, U128(to_dai(5) / 50), U128(50), None, None).expect("order placement failed unexpectedly");
+	root.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), 50, None, None).expect("order placement failed unexpectedly");
+	root.place_order(&mut runtime, U64(0), 0, U128(to_dai(5) / 50), 50, None, None).expect("order placement failed unexpectedly");
 
 	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 

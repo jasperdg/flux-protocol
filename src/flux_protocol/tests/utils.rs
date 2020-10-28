@@ -195,7 +195,7 @@ impl ExternalUser {
         market_id: U64,
         outcome: u8,
         shares: U128,
-		price: U128,
+		price: u16,
         affiliate_account_id: Option<String>,
         gas_arr: Option<Vec<U64>>
     ) -> TxResult {
@@ -227,7 +227,7 @@ impl ExternalUser {
         runtime: &mut RuntimeStandalone,
         market_id: U64,
         outcome: u8,
-        price: U128,
+        price: u16,
         order_id: U128,
         gas_arr: Option<Vec<U64>>
     ) -> TxResult {
@@ -259,7 +259,7 @@ impl ExternalUser {
         market_id: U64,
         outcome: u8,
         shares: U128,
-        min_price: U128,
+        min_price: u16,
         gas_arr: Option<Vec<U64>>
     ) -> TxResult {
         let args = json!({
@@ -448,7 +448,7 @@ impl ExternalUser {
         runtime: &RuntimeStandalone, 
         market_id: U64, 
         outcome: u8
-    ) -> U128 {
+    ) -> u16 {
         let market_price_json = runtime
         .view_method_call(
             &(flux_protocol()),
@@ -610,7 +610,7 @@ impl ExternalUser {
         runtime: &RuntimeStandalone,  
         market_id: U64, 
         outcome: u8,
-        price: U128
+        price: u16
     ) -> U128 {
         let market_price_json = runtime
         .view_method_call(
@@ -640,7 +640,7 @@ impl ExternalUser {
         market_id: U64, 
         outcome: u8,
         spend: U128,
-        price: U128
+        price: u16
     ) -> U128 {
         let market_price_json = runtime
         .view_method_call(

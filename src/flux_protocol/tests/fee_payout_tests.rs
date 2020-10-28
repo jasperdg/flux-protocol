@@ -13,13 +13,13 @@ fn fee_distribution_test() {
 	let tx_res = carol.create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 400, 50, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	alice.place_order(&mut runtime, U64(0), 0, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 0, U128(to_dai(5) / 50), 50, Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), 50, Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
 	
-	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
-	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), U128(50), Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), 50, Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), 50, Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), 50, Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
+	alice.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), 50, Some(carol.get_account_id()), None).expect("order placement failed unexpectedly");
 
 	let filled_volume: u128 = alice.get_market_volume(&mut runtime, U64(0)).into();
 	assert_eq!(filled_volume, to_dai(10));

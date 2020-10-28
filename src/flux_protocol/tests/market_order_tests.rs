@@ -9,7 +9,7 @@ fn test_place_order_insufficient_funds() {
 	
 	accounts[1].set_allowance(&mut runtime, flux_protocol(), U128(5000)).expect("allowance couldn't be set");
 
-	let account_1_res = accounts[1].place_order(&mut runtime, U64(0), 0, U128(50000), U128(50), None, None);
+	let account_1_res = accounts[1].place_order(&mut runtime, U64(0), 0, U128(50000), 50, None, None);
 	assert_eq!(account_1_res.is_err(), true);
 }
 
@@ -26,18 +26,18 @@ fn test_order_placement_cancelation_and_market_prices() {
 
 	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(2000000)).expect("allowance couldn't be set");
 
-	let tx_res = accounts[0].place_order(&mut runtime, U64(0), 1, U128(1000), U128(50), None, None).expect("tx unexpectedly failed");
-	let tx_res = accounts[0].place_order(&mut runtime, U64(0), 1, U128(1000), U128(50), None, None).expect("tx unexpectedly failed");
+	let tx_res = accounts[0].place_order(&mut runtime, U64(0), 1, U128(1000), 50, None, None).expect("tx unexpectedly failed");
+	let tx_res = accounts[0].place_order(&mut runtime, U64(0), 1, U128(1000), 50, None, None).expect("tx unexpectedly failed");
 	
 	let no_market_price = accounts[0].get_market_price(&mut runtime, U64(0), 0);
-	assert_eq!(no_market_price, U128(50));
+	assert_eq!(no_market_price, 50);
 	
-	accounts[0].place_order(&mut runtime, U64(0), 1, U128(1000), U128(60), None, None).expect("tx unexpectedly failed");
+	accounts[0].place_order(&mut runtime, U64(0), 1, U128(1000), 60, None, None).expect("tx unexpectedly failed");
 
 	let no_market_price = accounts[0].get_market_price(&mut runtime, U64(0), 0);
-	assert_eq!(no_market_price, U128(40));
+	assert_eq!(no_market_price, 40);
 
-	accounts[0].cancel_order(&mut runtime, U64(0), 1, U128(60), U128(2), None).expect("order cancelation failed");
+	accounts[0].cancel_order(&mut runtime, U64(0), 1, 60, U128(2), None).expect("order cancelation failed");
 
 	// balance checks: 
 	let expected_contract_balance = 100000;
@@ -50,10 +50,10 @@ fn test_order_placement_cancelation_and_market_prices() {
 	assert_eq!(account_balance, expected_account_balance - validity_bond);
 
 	let no_market_price = accounts[0].get_market_price(&mut runtime, U64(0), 0);
-	assert_eq!(no_market_price, U128(50));
+	assert_eq!(no_market_price, 50);
 
-	let tx_res = accounts[0].cancel_order(&mut runtime, U64(0), 1, U128(50), U128(1), None).expect("order cancelation failed");
-	let tx_res = accounts[0].cancel_order(&mut runtime, U64(0), 1, U128(50), U128(0), None).expect("order cancelation failed");
+	let tx_res = accounts[0].cancel_order(&mut runtime, U64(0), 1, 50, U128(1), None).expect("order cancelation failed");
+	let tx_res = accounts[0].cancel_order(&mut runtime, U64(0), 1, 50, U128(0), None).expect("order cancelation failed");
 
 	let expected_account_balance = to_dai(99999970) - validity_bond;
 	let expected_contract_balance = 0;

@@ -17,9 +17,9 @@ fn simplest_order_sale() -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone)
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 	
 	let buy_price = 50;
-	let res = seller.place_order(&mut runtime, U64(0), 0, U128(2000), U128(buy_price), None, None).expect("order placement failed unexpectedly");
-	let res = seller.place_order(&mut runtime, U64(0), 1, U128(2000), U128(buy_price), None, None).expect("order placement failed unexpectedly");  
-	let res = buyer.place_order(&mut runtime, U64(0), 1, U128(1000), U128(buy_price), None, None).expect("order placement failed unexpectedly"); 
+	let res = seller.place_order(&mut runtime, U64(0), 0, U128(2000), buy_price, None, None).expect("order placement failed unexpectedly");
+	let res = seller.place_order(&mut runtime, U64(0), 1, U128(2000), buy_price, None, None).expect("order placement failed unexpectedly");  
+	let res = buyer.place_order(&mut runtime, U64(0), 1, U128(1000), buy_price, None, None).expect("order placement failed unexpectedly"); 
 
 	let initial_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
 
@@ -29,7 +29,7 @@ fn simplest_order_sale() -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone)
 	let share_balance_buyer: u128 = buyer.get_outcome_share_balance(&mut runtime, buyer.get_account_id(), U64(0), 1).into();
 	assert_eq!(0, share_balance_buyer);
 
-	let res = seller.dynamic_market_sell(&mut runtime, U64(0), 1, U128(share_balance_seller), U128(1), None).expect("market sell failed unexpectedly");
+	let res = seller.dynamic_market_sell(&mut runtime, U64(0), 1, U128(share_balance_seller), 1, None).expect("market sell failed unexpectedly");
 
 	let dai_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
 	assert_eq!(dai_balance_seller, initial_balance_seller + 50000);
@@ -47,7 +47,7 @@ fn simplest_order_sale() -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone)
 	return (accounts, root, runtime);
 }
 
-fn partial_buy_order_fill_through_sale(buy_price: u128) -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone) {
+fn partial_buy_order_fill_through_sale(buy_price: u16) -> (Vec<ExternalUser>, ExternalUser, RuntimeStandalone) {
 	let (mut runtime, root, accounts) = init_runtime_env();
 	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	
@@ -62,10 +62,10 @@ fn partial_buy_order_fill_through_sale(buy_price: u128) -> (Vec<ExternalUser>, E
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 	// bp 40
 	
-	seller.place_order(&mut runtime, U64(0), 0, U128(2000), U128(50), None, None).expect("order placement failed unexpectedly"); // 100.000 own 2000 shares
-	seller.place_order(&mut runtime, U64(0), 1, U128(2000), U128(50), None, None).expect("order placement failed unexpectedly"); // 100.000 own 2000 shares
+	seller.place_order(&mut runtime, U64(0), 0, U128(2000), 50, None, None).expect("order placement failed unexpectedly"); // 100.000 own 2000 shares
+	seller.place_order(&mut runtime, U64(0), 1, U128(2000), 50, None, None).expect("order placement failed unexpectedly"); // 100.000 own 2000 shares
 	
-	buyer.place_order(&mut runtime, U64(0), 1, U128(10000), U128(buy_price), None, None).expect("order placement failed unexpectedly"); // 400.000 10000 shares buyer expects 400 000 back
+	buyer.place_order(&mut runtime, U64(0), 1, U128(10000), buy_price, None, None).expect("order placement failed unexpectedly"); // 400.000 10000 shares buyer expects 400 000 back
 
 	let initial_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
 
@@ -75,14 +75,14 @@ fn partial_buy_order_fill_through_sale(buy_price: u128) -> (Vec<ExternalUser>, E
 	let share_balance_buyer: u128 = buyer.get_outcome_share_balance(&mut runtime, buyer.get_account_id(), U64(0), 1).into();
 	assert_eq!(0, share_balance_buyer);
 
-	let tx_res = seller.dynamic_market_sell(&mut runtime, U64(0), 1, U128(share_balance_sller), U128(1), None).expect("market sell failed unexpectedly");
+	let tx_res = seller.dynamic_market_sell(&mut runtime, U64(0), 1, U128(share_balance_sller), 1, None).expect("market sell failed unexpectedly");
 
 	// check share balance post sell
 	let share_balance_seller: u128 = seller.get_outcome_share_balance(&mut runtime, seller.get_account_id(), U64(0), 1).into();
 	assert_eq!(share_balance_seller, 0);
 
 	let dai_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
-	assert_eq!(dai_balance_seller, initial_balance_seller + 2000 * cmp::min(buy_price, 50));
+	assert_eq!(dai_balance_seller, initial_balance_seller + (2000 * cmp::min(buy_price, 50) as u128));
 
 	let share_balance_buyer: u128 = buyer.get_outcome_share_balance(&mut runtime, buyer.get_account_id(), U64(0), 1).into();
 	assert_eq!(share_balance_buyer, 2000);

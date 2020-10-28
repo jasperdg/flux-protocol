@@ -9,11 +9,11 @@ fn test_categorical_market_automated_matcher() {
 	accounts[0].transfer(&mut runtime, accounts[1].get_account_id(), to_dai(10).into()).expect("transfer failed couldn't be set");
 	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(110000000)).expect("allowance couldn't be set");
 
-	let res = accounts[0].place_order(&mut runtime, U64(0), 0, U128(1000), U128(25), None, None).expect("order placement tx failed unexpectedly");
-	let res = accounts[0].place_order(&mut runtime, U64(0), 1, U128(900), U128(25), None, None).expect("order placement tx failed unexpectedly");
-	let res = accounts[0].place_order(&mut runtime, U64(0), 2, U128(1000), U128(25), None, None).expect("order placement tx failed unexpectedly");
-	let res = accounts[0].place_order(&mut runtime, U64(0), 3, U128(1000), U128(24), None, None).expect("order placement tx failed unexpectedly");
-	let res = accounts[0].place_order(&mut runtime, U64(0), 2, U128(1000), U128(50), None, None).expect("order placement tx failed unexpectedly");
+	let res = accounts[0].place_order(&mut runtime, U64(0), 0, U128(1000), 25, None, None).expect("order placement tx failed unexpectedly");
+	let res = accounts[0].place_order(&mut runtime, U64(0), 1, U128(900), 25, None, None).expect("order placement tx failed unexpectedly");
+	let res = accounts[0].place_order(&mut runtime, U64(0), 2, U128(1000), 25, None, None).expect("order placement tx failed unexpectedly");
+	let res = accounts[0].place_order(&mut runtime, U64(0), 3, U128(1000), 24, None, None).expect("order placement tx failed unexpectedly");
+	let res = accounts[0].place_order(&mut runtime, U64(0), 2, U128(1000), 50, None, None).expect("order placement tx failed unexpectedly");
 
 	println!("");
 	println!("test {:?}", res);
