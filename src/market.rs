@@ -652,6 +652,7 @@ impl Market {
 			/* check if round = 0 - which is the resolution round */
 			if window.round == 0 {
 				
+				/* If the market is invalid, if so total_feeable_if_invalid needs to be considered in the calculation */
 				let claimable_if_invalid = match self.winning_outcome {
 					None => self.total_feeable_if_invalid,
 					_ => 0
@@ -663,19 +664,23 @@ impl Market {
 				/* Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome */
 				if self.winning_outcome == window.outcome {
 					/* check if the user participated in this outcome */
-					let resolution_participation = !window.participants_to_outcome_to_stake.get(&account_id).is_none();
+					let resolution_participation = window.participants_to_outcome_to_stake.get(&account_id);
 					
-					if resolution_participation {
+					if resolution_participation.is_some() {
 						/* Check how much of the bond the user participated */
-						let correct_outcome_participation = window.participants_to_outcome_to_stake
-						.get(&account_id)
+						let correct_outcome_participation = resolution_participation
 						.unwrap()
 						.get(&self.to_numerical_outcome(self.winning_outcome))
 						.unwrap_or(0);
 
 						if correct_outcome_participation > 0 {
+							/* If a user participated < 1 / precision of the total stake in an outcome their resolution_fee distribution will be rounded down to 0 */
+							/* * we chose for 1e11 precision because that allows it to mupltiply up to 1e27 (total supply of many tokens) without overflowing. */
+							let precision = 1e11 as u128;
+							let relative_participation = correct_outcome_participation * precision / window.required_bond_size;
+							let user_fee_reward = relative_participation * total_resolution_fee / precision;
 							/* calculate his relative share of the total_resolution_fee relative to his participation */
-							resolution_reward += total_resolution_fee * correct_outcome_participation * 100 / window.required_bond_size / 100 + correct_outcome_participation;
+							resolution_reward += user_fee_reward + correct_outcome_participation;
 						}
 						
 					} 
@@ -705,10 +710,10 @@ impl Market {
 
 		if total_correctly_staked == 0 || total_incorrectly_staked == 0 || user_correctly_staked == 0 {return resolution_reward}
 
-		/* Declare decimals to make sure smallers takers still are rewarded */
-		let decimals = 1e16 as u128;
+		/* Declare decimals to make sure smallers stakers still are rewarded */
+		let precision = 1e11 as u128;
 		/* Calculate profit from participating in disputes */
-		let profit = ((total_incorrectly_staked * decimals) / (total_correctly_staked / user_correctly_staked)) / decimals; 
+		let profit = ((total_incorrectly_staked * precision) / (total_correctly_staked / user_correctly_staked)) / precision; 
 
 		return profit + user_correctly_staked + resolution_reward;
 	}

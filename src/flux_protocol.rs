@@ -21,12 +21,9 @@ use near_sdk::{
  * [high] add specication for `is_promise_success` incl. commit hash when introduced
  * [high] Potential overflow due to artithmitics - add checked_<op> for each non-secured arithmitic operation
  * [Medium] Incorrect total fee calculation - better documentation, double check this is the correct calculation
- * [Low] Constant maximum gas amount may not be enough
  * 
  * ** Best practices **
  * TODO: add standardized to_winning_outcome in utils
- * After standardizing percentages add central util paramater to perform artithmatic operations using said percentages
- * Add calc_percentage_round_up util function
  * 
  * ** self identified todos **
  * change dispute round storage type to u16 
@@ -263,7 +260,7 @@ impl FluxProtocol {
 		let total_fee_percentage =  market.resolution_fee_percentage + self.get_creator_fee_percentage(&market);
 
 		/* Calculate total fee */
-		let total_fee = (total_feeable_amount * total_fee_percentage as u128 + 10000 - 1) / 10000;
+		let total_fee = (total_feeable_amount * total_fee_percentage as u128) / 10000;
 		
 		/* Calculate the total amount claimable */
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
@@ -898,8 +895,8 @@ impl FluxProtocol {
 		let total_feeable_amount = winnings + claimable_if_invalid;
 
 		/* Calculate total fee percentage */
-		let resolution_fee = (total_feeable_amount * market.resolution_fee_percentage as u128 + 10000 - 1) / 10000;
-		let market_creator_fee = (total_feeable_amount * self.get_creator_fee_percentage(&market) as u128 + 10000 - 1) / 10000;
+		let resolution_fee = (total_feeable_amount * market.resolution_fee_percentage as u128) / 10000;
+		let market_creator_fee = (total_feeable_amount * self.get_creator_fee_percentage(&market) as u128) / 10000;
 		let total_fee = resolution_fee + market_creator_fee;
 
 		/* Calculate the total amount claimable */
