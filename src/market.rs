@@ -17,6 +17,8 @@ use near_sdk::{
 use crate::orderbook::Orderbook;
 /*** Import logger methods ***/
 use crate::logger;
+/*** Import utils methods ***/
+use crate::utils;
 
 /** 
  * @notice Struct of a resolution window, meant to display both resolution and dispute progression and state
@@ -115,9 +117,6 @@ impl Market {
 			empty_orderbooks.insert(&i, &Orderbook::new(id, i));
 		}
 
-		/* Declare base value to perform .pow operation on */
-		let base: u128 = 10;
-
 		/* Create empty Vector object that will store all resolution windows */
 		let mut resolution_windows = Vector::new("market:{}:resolution_windows".as_bytes().to_vec());
 
@@ -125,7 +124,7 @@ impl Market {
 		let base_resolution_window = ResolutionWindow {
 			round: 0,
 			participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:0", id).as_bytes().to_vec()),
-			required_bond_size: 5 * base.pow(18),
+			required_bond_size: (5 as u128).checked_mul(1e18 as u128).expect("overflow detected"),
 			staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", id, 0).as_bytes().to_vec()), // Staked per outcome
 			end_time: end_time,
 			outcome: None,
@@ -141,12 +140,12 @@ impl Market {
 			outcomes,
 			outcome_tags: outcome_tags_vector,
 			categories: categories_vector,
-			creation_time: env::block_timestamp() / 1000000,
+			creation_time: utils::ns_to_ms(env::block_timestamp()),
 			end_time,
 			orderbooks: empty_orderbooks,
 			winning_outcome: None,
 			resoluted: false,
-			resolute_bond: 5 * base.pow(18),
+			resolute_bond: (5 as u128).checked_mul(1e18 as u128).expect("overflow detected"),
 			filled_volume: 0,
 			disputed: false,
 			finalized: false,
@@ -178,7 +177,7 @@ impl Market {
 		let (spent, shares_filled) = self.fill_matches(outcome, spend, price);
 
 		/* Add the amount volume that was filled by this order to the filled_volume */
-		self.filled_volume += shares_filled * 100;
+		self.filled_volume = self.filled_volume.checked_add(shares_filled.checked_mul(100).expect("overflow detected")).expect("overflow detected");
 
 		/* Retrieve the orderbook for this orders' outcome */
 		let mut orderbook = self.orderbooks.get(&outcome).unwrap();
@@ -216,16 +215,16 @@ impl Market {
 		if market_price > price { return (0, 0) }
 
 		/* Stores the amount of shares filled */
-		let mut shares_filled = 0;
+		let mut shares_filled: u128 = 0;
 		/* Stores how much was spent on these shares */
-		let mut spent = 0;
+		let mut spent: u128 = 0;
 		/* Stores how much is left to spend */
-		let mut spendable = to_spend;
+		let mut spendable: u128 = to_spend;
 		
 		/* If spendable <= 100 we can get overflows due to rounding errors */
 		while spendable > 100 && market_price <= price {
 			/* Calc the amount of shares to fill at the current price which is the min between the amount spendable / price and depth */
-			let shares_to_fill_at_market_price = cmp::min(spendable / market_price as u128, share_depth.expect("expected there to be share depth"));
+			let shares_to_fill_at_market_price = cmp::min(spendable.checked_div(market_price as u128).expect("overflow detected") , share_depth.expect("expected there to be share depth"));
 
 			/* Loop through all other orderbooks and fill the shares to fill */
 			for orderbook_id in  0..self.outcomes {
@@ -243,9 +242,9 @@ impl Market {
 			}
 
 			/* Update tracking variables */
-			spendable -= shares_to_fill_at_market_price * market_price as u128;
-			shares_filled += shares_to_fill_at_market_price;
-			spent += shares_to_fill_at_market_price * market_price as u128;
+			spendable = spendable.checked_sub(shares_to_fill_at_market_price.checked_mul(market_price as u128).expect("overflow detected")).expect("overflow detected");
+			shares_filled = shares_filled.checked_add(shares_to_fill_at_market_price).expect("overflow detected");
+			spent = spent.checked_add(shares_to_fill_at_market_price.checked_mul(market_price as u128).expect("overflow detected")).expect("overflow detected");
 			let (updated_market_price, updated_share_depth) = self.get_market_price_and_min_liquidity(outcome);
 			market_price = updated_market_price;
 			share_depth = updated_share_depth;
@@ -263,11 +262,11 @@ impl Market {
 		&self, 
 		outcome: u8
 	) -> u16 {
-		let mut market_price = 100;
+		let mut market_price: u16 = 100;
  		for (orderbook_id, orderbook) in self.orderbooks.iter() {
 			if orderbook_id == outcome {continue};
 			let best_price = orderbook.price_data.max().unwrap_or(0);
-			market_price -= best_price;
+			market_price = market_price.checked_sub(best_price).expect("overflow detected");
 		}
 		return market_price;
 	}
@@ -282,7 +281,7 @@ impl Market {
 		&self, 
 		outcome: u8
 	) -> (u16, Option<u128>) {
-		let mut market_price = 100;
+		let mut market_price: u16 = 100;
 		let mut min_liquidity = None;
 
  		for (orderbook_id, orderbook) in self.orderbooks.iter() {
@@ -299,7 +298,7 @@ impl Market {
 				min_liquidity = Some(liq_at_price);
 			}
 
-			market_price -= best_price;
+			market_price = market_price.checked_sub(best_price).expect("overflow detected");
 		}
 		return (market_price, min_liquidity);
 	}
@@ -338,7 +337,7 @@ impl Market {
 		let mut user_data = orderbook.user_data.get(&env::predecessor_account_id()).expect("something went wrong while trying to retrieve the user's account id");
 
 		/* Calculate the avg price the user spent per share */
-		let avg_buy_price = user_data.spent / user_data.balance;
+		let avg_buy_price = user_data.spent.checked_div(user_data.balance).expect("overflow detected");
 
 		/* Represents how much should be added to the claimable_if_valid map,  */
 		let mut sell_price = avg_sell_price;
@@ -346,22 +345,31 @@ impl Market {
 		if avg_sell_price > avg_buy_price {
 			let cur_claimable_if_valid = self.claimable_if_valid.get(&env::predecessor_account_id()).unwrap_or(0);
 			sell_price = avg_buy_price;
-			let claimable_if_valid =  (avg_sell_price - avg_buy_price) * sell_depth;
+
+			let claimable_if_valid = avg_sell_price
+				.checked_sub(avg_buy_price)
+				.expect("overflow detected")
+				.checked_mul(sell_depth)
+				.expect("overflow detected");
 			
 			/* The delta between avg sell price and avg buy price should still be fee'd if the market is invalid  */
-			self.total_feeable_if_invalid += claimable_if_valid;
+			self.total_feeable_if_invalid = self.total_feeable_if_invalid.checked_add(claimable_if_valid).expect("overflow detected");
 
-			self.claimable_if_valid.insert(&env::predecessor_account_id(), &(claimable_if_valid + cur_claimable_if_valid));
+			let updated_claimable_if_valid = claimable_if_valid.checked_add(cur_claimable_if_valid).expect("overflow detected");
+			self.claimable_if_valid.insert(&env::predecessor_account_id(), &updated_claimable_if_valid);
 		} else if sell_price < avg_buy_price {
-			let claimable_if_invalid = self.claimable_if_invalid.get(&env::predecessor_account_id()).unwrap_or(0) + (avg_buy_price - sell_price) * sell_depth;
-			self.claimable_if_invalid.insert(&env::predecessor_account_id(), &(claimable_if_invalid));
+			let claimable_if_invalid = self.claimable_if_invalid.get(&env::predecessor_account_id()).unwrap_or(0);
+			let claimable_if_invalid_to_add = sell_depth.checked_mul(avg_buy_price.checked_sub(sell_price).expect("overflow detected")).expect("overflow detected");
+			let updated_claimable_if_invalid = claimable_if_invalid.checked_add(claimable_if_invalid_to_add).expect("overflow detected");
+			self.claimable_if_invalid.insert(&env::predecessor_account_id(), &updated_claimable_if_invalid);
 		}
 		
 		/* Subtract user stats according the amount of shares sold */
-		user_data.balance -= filled;
-		user_data.to_spend -= filled * avg_buy_price;
-		user_data.spent -= filled * avg_buy_price;
-		
+		let spent = filled.checked_mul(avg_buy_price).expect("overflow detected");
+		user_data.balance = user_data.balance.checked_sub(filled).expect("overflow detected");
+		user_data.to_spend = user_data.to_spend.checked_sub(spent).expect("overflow detected");
+		user_data.spent = user_data.spent.checked_sub(spent).expect("overflow detected");
+
 		logger::log_update_user_balance(env::predecessor_account_id(), self.id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
 		
 		/* Re-insert the updated user data  */
@@ -370,7 +378,7 @@ impl Market {
 		/* Re-insert the orderbook */
 		self.orderbooks.insert(&outcome, &orderbook);
 		
-		return sell_depth * sell_price;
+		return sell_depth.checked_mul(sell_price).expect("overflow detected");
 	}
 
 	/*** Resolution methods ***/
@@ -389,16 +397,17 @@ impl Market {
 		let outcome_id = self.to_numerical_outcome(winning_outcome);
 
 		/* Get the most recent resolution window */
-		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Something went wrong during market creation");
+		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len().checked_sub(1).expect("overflow detected")).expect("Something went wrong during market creation");
 		let mut to_return = 0;
 
 		/* Get how much is currently is staked on the target outcome */
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
 
 		/* Check if the total stake on this outcome >= resolution bond if so the stake will be bonded */
-		if stake + staked_on_outcome >= self.resolute_bond {
+		let total_stake = stake.checked_add(staked_on_outcome).expect("overflow detected");
+		if total_stake >= self.resolute_bond {
 			/* Calculate if anything needs to be returned to the staker */
-			to_return = stake + staked_on_outcome - self.resolute_bond;
+			to_return = total_stake.checked_sub(self.resolute_bond).expect("overflow detected");
 			/* Set winning_outcome - this is not final there could be a dispute */
 			self.winning_outcome = winning_outcome;
 			self.resoluted = true;
@@ -411,31 +420,45 @@ impl Market {
 		let stake_in_outcome = sender_stake_per_outcome
 		.get(&outcome_id)
 		.unwrap_or(0);
-		let new_stake = stake_in_outcome + stake - to_return;
+		let new_stake = stake_in_outcome
+			.checked_add(stake)
+			.expect("overflow detected")
+			.checked_sub(to_return)
+			.expect("overflow detected");
+		
 		sender_stake_per_outcome.insert(&outcome_id, &new_stake);
 		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
 		/* Update resolution_window's stake state */
-		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - to_return));
+		let staked_per_outcome = staked_on_outcome
+			.checked_add(stake)
+			.expect("overflow detected")
+			.checked_sub(to_return)
+			.expect("overflow detected");
+
+		resolution_window.staked_per_outcome.insert(&outcome_id, &staked_per_outcome);
 		
+		let actual_stake = stake.checked_sub(to_return).expect("overflow detected");
 		/* If the market is now resoluted open dispute window */
 		if self.resoluted {
+			let round_index = resolution_window.round.checked_add(1).expect("overflow detected");
+
 			resolution_window.outcome = winning_outcome;
 			let new_resolution_window = ResolutionWindow {
-				round: resolution_window.round + 1,
-				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				required_bond_size: resolution_window.required_bond_size * 2,
-				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: env::block_timestamp() / 1000000 + 43200000, // dispute time is 12 hours for first release
+				round: round_index,
+				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, round_index).as_bytes().to_vec()), // Staked per outcome
+				required_bond_size: resolution_window.required_bond_size.checked_mul(2).expect("overflow detected"),
+				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, round_index).as_bytes().to_vec()), // Staked per outcome
+				end_time: utils::ns_to_ms(env::block_timestamp()).checked_add(43200000).expect("overflow detected"), // dispute time is 12 hours for first release
 				outcome: None,
 			};
 
-			logger::log_market_resoluted(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_market_resoluted(self.id, sender, resolution_window.round, actual_stake, outcome_id);
 			logger::log_new_resolution_window(self.id, new_resolution_window.round, new_resolution_window.required_bond_size, new_resolution_window.end_time);
 			self.resolution_windows.push(&new_resolution_window);
 			
 		}  else {
-			logger::log_staked_on_resolution(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_staked_on_resolution(self.id, sender, resolution_window.round, actual_stake, outcome_id);
 
 		}
 		
@@ -459,16 +482,17 @@ impl Market {
 		let outcome_id = self.to_numerical_outcome(winning_outcome);
 		
 		/* Get the most recent resolution window */
-		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Something went wrong during market creation");
+		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len().checked_sub(1).expect("overflow detected")).expect("Something went wrong during market creation");
 		let mut to_return = 0;
 		let full_bond_size = resolution_window.required_bond_size;
 		let mut bond_filled = false;
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
 
+		let total_stake = staked_on_outcome.checked_add(stake).expect("overflow detected");
 		/* Check if this stake adds up to an amount >= the bond_size if so dispute will be bonded */
-		if staked_on_outcome + stake >= full_bond_size  {
+		if total_stake >= full_bond_size  {
 			bond_filled = true;
-			to_return = staked_on_outcome + stake - full_bond_size;
+			to_return = total_stake.checked_sub(full_bond_size).expect("overflow detected");
 			self.disputed = true;
 			/* Set winning_outcome to current outcome - will be finalized by Judge */
 			self.winning_outcome = winning_outcome;
@@ -481,37 +505,38 @@ impl Market {
 		let stake_in_outcome = sender_stake_per_outcome
 		.get(&outcome_id)
 		.unwrap_or(0);
-		let new_stake = stake_in_outcome + stake - to_return;
+		let new_stake = stake_in_outcome.checked_add(stake.checked_sub(to_return).expect("overflow detected")).expect("overflow detected") ;
 		sender_stake_per_outcome.insert(&outcome_id, &new_stake);
 		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
 		/* Add stake to the window's stake state */
-		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - to_return));
+		resolution_window.staked_per_outcome.insert(&outcome_id, &total_stake.checked_sub(to_return).expect("overflow detected"));
 
 		
 		// Check if this order fills the bond - if so open a new resolution window
+		let actual_stake = stake.checked_sub(to_return).expect("overflow detected");
 		if bond_filled {
 			// Set last winning outcome
 			resolution_window.outcome = winning_outcome;
-
+			let next_round = resolution_window.round.checked_add(1).expect("overflow detected");
 			let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("This can't be None");
 			assert_eq!(staked_on_outcome, full_bond_size, "the total staked on outcome needs to equal full bond size if we get here");
 
 			let next_resolution_window = ResolutionWindow{
-				round: resolution_window.round + 1,
-				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				required_bond_size: resolution_window.required_bond_size * 2,
-				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: env::block_timestamp() / 1000000 + 43200000,
+				round: next_round,
+				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, next_round).as_bytes().to_vec()), // Staked per outcome
+				required_bond_size: resolution_window.required_bond_size.checked_mul(2).expect("overflow detected"),
+				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, next_round).as_bytes().to_vec()), // Staked per outcome
+				end_time: utils::ns_to_ms(env::block_timestamp()).checked_add(43200000).expect("overflow detected"),
 				outcome: None,
 			};
 
-			logger::log_resolution_disputed(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_resolution_disputed(self.id, sender, resolution_window.round, actual_stake, outcome_id);
 			logger::log_new_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
 
 			self.resolution_windows.push(&next_resolution_window);
 		} else {
-			logger::log_staked_on_dispute(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_staked_on_dispute(self.id, sender, resolution_window.round, actual_stake, outcome_id);
 		}
 
 		// Re-insert the resolution window
@@ -548,8 +573,8 @@ impl Market {
 		account_id: AccountId
 	) -> (u128, u128, u128) {
 		let invalid = self.winning_outcome.is_none();
-		let mut winnings = 0;
-		let mut in_open_orders = 0;
+		let mut winnings: u128 = 0;
+		let mut in_open_orders: u128 = 0;
 
 		if invalid {
 			/* Loop through all orderbooks */
@@ -561,9 +586,10 @@ impl Market {
 				};
 
 				/* Calculate and add money in open orders */
-				in_open_orders += user_data.to_spend - user_data.spent;
+				let left_in_open_orders = user_data.to_spend.checked_sub(user_data.spent).expect("overflow detected");
+				in_open_orders = in_open_orders.checked_add(left_in_open_orders).expect("overflow detected");
 				/* Treat filled volume as winnings */
-				winnings += user_data.spent;
+				winnings = winnings.checked_add(user_data.spent).expect("overflow detected");
 			}
 		} else {
 			/* Loop through all orderbooks */
@@ -574,7 +600,8 @@ impl Market {
 					None => continue
 				};
 				/* Calculate and increment in_open_orders with open orders for each outcome */
-				in_open_orders += user_data.to_spend - user_data.spent;
+				let left_in_open_orders = user_data.to_spend.checked_sub(user_data.spent).expect("overflow detected");
+				in_open_orders = in_open_orders.checked_add(left_in_open_orders).expect("overflow detected");
 			}
 
 			/* Get the orderbook of the winning outcome */
@@ -582,7 +609,7 @@ impl Market {
 
 			/* Check if the user traded in the winning_outcome */
 			let winning_value = match winning_orderbook.user_data.get(&account_id) {
-				Some(user) => user.balance * 100, // Calculate user winnings: shares_owned * 100
+				Some(user) => user.balance.checked_mul(100).expect("overflow detected"), // Calculate user winnings: shares_owned * 100
 				None => 0
 			};
 
@@ -624,7 +651,7 @@ impl Market {
 
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("Unexpecter error during withdraw resolution");
 		/* Decrement total stake by to_return */
-		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome - to_return));
+		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome.checked_sub(to_return).expect("overflow detected")));
 		
 		/* Re-insert updated resolution window */
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
@@ -683,7 +710,7 @@ impl Market {
 
 						if correct_outcome_participation > 0 {
 							/* If a user participated < 1 / precision of the total stake in an outcome their resolution_fee distribution will be rounded down to 0 */
-							/* * we chose for 1e11 precision because that allows it to mupltiply up to 1e27 (total supply of many tokens) without overflowing. */
+							/* We chose for 1e11 precision because that allows it to mupltiply up to 1e27 (total supply of many tokens) without overflowing. */
 							let relative_participation = correct_outcome_participation
 								.checked_mul(precision)
 								.expect("overflow detected")
