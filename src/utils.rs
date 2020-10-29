@@ -5,12 +5,6 @@ use near_sdk::{
 };
 
 /**
- * @notice A hardcoded amount of gas that's used for external transactions
- * @dev Currently set to MAX_GAS / 3
- */
-pub const SINGLE_CALL_GAS: u64 = 100000000000000;
-
-/**
  * @dev Checks if the method called is the contract itself
  *  panics if predecessor_account (sender) isn't the FluxProtcol account id
  */
@@ -54,6 +48,6 @@ pub fn is_promise_success() -> bool {
  * @notice Parse a gas array to return the gas amount for a certain tx
  * @return Returns the amount of gas to be attached to the transaction
  */
-pub fn get_gas_for_tx(gas_arr: &Option<Vec<U64>>, index: usize) -> u64 {
-    return (*gas_arr.as_ref().unwrap_or(&vec![]).get(index).unwrap_or(&U64(SINGLE_CALL_GAS))).into();
+pub fn get_gas_for_tx(gas_arr: &Option<Vec<U64>>, index: usize, default_gas: u64) -> u64 {
+    return (*gas_arr.as_ref().unwrap_or(&vec![]).get(index).unwrap_or(&U64(default_gas))).into();
 }

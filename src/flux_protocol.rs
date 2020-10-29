@@ -20,7 +20,6 @@ use near_sdk::{
  * QSP TODO:
  * [high] add specication for `is_promise_success` incl. commit hash when introduced
  * [high] Potential overflow due to artithmitics - add checked_<op> for each non-secured arithmitic operation
- * [Medium] Incorrect total fee calculation - better documentation, double check this is the correct calculation
  * 
  * ** Best practices **
  * TODO: add standardized to_winning_outcome in utils
@@ -42,6 +41,12 @@ use crate::utils;
 
 /*** Create market type ***/
 type Market = market::Market;
+
+/**
+ * @notice A hardcoded amount of gas that's used for external transactions
+ * @dev Currently set to MAX_GAS / 3
+ */
+const SINGLE_CALL_GAS: u64 = 100000000000000;
 
 /**
  * @notice The state struct for the Flux Protocol implementation 
@@ -254,16 +259,30 @@ impl FluxProtocol {
 		};
 
 		/* Calculate the sum of winnings + claimable_if_invalid to determined what amount of funds can be feed */
-		let total_feeable_amount = winnings + claimable_if_invalid;
+		let total_feeable_amount = winnings.checked_add(claimable_if_invalid).expect("overflow detected");
 
 		/* Calculate total fee percentage */
-		let total_fee_percentage =  market.resolution_fee_percentage + self.get_creator_fee_percentage(&market);
+		let total_fee_percentage =  market.resolution_fee_percentage.checked_add(self.get_creator_fee_percentage(&market)).expect("overflow detected");
 
 		/* Calculate total fee */
-		let total_fee = (total_feeable_amount * total_fee_percentage as u128) / 10000;
+		let total_fee = total_feeable_amount
+			.checked_mul(total_fee_percentage as u128)
+			.expect("overflow detected")
+			.checked_div(10000)
+			.expect("overflow detected");
 		
 		/* Calculate the total amount claimable */
-		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
+		let to_claim = total_feeable_amount
+			.checked_add(governance_earnings)
+			.expect("overflow detected")
+			.checked_add(left_in_open_orders)
+			.expect("overflow detected")
+			.checked_add(validity_bond)
+			.expect("overflow detected")
+			.checked_add(claimable_if_valid)
+			.expect("overflow detected")
+			.checked_sub(total_fee)
+			.expect("overflow detected");
 
 		return U128(to_claim);
 	}
@@ -334,7 +353,7 @@ impl FluxProtocol {
 		if outcomes == 2 { assert!(outcome_tags.len() == 0, "If a binary markets the outcomes are always asumed to be ['NO', 'YES'] so there is no need for provide outcome_tags") }
 
 		/* Promise chain, call external token contract to transfer funds from user to flux protocol contract. Then self call proceed_market_creation. */
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), self.creation_bond.into(), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0)).then(
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), self.creation_bond.into(), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS)).then(
 			flux_protocol::proceed_market_creation(
 				env::predecessor_account_id(), 
 				description,
@@ -349,7 +368,7 @@ impl FluxProtocol {
 				api_source,
 				&env::current_account_id(),
 				0,
-				utils::get_gas_for_tx(&gas_arr, 1)
+				utils::get_gas_for_tx(&gas_arr, 1, SINGLE_CALL_GAS)
 			)
 		);
 	}
@@ -417,7 +436,7 @@ impl FluxProtocol {
 		self.markets.insert(&self.nonce, &new_market);
 
 		/* Increment nonce, for next market's id */
-		self.nonce = self.nonce + 1;
+		self.nonce = self.nonce.checked_add(1).expect("overflow detected");
 
 		return PromiseOrValue::Value(market_id);
 	}
@@ -443,7 +462,7 @@ impl FluxProtocol {
 	) -> Promise {
 		let market_id: u64 = market_id.into();
 		let shares: u128 = shares.into();
-		let rounded_spend = shares * price as u128;
+		let rounded_spend = shares.checked_mul(price as u128).expect("overflow detected");
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		utils::assert_gas_arr_validity(&gas_arr, 2);
@@ -453,8 +472,12 @@ impl FluxProtocol {
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
 		assert!(env::block_timestamp() / 1000000 < market.end_time, "market has already ended");
 
+
+		let transfer_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_div(10).expect("oveflow detected"));
+		let order_placement_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_mul(2).expect("overflow detected").checked_sub(transfer_gas).expect("overflow detected"));
+
 		/* Attempt to transfer deposit the tokens from the user to this contract, then continue order placement */
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0) / 10)
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, transfer_gas)
 		.then(
 			flux_protocol::proceed_order_placement( 
 				env::predecessor_account_id(),
@@ -466,7 +489,7 @@ impl FluxProtocol {
 				affiliate_account_id,
 				&env::current_account_id(), 
 				0,
-				utils::get_gas_for_tx(&gas_arr, 0) * 2 - utils::SINGLE_CALL_GAS / 10
+				utils::get_gas_for_tx(&gas_arr, 0, order_placement_gas)
 			)
 		);
 	}
@@ -539,7 +562,7 @@ impl FluxProtocol {
 		assert!(earnings > 0, "no matching orders");
 		self.markets.insert(&market_id, &market);
 		
-		fun_token::transfer(env::predecessor_account_id(), U128(earnings), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0));
+		fun_token::transfer(env::predecessor_account_id(), U128(earnings), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS));
 	}
 
 	/**
@@ -580,7 +603,7 @@ impl FluxProtocol {
 		self.markets.insert(&market_id, &market);
 
 		/* Transfer value left in open order to order owner */
-		fun_token::transfer(env::predecessor_account_id(), to_return.into(), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0));
+		fun_token::transfer(env::predecessor_account_id(), to_return.into(), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS));
     }
 
 	/**
@@ -618,9 +641,9 @@ impl FluxProtocol {
 		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
 
 		/* Transfer from sender to contract then proceed resolution */
-		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(utils::SINGLE_CALL_GAS))).into();
+		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(SINGLE_CALL_GAS))).into();
 		//  gas_arr.unwrap_or(emtpy_vec).get(&2)
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0) / 2)
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS) / 2)
 		.then(
 			flux_protocol::proceed_market_resolution(
 				env::predecessor_account_id(),
@@ -630,7 +653,7 @@ impl FluxProtocol {
 				external_gas,
 				&env::current_account_id(),
 				0,
-				utils::get_gas_for_tx(&gas_arr, 1)
+				utils::get_gas_for_tx(&gas_arr, 1, SINGLE_CALL_GAS)
 			)
 		);
 	}
@@ -710,10 +733,10 @@ impl FluxProtocol {
 		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
 		assert!(env::block_timestamp() / 1000000 < resolution_window.end_time, "dispute window is closed, market can be finalized");
 
-		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(utils::SINGLE_CALL_GAS))).into();
+		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(SINGLE_CALL_GAS))).into();
 
 		/* Transfer from sender to contract then proceed dispute */
-		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0) / 2).then(
+		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_div(2).expect("overflow detected"))).then(
 			flux_protocol::proceed_market_dispute(
 				env::predecessor_account_id(),
 				market_id,
@@ -722,7 +745,7 @@ impl FluxProtocol {
 				external_gas,
 				&env::current_account_id(), 
 				0, 
-				utils::get_gas_for_tx(&gas_arr, 1)
+				utils::get_gas_for_tx(&gas_arr, 1, SINGLE_CALL_GAS)
 			)
 		)
 	}
@@ -837,7 +860,7 @@ impl FluxProtocol {
 			/* Re-insert the market into the markets struct to update state */
 			self.markets.insert(&market_id, &market);
 			logger::log_dispute_withdraw(market_id, env::predecessor_account_id(), dispute_round, outcome);
-			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0) / 2);
+			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS.checked_div(2).expect("overflow detected"));
 		} else {
 			panic!("user has no participation in this dispute");
 		}
@@ -892,15 +915,34 @@ impl FluxProtocol {
 		
 		utils::assert_gas_arr_validity(&gas_arr, 1);
 		/* Calculate the sum of winnings + claimable_if_invalid to determain what amount of funds can be feed */
-		let total_feeable_amount = winnings + claimable_if_invalid;
+		let total_feeable_amount = winnings.checked_add(claimable_if_invalid).expect("overflow detected");
 
 		/* Calculate total fee percentage */
-		let resolution_fee = (total_feeable_amount * market.resolution_fee_percentage as u128) / 10000;
-		let market_creator_fee = (total_feeable_amount * self.get_creator_fee_percentage(&market) as u128) / 10000;
-		let total_fee = resolution_fee + market_creator_fee;
+		let resolution_fee = total_feeable_amount
+			.checked_mul(market.resolution_fee_percentage as u128)
+			.expect("overflow detected")
+			.checked_div(10000)
+			.expect("overflow detected");
+		let market_creator_fee = total_feeable_amount
+			.checked_mul(self.get_creator_fee_percentage(&market) as u128)
+			.expect("overflow detected")
+			.checked_div(10000)
+			.expect("overflow detected");
+			
+		let total_fee = resolution_fee.checked_add(market_creator_fee).expect("overflow detected");
 
 		/* Calculate the total amount claimable */
-		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
+		let to_claim = total_feeable_amount
+		.checked_add(governance_earnings)
+		.expect("overflow detected")
+		.checked_add(left_in_open_orders)
+		.expect("overflow detected")
+		.checked_add(validity_bond)
+		.expect("overflow detected")
+		.checked_add(claimable_if_valid)
+		.expect("overflow detected")
+		.checked_sub(total_fee)
+		.expect("overflow detected");
 		
 		if to_claim == 0 {panic!("can't claim 0 tokens")}
 
@@ -911,12 +953,12 @@ impl FluxProtocol {
 
 		if market_creator_fee > 0 {
 			/* If the market_creator_fee > 0; first transfer funds to the user, and after that transfer the fee to the market creator */
-			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0)).then(
-				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0))
+			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS)).then(
+				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS))
 			);
 		} else {
 			/* If the market_creator_fee == 0; Just transfer the user his earnings */
-			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0));
+			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS));
 		}
 	}	
 }
