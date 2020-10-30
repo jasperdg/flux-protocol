@@ -29,7 +29,10 @@ pub fn assert_gas_arr_validity(gas_arr: &Option<Vec<U64>>, num_of_promises: usiz
 }
 
 /**
+ * @notice Check if previous promise in promise chain was executed succesfully 
  * @dev Panics if the previous promise in the promise chain was unsuccessful
+ * @dev Taken from: https://github.com/near/core-contracts/blob/a009f52ccf5e36db75cf31104604eaec69dd67f8/lockup/src/utils.rs#L7
+ * @dev Latest commit which is still up to date with this version: e3688c90dc01f69735fb02178b0f98297dee08c0
  * @return Returns a bool representing the success of the previous promise in a promise chain
  */
 pub fn is_promise_success() -> bool {

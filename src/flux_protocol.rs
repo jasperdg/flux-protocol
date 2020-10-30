@@ -16,11 +16,6 @@ use near_sdk::{
 	}
 };
 
-/**
- * QSP TODO:
- * [high] add specication for `is_promise_success` incl. commit hash when introduced
- * */
-
 /** 
  * @title Flux Protocol
  */
