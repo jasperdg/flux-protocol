@@ -98,7 +98,7 @@ impl Orderbook {
 		&mut self
 	) -> u128 {
 		let id = self.nonce;
-		self.nonce = self.nonce + 1;
+		self.nonce = self.nonce.checked_add(1).expect("overflow detected");
 		return id;
 	}
 
@@ -125,19 +125,19 @@ impl Orderbook {
 		let mut user_data = self.user_data.get(&account_id).unwrap_or(self.new_account());
 
 		/* Update user data */
-		user_data.balance += shares_filled;
-		user_data.spent += filled;
-		user_data.to_spend += spend;
+		user_data.balance = user_data.balance.checked_add(shares_filled).expect("overflow detected");
+		user_data.spent = user_data.spent.checked_add(filled).expect("overflow detected");
+		user_data.to_spend = user_data.to_spend.checked_add(spend).expect("overflow detected");
 		
 		logger::log_update_user_balance(account_id.to_string(), market_id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
 		
 		/* Calculate how much of the order is still open */
-		let left_to_spend = spend - filled;
+		let left_to_spend = spend.checked_sub(filled).expect("overflow detected");
 
 		/* Calculate the average fill_price if anything was filled */
 		let mut fill_price = 0;
 		if shares_filled > 0 {
-			fill_price = filled / shares_filled;
+			fill_price = filled.checked_div(shares_filled).expect("overflow detected");
 		}
 		
 		self.user_data.insert(&account_id, &user_data);
@@ -154,7 +154,9 @@ impl Orderbook {
 		/* Insert order into open orders at price */
 		price_data.orders.insert(&order_id, &new_order);
 		/* Update liquidity by shares still open */
-		price_data.share_liquidity += (spend - filled) / price as u128;
+		let open_shares = left_to_spend.checked_div(price as u128).expect("overflow detected");
+		price_data.share_liquidity = price_data.share_liquidity.checked_add(open_shares).expect("overflow detected");
+			
 		/* Re-insert price_data to update state */
 		self.price_data.insert(&price, &price_data);
 
@@ -170,10 +172,10 @@ impl Orderbook {
 		let mut user_data = self.user_data.get(&order.creator).expect("There are no orders for this user");
 
 		/* Calculate amount of tokens that are open on the specific order */
-		let to_return = order.spend - order.filled; 
+		let to_return = order.spend.checked_sub(order.filled).expect("overflow detected"); 
 
 		/* Update price data */
-		price_data.share_liquidity -= to_return / order.price as u128;
+		price_data.share_liquidity = price_data.share_liquidity.checked_sub(to_return.checked_div(order.price as u128).expect("overflow detected")).expect("overflow detected");
 		price_data.orders.remove(&order.id);
 
 		/* If there are no orders left at the price remove the price_data entry for this price, else re-insert the price_data to update state */
@@ -184,7 +186,7 @@ impl Orderbook {
 		}
 		
 		/* Update user_data */
-		user_data.to_spend -= order.spend - order.filled;
+		user_data.to_spend = user_data.to_spend.checked_sub(order.spend.checked_sub(order.filled).expect("overflow detected")).expect("overflow detected");
 		/* Re-insert user_data to update state */
 		self.user_data.insert(&order.creator, &user_data);
 
@@ -213,7 +215,7 @@ impl Orderbook {
 		let orders = self.price_data.get(&fill_price).expect("this price shouldn't exist if there are no orders to be filled").orders.to_vec();
 
 		/* Keep track of how many shares we filled */
-		let mut shares_filled = 0;
+		let mut shares_filled: u128 = 0;
 		
 		/* Loop through all orders at the best price */
 		for (_, order) in orders.iter() {
@@ -221,13 +223,14 @@ impl Orderbook {
 			if shares_to_fill == 0 { break;} 
 
 			/* Calc how many shares can still be filled for this order */
-			let shares_fillable_for_order = (order.spend - order.filled) / order.price as u128;
+			let left_to_spend_for_order = order.spend.checked_sub(order.filled).expect("overflow detected");
+			let shares_fillable_for_order = left_to_spend_for_order.checked_div(order.price as u128).expect("overflow detected");
 
 			/* Get the min amount of shares fillable between shares_to_fill and shares_fillable_for_order */
 			let filling = cmp::min(shares_fillable_for_order, shares_to_fill); 
 			
 			/* Increment shares_filled by filling */
-			shares_filled += filling;
+			shares_filled = shares_filled.checked_add(filling).expect("overflow detected");
 
 			/* If there are less shares to fill than the best_order we fill the order and stop the loop */
 			/* If there are more shares to fill than the best_order we fill the order and go to the next iteration */
@@ -241,7 +244,7 @@ impl Orderbook {
 			}
 
 			/* Decrement shares_to_fill by the amount of shares we just filled */
-			shares_to_fill -= filling;
+			shares_to_fill = shares_to_fill.checked_sub(filling).expect("overflow detected");
 		}
 
 		return shares_filled;
@@ -261,13 +264,14 @@ impl Orderbook {
 		let mut price_data = self.price_data.get(&order.price).expect("no price_data available for price");
 
 		/* Update price and user data accordingly */
-		user_data.balance += shares_to_fill;
-		user_data.spent += shares_to_fill * order.price as u128;
+		let fill_amount = shares_to_fill.checked_mul(order.price as u128).expect("overflow detected");
+		user_data.balance = user_data.balance.checked_add(shares_to_fill).expect("overflow detected");
+		user_data.spent = user_data.spent.checked_add(fill_amount).expect("overflow detected");
+		
 		/* Re-insert user_data to update state */
-
 		self.user_data.insert(&order.creator, &user_data);
 
-		price_data.share_liquidity -= shares_to_fill;
+		price_data.share_liquidity = price_data.share_liquidity.checked_sub(shares_to_fill).expect("overflow detected");
 
 		/* If the order has be closed remove it from open orders */
 		/* Else update order and re-insert it to update price_data */
@@ -275,8 +279,8 @@ impl Orderbook {
 			price_data.orders.remove(&order.id);
 			logger::log_order_closed(&order, self.market_id, self.outcome_id);
 		}  else {
-			order.filled += shares_to_fill * order.price as u128;
-			order.shares_filled += shares_to_fill;
+			order.filled = order.filled.checked_add(fill_amount).expect("overflow detected");
+			order.shares_filled = order.shares_filled.checked_add(shares_to_fill).expect("overflow detected");
 			price_data.orders.insert(&order.id, &order);
 		}
 
@@ -301,24 +305,25 @@ impl Orderbook {
 		let mut best_price = self.price_data.max().unwrap_or(0);
 
 		/* Keep track of total available liquidity */
-		let mut depth = 0;
+		let mut depth: u128 = 0;
 		/* Sum of products of shares and prices */
-		let mut depth_price_prod_sum = 0;
+		let mut depth_price_prod_sum: u128 = 0;
 
 		/* Loop through all the price from best to worst */
 		while best_price >= min_price && max_shares > depth {
 			/* Calculate how many shares are left to fill */
-			let shares_left_to_fill = max_shares - depth;
+			let shares_left_to_fill = max_shares.checked_sub(depth).expect("overflow detected");
 			/* Get the price_data at the current best_price */
 			let price_data = self.price_data.get(&best_price).expect("Expected there to be a value at this key");
 			/* Calculate the minimal amount of shares to fill between open liquidity and max_shares */
 			let liquidity = cmp::min(shares_left_to_fill, price_data.share_liquidity);
 
 			/* Increment price sum by product of liquidity and price */
-			depth_price_prod_sum += liquidity * best_price as u128;
+			let liquidity_in_tokens = liquidity.checked_mul(best_price as u128).expect("overflow detected");
+			depth_price_prod_sum = depth_price_prod_sum.checked_add(liquidity_in_tokens).expect("overflow detected");
 
 			/* Increment depth by share_liquidity */
-			depth += liquidity;
+			depth = depth.checked_add(liquidity).expect("overflow detected");
 
 			/* Update best price to next best price */
 			best_price = self.price_data.lower(&best_price).unwrap_or(0);
@@ -326,6 +331,6 @@ impl Orderbook {
 
 		if depth == 0 {return (0, 0);}
 
-		return (cmp::min(max_shares, depth), depth_price_prod_sum / depth);
+		return (cmp::min(max_shares, depth), depth_price_prod_sum.checked_div(depth).expect("overflow detected"));
 	}
 }
