@@ -16,6 +16,18 @@ use near_sdk::{
 	}
 };
 
+/**
+ * QSP TODO:
+ * [high] add specication for `is_promise_success` incl. commit hash when introduced
+ * [high] Potential overflow due to artithmitics - add checked_<op> for each non-secured arithmitic operation
+ * 
+ * ** Best practices **
+ * TODO: add standardized to_winning_outcome in utils
+ * 
+ * ** self identified todos **
+ * change dispute round storage type to u16 
+ * */
+
 /** 
  * @title Flux Protocol
  */
