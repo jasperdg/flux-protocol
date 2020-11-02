@@ -333,7 +333,7 @@ impl FluxProtocol {
 		assert!(outcomes > 1, "need to have more than 2 outcomes");
 		assert!(outcomes == 2 || outcomes == outcome_tags.len() as u8, "invalid outcomes");
 		assert!(outcomes < 8, "can't have more than 8 outcomes"); // up for change
-		assert!(end_time > utils::ns_to_ms(env::block_timestamp()), "end_time has to be greater than NOW");
+		assert!(end_time > env::block_timestamp() / 1000000, "end_time has to be greater than NOW");
 		assert!(categories.len() < 8, "can't have more than 8 categories");
 		assert!(creator_fee_percentage <= self.max_fee_percentage, "creator_fee_percentage too high");
 		assert!(affiliate_fee_percentage <= 10000, "affiliate_fee_percentage can't be higher than 100.00%");
@@ -458,7 +458,7 @@ impl FluxProtocol {
 		assert!(price > 0 && price < 100, "price can only be between 1 - 99");
 		assert!(outcome < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
-		assert!(utils::ns_to_ms(env::block_timestamp()) < market.end_time, "market has already ended");
+		assert!(env::block_timestamp() / 1000000 < market.end_time, "market has already ended");
 
 
 		let transfer_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_div(10).expect("oveflow detected"));
@@ -623,7 +623,7 @@ impl FluxProtocol {
 
 		utils::assert_gas_arr_validity(&gas_arr, 3);
 		assert!(stake_u128 >= 1e16 as u128, "stake needs to greater than 1e16");
-		assert!(utils::ns_to_ms(env::block_timestamp()) >= market.end_time, "market hasn't ended yet");
+		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
 		assert_eq!(market.resoluted, false, "market is already resoluted");
 		assert_eq!(market.finalized, false, "market is already finalized");
 		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
@@ -631,7 +631,7 @@ impl FluxProtocol {
 		/* Transfer from sender to contract then proceed resolution */
 		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(SINGLE_CALL_GAS))).into();
 		//  gas_arr.unwrap_or(emtpy_vec).get(&2)
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_div(2).expect("overflow detected")))
+		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS) / 2)
 		.then(
 			flux_protocol::proceed_market_resolution(
 				env::predecessor_account_id(),
@@ -676,7 +676,7 @@ impl FluxProtocol {
 
 		/* If the sender overstaked return amount to the sender  */
 		if change > 0 {
-			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas.checked_div(2).expect("overflow detected"));
+			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas / 2);
 			return PromiseOrValue::Promise(prom);
 		} else {
 			return PromiseOrValue::Value(true);
@@ -717,9 +717,9 @@ impl FluxProtocol {
 		assert_eq!(market.finalized, false, "market is already finalized");
         assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
         assert!(winning_outcome != market.winning_outcome, "same oucome as last resolution");
-		let resolution_window = market.resolution_windows.get(market.resolution_windows.len().checked_sub(1).expect("overflow detected")).expect("Invalid dispute window unwrap");
+		let resolution_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("Invalid dispute window unwrap");
 		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
-		assert!(utils::ns_to_ms(env::block_timestamp()) < resolution_window.end_time, "dispute window is closed, market can be finalized");
+		assert!(env::block_timestamp() / 1000000 < resolution_window.end_time, "dispute window is closed, market can be finalized");
 
 		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(SINGLE_CALL_GAS))).into();
 
@@ -768,7 +768,7 @@ impl FluxProtocol {
 		
 		/* If the sender overstaked return amount to the sender  */
 		if change > 0 {
-			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas.checked_div(2).expect("overflow detected")));
+			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas / 2));
 		} else {
 			return PromiseOrValue::Value(true);
 		}
@@ -805,8 +805,8 @@ impl FluxProtocol {
 			assert_eq!(env::predecessor_account_id(), self.owner, "only the judge can resolute disputed markets");
 		} else {
 			/* If the market is not disputed it can be resoluted as soon as the dispute window is closed */
-			let dispute_window = market.resolution_windows.get(market.resolution_windows.len().checked_sub(1).expect("overflow detected")).expect("no dispute window found, something went wrong");
-			assert!(utils::ns_to_ms(env::block_timestamp()) >= dispute_window.end_time || dispute_window.round == 2, "dispute window still open")
+			let dispute_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("no dispute window found, something went wrong");
+			assert!(env::block_timestamp() / 1000000 >= dispute_window.end_time || dispute_window.round == 2, "dispute window still open")
 		}
 
 		/* Finalize the market and re-insert it to update state */
@@ -875,7 +875,7 @@ impl FluxProtocol {
 		/* Check if account_id has claimed earnings in this market, if so return 0 */
 		let claimed_earnings = market.claimed_earnings.get(&account_id);
 		assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
-		assert!(utils::ns_to_ms(env::block_timestamp()) >= market.end_time, "market hasn't ended yet");
+		assert!(env::block_timestamp() / 1000000 >= market.end_time, "market hasn't ended yet");
 		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
 		assert_eq!(market.finalized, true, "market isn't finalized yet");
 
@@ -916,7 +916,7 @@ impl FluxProtocol {
 			.expect("overflow detected")
 			.checked_div(10000)
 			.expect("overflow detected");
-
+			
 		let total_fee = resolution_fee.checked_add(market_creator_fee).expect("overflow detected");
 
 		/* Calculate the total amount claimable */
