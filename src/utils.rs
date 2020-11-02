@@ -54,3 +54,11 @@ pub fn is_promise_success() -> bool {
 pub fn get_gas_for_tx(gas_arr: &Option<Vec<U64>>, index: usize, default_gas: u64) -> u64 {
     return (*gas_arr.as_ref().unwrap_or(&vec![]).get(index).unwrap_or(&U64(default_gas))).into();
 }
+
+/** 
+ * @notice Converts nano seconds to mili seconds
+ * @return Returns current block_timestamp denominated in ms
+*/
+pub fn ns_to_ms(timestamp_ns: u64) -> u64 {
+    return timestamp_ns.checked_div(1000000).expect("overflow detected");
+} 
