@@ -60,7 +60,7 @@ pub fn get_gas_for_tx(gas_arr: &Option<Vec<U64>>, index: usize, default_gas: u64
 }
 
 /** 
- * @notice Converts nano seconds to miliseconds by dividing the ns amount by `1_000_000`
+ * @notice Converts nano seconds to milliseconds by dividing the ns amount by `1_000_000`
  * @return Returns current `block_timestamp` denominated in ms
 */
 pub fn ns_to_ms(timestamp_ns: u64) -> u64 {

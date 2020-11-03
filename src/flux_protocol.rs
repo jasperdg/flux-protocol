@@ -270,7 +270,7 @@ impl FluxProtocol {
 	 * @param outcomes The number out outcomes a market has, min is 2 max is 8
 	 * @param outcome_tags A list of strings where the outcome id corresponds to the index of the outcome_tags array e.g. outcome 0 = outcome_tags[0]
 	 * @param categories A list of categories that describe the market (helps with filtering)
-	 * @param end_time Unix timestamp in miliseconds of when the market stops being tradeable and can be resolved
+	 * @param end_time Unix timestamp in milliseconds of when the market stops being tradeable and can be resolved
 	 * @param creator_fee_percentage Percentage with two decimals so denominated in 1e4 between 0 - 500 where 1 = 0.01% and 100 = 1%
 	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range between 1 - 100
 	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
@@ -343,7 +343,7 @@ impl FluxProtocol {
 	 * @param outcomes The number out outcomes a market has, min is 2 max is 8
 	 * @param outcome_tags A list of strings where the outcome id corresponds to the index of the outcome_tags array e.g. outcome 0 = outcome_tags[0]
 	 * @param categories A list of categories that describe the market (helps with filtering)
-	 * @param end_time Unix timestamp in miliseconds of when the market stops being tradeable and can be resolved
+	 * @param end_time Unix timestamp in milliseconds of when the market stops being tradeable and can be resolved
 	 * @param creator_fee_percentage Percentage with two decimals so denominated in 1e4 between 0 - 500 where 1 = 0.01% and 100 = 1%
 	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range between 1 - 100
 	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
