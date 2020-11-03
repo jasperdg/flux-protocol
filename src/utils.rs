@@ -60,5 +60,5 @@ pub fn get_gas_for_tx(gas_arr: &Option<Vec<U64>>, index: usize, default_gas: u64
  * @return Returns current block_timestamp denominated in ms
 */
 pub fn ns_to_ms(timestamp_ns: u64) -> u64 {
-    return timestamp_ns.checked_div(1000000).expect("overflow detected");
+    return timestamp_ns / 1000000;
 } 

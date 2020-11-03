@@ -459,8 +459,8 @@ impl FluxProtocol {
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
 		assert!(env::block_timestamp() / 1000000 < market.end_time, "market has already ended");
 
-		let transfer_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_div(10).expect("oveflow detected"));
-		let order_placement_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_mul(2).expect("overflow detected").checked_sub(transfer_gas).expect("overflow detected"));
+		let transfer_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS / 10);
+		let order_placement_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS * 10 - transfer_gas);
 
 		/* Attempt to transfer deposit the tokens from the user to this contract, then continue order placement */
 		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, transfer_gas)
@@ -721,7 +721,7 @@ impl FluxProtocol {
 		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(SINGLE_CALL_GAS))).into();
 
 		/* Transfer from sender to contract then proceed dispute */
-		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_div(2).expect("overflow detected"))).then(
+		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS / 2)).then(
 			flux_protocol::proceed_market_dispute(
 				env::predecessor_account_id(),
 				market_id,
@@ -845,7 +845,7 @@ impl FluxProtocol {
 			/* Re-insert the market into the markets struct to update state */
 			self.markets.insert(&market_id, &market);
 			logger::log_dispute_withdraw(market_id, env::predecessor_account_id(), dispute_round, outcome);
-			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS.checked_div(2).expect("overflow detected"));
+			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2);
 		} else {
 			panic!("user has no participation in this dispute");
 		}
