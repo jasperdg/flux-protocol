@@ -244,7 +244,7 @@ impl FluxProtocol {
 		let total_fee_percentage =  market.resolution_fee_percentage + utils::get_creator_fee_percentage(&market);
 
 		/* Calculate total fee */
-		let total_fee = (total_feeable_amount * u128::from(total_fee_percentage)) / PERCENTAGE_PRECISION;
+		let total_fee = (total_feeable_amount * u128::from(total_fee_percentage)) / u128::from(PERCENTAGE_PRECISION);
 		
 		/* Calculate the total amount claimable */
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
