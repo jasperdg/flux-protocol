@@ -20,6 +20,7 @@ use near_sdk::{
  * QSP TODO:
  * [high] add specication for `is_promise_success` incl. commit hash when introduced
  * [high] Potential overflow due to artithmitics - add checked_<op> for each non-secured arithmitic operation
+ * [Medium] Incorrect total fee calculation - better documentation, double check this is the correct calculation
  * 
  * ** Best practices **
  * TODO: add standardized to_winning_outcome in utils
@@ -46,7 +47,7 @@ type Market = market::Market;
  * @notice A hardcoded amount of gas that's used for external transactions
  * @dev Currently set to MAX_GAS / 3
  */
-const SINGLE_CALL_GAS: u64 = 100000000000000;
+pub const SINGLE_CALL_GAS: u64 = 100000000000000;
 
 /**
  * @notice The state struct for the Flux Protocol implementation 
@@ -259,30 +260,16 @@ impl FluxProtocol {
 		};
 
 		/* Calculate the sum of winnings + claimable_if_invalid to determined what amount of funds can be feed */
-		let total_feeable_amount = winnings.checked_add(claimable_if_invalid).expect("overflow detected");
+		let total_feeable_amount = winnings + claimable_if_invalid;
 
 		/* Calculate total fee percentage */
-		let total_fee_percentage =  market.resolution_fee_percentage.checked_add(self.get_creator_fee_percentage(&market)).expect("overflow detected");
+		let total_fee_percentage =  market.resolution_fee_percentage + self.get_creator_fee_percentage(&market);
 
 		/* Calculate total fee */
-		let total_fee = total_feeable_amount
-			.checked_mul(total_fee_percentage as u128)
-			.expect("overflow detected")
-			.checked_div(10000)
-			.expect("overflow detected");
+		let total_fee = (total_feeable_amount * total_fee_percentage as u128) / 10000;
 		
 		/* Calculate the total amount claimable */
-		let to_claim = total_feeable_amount
-			.checked_add(governance_earnings)
-			.expect("overflow detected")
-			.checked_add(left_in_open_orders)
-			.expect("overflow detected")
-			.checked_add(validity_bond)
-			.expect("overflow detected")
-			.checked_add(claimable_if_valid)
-			.expect("overflow detected")
-			.checked_sub(total_fee)
-			.expect("overflow detected");
+		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
 
 		return U128(to_claim);
 	}
@@ -436,7 +423,7 @@ impl FluxProtocol {
 		self.markets.insert(&self.nonce, &new_market);
 
 		/* Increment nonce, for next market's id */
-		self.nonce = self.nonce.checked_add(1).expect("overflow detected");
+		self.nonce = self.nonce + 1;
 
 		return PromiseOrValue::Value(market_id);
 	}
@@ -462,7 +449,7 @@ impl FluxProtocol {
 	) -> Promise {
 		let market_id: u64 = market_id.into();
 		let shares: u128 = shares.into();
-		let rounded_spend = shares.checked_mul(price as u128).expect("overflow detected");
+		let rounded_spend = shares * price as u128;
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		utils::assert_gas_arr_validity(&gas_arr, 2);
@@ -471,7 +458,6 @@ impl FluxProtocol {
 		assert!(outcome < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
 		assert!(env::block_timestamp() / 1000000 < market.end_time, "market has already ended");
-
 
 		let transfer_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_div(10).expect("oveflow detected"));
 		let order_placement_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS.checked_mul(2).expect("overflow detected").checked_sub(transfer_gas).expect("overflow detected"));
@@ -640,9 +626,8 @@ impl FluxProtocol {
 		assert_eq!(market.finalized, false, "market is already finalized");
 		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
 
-		/* Transfer from sender to contract then proceed resolution */
 		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(SINGLE_CALL_GAS))).into();
-		//  gas_arr.unwrap_or(emtpy_vec).get(&2)
+
 		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS) / 2)
 		.then(
 			flux_protocol::proceed_market_resolution(
@@ -915,34 +900,15 @@ impl FluxProtocol {
 		
 		utils::assert_gas_arr_validity(&gas_arr, 1);
 		/* Calculate the sum of winnings + claimable_if_invalid to determain what amount of funds can be feed */
-		let total_feeable_amount = winnings.checked_add(claimable_if_invalid).expect("overflow detected");
+		let total_feeable_amount = winnings + claimable_if_invalid;
 
 		/* Calculate total fee percentage */
-		let resolution_fee = total_feeable_amount
-			.checked_mul(market.resolution_fee_percentage as u128)
-			.expect("overflow detected")
-			.checked_div(10000)
-			.expect("overflow detected");
-		let market_creator_fee = total_feeable_amount
-			.checked_mul(self.get_creator_fee_percentage(&market) as u128)
-			.expect("overflow detected")
-			.checked_div(10000)
-			.expect("overflow detected");
-			
-		let total_fee = resolution_fee.checked_add(market_creator_fee).expect("overflow detected");
+		let resolution_fee = (total_feeable_amount * market.resolution_fee_percentage as u128) / 10000;
+		let market_creator_fee = (total_feeable_amount * self.get_creator_fee_percentage(&market) as u128) / 10000;
+		let total_fee = resolution_fee + market_creator_fee;
 
 		/* Calculate the total amount claimable */
-		let to_claim = total_feeable_amount
-		.checked_add(governance_earnings)
-		.expect("overflow detected")
-		.checked_add(left_in_open_orders)
-		.expect("overflow detected")
-		.checked_add(validity_bond)
-		.expect("overflow detected")
-		.checked_add(claimable_if_valid)
-		.expect("overflow detected")
-		.checked_sub(total_fee)
-		.expect("overflow detected");
+		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
 		
 		if to_claim == 0 {panic!("can't claim 0 tokens")}
 

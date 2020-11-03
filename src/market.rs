@@ -640,11 +640,10 @@ impl Market {
 		&self, 
 		account_id: AccountId
 	) -> u128 {
-		let precision = 1e11 as u128;
-		let mut user_correctly_staked: u128 = 0;
-		let mut resolution_reward: u128 = 0;
-		let mut total_correctly_staked: u128 = 0;
-		let mut total_incorrectly_staked: u128 = 0;
+		let mut user_correctly_staked = 0;
+		let mut resolution_reward = 0;
+		let mut total_correctly_staked = 0;
+		let mut total_incorrectly_staked = 0;
 
 		let winning_outcome_id = self.to_numerical_outcome(self.winning_outcome);
 		
@@ -660,14 +659,7 @@ impl Market {
 				};
 
 				/* Calculate how much the total fee payout will be */
-				let total_resolution_fee = (self.resolution_fee_percentage as u128)
-					.checked_mul(
-						self.filled_volume
-							.checked_add(claimable_if_invalid)
-							.expect("overflow detected"))
-						.expect("overflow detected")
-					.checked_div(10000)
-					.expect("overflow detected");
+				let total_resolution_fee = self.resolution_fee_percentage as u128 * (self.filled_volume + claimable_if_invalid) / 10000;
 		
 				/* Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome */
 				if self.winning_outcome == window.outcome {
@@ -677,45 +669,24 @@ impl Market {
 					if resolution_participation.is_some() {
 						/* Check how much of the bond the user participated */
 						let correct_outcome_participation = resolution_participation
-							.unwrap()
-							.get(&self.to_numerical_outcome(self.winning_outcome))
-							.unwrap_or(0);
+						.unwrap()
+						.get(&self.to_numerical_outcome(self.winning_outcome))
+						.unwrap_or(0);
 
 						if correct_outcome_participation > 0 {
 							/* If a user participated < 1 / precision of the total stake in an outcome their resolution_fee distribution will be rounded down to 0 */
 							/* * we chose for 1e11 precision because that allows it to mupltiply up to 1e27 (total supply of many tokens) without overflowing. */
-							let relative_participation = correct_outcome_participation
-								.checked_mul(precision)
-								.expect("overflow detected")
-								.checked_div(window.required_bond_size)
-								.expect("overflow detected");
-							
-							let user_fee_reward = relative_participation
-								.checked_mul(total_resolution_fee)
-								.expect("overflow detected")
-								.checked_div(precision)
-								.expect("overflow detected");
-
+							let precision = 1e11 as u128;
+							let relative_participation = correct_outcome_participation * precision / window.required_bond_size;
+							let user_fee_reward = relative_participation * total_resolution_fee / precision;
 							/* calculate his relative share of the total_resolution_fee relative to his participation */
-							resolution_reward = resolution_reward
-								.checked_add(
-									user_fee_reward
-										.checked_add(correct_outcome_participation)
-										.expect("overflow detected")
-								)
-								.expect("overflow detected");
+							resolution_reward += user_fee_reward + correct_outcome_participation;
 						}
 						
 					} 
 				} else {
 					/* If the initial resolution bond wasn't staked on the correct outcome, devide the resolution fee amongst disputors */
-					total_incorrectly_staked = total_incorrectly_staked
-						.checked_add(
-							total_resolution_fee
-								.checked_add(window.required_bond_size)
-								.expect("overflow detected")
-						)
-						.expect("overflow detected");
+					total_incorrectly_staked += total_resolution_fee + window.required_bond_size;
 				}
 			} else {
 				/* If it isn't the first round calculate according to escalation game */
@@ -723,15 +694,16 @@ impl Market {
 
 				if window_outcome_id == winning_outcome_id {
 					let round_participation = window.participants_to_outcome_to_stake
-						.get(&account_id)
-						.unwrap_or(UnorderedMap::new(format!("market:{}:staked_per_outcome:{}:{}", self.id, window.round, account_id).as_bytes().to_vec()))
-						.get(&winning_outcome_id)
-						.unwrap_or(0);
+					.get(&account_id)
+					.unwrap_or(UnorderedMap::new(format!("market:{}:staked_per_outcome:{}:{}", self.id, window.round, account_id).as_bytes().to_vec()))
+					.get(&winning_outcome_id)
+					.unwrap_or(0);
 
-					user_correctly_staked = user_correctly_staked.checked_add(round_participation).expect("overflow detected");
-					total_correctly_staked = total_correctly_staked.checked_add(window.required_bond_size).expect("overflow detected");
+					user_correctly_staked += round_participation;
+					total_correctly_staked += window.required_bond_size;
 				} else if window.outcome.is_some() {
-					total_incorrectly_staked = total_incorrectly_staked.checked_add(window.required_bond_size).expect("overflow detected");
+					total_incorrectly_staked += window.required_bond_size;
+				 
 				}
 			}
 		}
@@ -739,24 +711,11 @@ impl Market {
 		if total_correctly_staked == 0 || total_incorrectly_staked == 0 || user_correctly_staked == 0 {return resolution_reward}
 
 		/* Declare decimals to make sure smallers stakers still are rewarded */
-		let relative_participation = user_correctly_staked
-			.checked_mul(precision)
-			.expect("overflow detected")
-			.checked_div(total_correctly_staked)
-			.expect("overflow detected");
-		
-		let total_user_fee_reward = relative_participation
-			.checked_mul(total_incorrectly_staked)
-			.expect("overflow detected")
-			.checked_div(precision)
-			.expect("overflow detected");
-		
+		let precision = 1e11 as u128;
 		/* Calculate profit from participating in disputes */
-		return total_user_fee_reward
-			.checked_add(user_correctly_staked)
-			.expect("overflow detected")
-			.checked_add(resolution_reward)
-			.expect("overflow detected");
+		let profit = ((total_incorrectly_staked * precision) / (total_correctly_staked / user_correctly_staked)) / precision; 
+
+		return profit + user_correctly_staked + resolution_reward;
 	}
 
 	/**
