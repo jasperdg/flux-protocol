@@ -318,6 +318,7 @@ impl Market {
 	 */
 	pub fn dynamic_market_sell_internal(
 		&mut self,
+		sender: AccountId,
 		outcome: u8,
 		shares_to_sell: u128,
 		min_price: u16,
@@ -325,7 +326,7 @@ impl Market {
 		let mut orderbook = self.orderbooks.get(&outcome).expect(format!("outcome: {} doesn't exist for this market", outcome));
 
 		/* Get the account balance if there is none return 0 */
-		let shares_balance = match orderbook.user_data.get(&env::predecessor_account_id()) {
+		let shares_balance = match orderbook.user_data.get(&sender) {
 			Some(data) => data.balance,
 			None => return 0
 		};
@@ -338,7 +339,7 @@ impl Market {
 		/* Fill the best orders up to the amount of shares that are sellable */
 		let filled = orderbook.fill_best_orders(sell_depth);
 		
-		let mut user_data = orderbook.user_data.get(&env::predecessor_account_id()).expect("something went wrong while trying to retrieve the user's account id");
+		let mut user_data = orderbook.user_data.get(&sender).expect("something went wrong while trying to retrieve the user's account id");
 
 		/* Calculate the avg price the user spent per share */
 		let avg_buy_price = user_data.spent / user_data.balance;
@@ -346,17 +347,17 @@ impl Market {
 		let mut sell_price = avg_sell_price;
 
 		if avg_sell_price > avg_buy_price {
-			let cur_claimable_if_valid = self.claimable_if_valid.get(&env::predecessor_account_id()).unwrap_or(0);
+			let cur_claimable_if_valid = self.claimable_if_valid.get(&sender).unwrap_or(0);
 			sell_price = avg_buy_price;
 			let claimable_if_valid =  (avg_sell_price - avg_buy_price) * sell_depth;
 			
 			/* The delta between avg sell price and avg buy price should still be feed if the market is invalid  */
 			self.total_feeable_if_invalid += claimable_if_valid;
 
-			self.claimable_if_valid.insert(&env::predecessor_account_id(), &(claimable_if_valid + cur_claimable_if_valid));
+			self.claimable_if_valid.insert(&sender, &(claimable_if_valid + cur_claimable_if_valid));
 		} else if sell_price < avg_buy_price {
-			let claimable_if_invalid = self.claimable_if_invalid.get(&env::predecessor_account_id()).unwrap_or(0) + (avg_buy_price - sell_price) * sell_depth;
-			self.claimable_if_invalid.insert(&env::predecessor_account_id(), &(claimable_if_invalid));
+			let claimable_if_invalid = self.claimable_if_invalid.get(&sender).unwrap_or(0) + (avg_buy_price - sell_price) * sell_depth;
+			self.claimable_if_invalid.insert(&sender, &(claimable_if_invalid));
 		}
 		
 		/* Subtract user stats according the amount of shares sold */
@@ -364,10 +365,10 @@ impl Market {
 		user_data.to_spend -= filled * avg_buy_price;
 		user_data.spent -= filled * avg_buy_price;
 		
-		logger::log_update_user_balance(&env::predecessor_account_id(), self.id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
+		logger::log_update_user_balance(&sender, self.id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
 		
 		/* Re-insert the updated user data  */
-		orderbook.user_data.insert(&env::predecessor_account_id(), &user_data);
+		orderbook.user_data.insert(&sender, &user_data);
 		
 		/* Re-insert the orderbook */
 		self.orderbooks.insert(&outcome, &orderbook);
@@ -612,6 +613,7 @@ impl Market {
 	 */
 	pub fn withdraw_resolution_stake_internal(
 		&mut self,
+		sender: AccountId,
 		round: u64,
 		outcome: Option<u8>
 	) -> u128{
@@ -621,13 +623,13 @@ impl Market {
 		/* Get the target resolution window a user wants to withdraw their stake from */
 		let mut resolution_window = self.resolution_windows.get(round).expect("dispute round doesn't exist");
 		assert_ne!(outcome, resolution_window.outcome, "you cant cancel dispute stake for bonded outcome");
-		let mut sender_participation = resolution_window.participants_to_outcome_to_stake.get(&env::predecessor_account_id()).expect("user didn't participate in this dispute round");
+		let mut sender_participation = resolution_window.participants_to_outcome_to_stake.get(&sender).expect("user didn't participate in this dispute round");
 		let to_return = sender_participation.get(&outcome_id).expect("sender didn't participate in this outcome resolution");
 		assert!(to_return > 0, "Can't withdraw 0");
 
 		/* Set senders stake to 0 and re-insert to resolution window */
 		sender_participation.insert(&outcome_id, &0);
-		resolution_window.participants_to_outcome_to_stake.insert(&env::predecessor_account_id(), &sender_participation);
+		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_participation);
 
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("Unexpected error during withdraw resolution");
 		/* Decrement total stake by to_return */

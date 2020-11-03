@@ -518,7 +518,7 @@ impl FluxProtocol {
 		
 		let mut market = self.markets.get(&market_id).expect("non existent market");
 		assert_eq!(market.finalized, false, "can't sell shares after market is finalized");
-		let earnings = market.dynamic_market_sell_internal(outcome, shares, min_price);
+		let earnings = market.dynamic_market_sell_internal(env::predecessor_account_id(), outcome, shares, min_price);
 		assert!(earnings > 0, "no matching orders");
 		self.markets.insert(&market_id, &market);
 		
@@ -779,7 +779,7 @@ impl FluxProtocol {
 	 * @param dispute_round The round of resolution of dispute the user wants to withdraw from
 	 * @param outcome The outcome the user staked on
 	 */
-	pub fn withdraw_dispute_stake(
+	pub fn withdraw_resolution_stake(
 		&mut self, 
 		market_id: U64,
 		dispute_round: U64,
@@ -790,7 +790,7 @@ impl FluxProtocol {
 		let dispute_round: u64 = dispute_round.into();		
 		utils::assert_gas_arr_validity(&gas_arr, 1);
 		let mut market = self.markets.get(&market_id).expect("invalid market");
-		let to_return = market.withdraw_resolution_stake_internal(dispute_round, outcome);
+		let to_return = market.withdraw_resolution_stake_internal(env::predecessor_account_id(), dispute_round, outcome);
 
 		/* If the user has stake to withdraw transfer the stake back to the user */
 		if to_return > 0 {
