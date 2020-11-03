@@ -1,6 +1,3 @@
-use super::*;
-use near_sdk::MockedBlockchain;
-use near_sdk::{VMContext, testing_env};
 use near_crypto::{InMemorySigner, KeyType, Signer};
 use near_runtime_standalone::{init_runtime_and_signer, RuntimeStandalone};
 use near_primitives::{
@@ -10,7 +7,6 @@ use near_primitives::{
     transaction::{ExecutionOutcome, ExecutionStatus, Transaction},
     types::{AccountId, Balance},
 };
-use std::collections::{HashMap};
 
 use serde_json::json;
 use near_sdk::json_types::{U128, U64};
@@ -18,11 +14,11 @@ use near_sdk::json_types::{U128, U64};
 const GAS_STANDARD: u64 = 10000000000000000;
 
 fn fun_token() -> String {
-	return "fun_token".to_string();
+	"fun_token".to_string()
 }
 
 fn flux_protocol() -> String {
-	return "flux_protocol".to_string();
+	"flux_protocol".to_string()
 }
 
 type TxResult = Result<ExecutionOutcome, ExecutionOutcome>;
@@ -56,7 +52,7 @@ impl ExternalUser {
     }
 
     pub fn get_account_id(&self) -> AccountId {
-        return self.account_id.to_string();
+        self.account_id.to_string()
     }
 
     pub fn deploy_flux_protocol(&self, runtime: &mut RuntimeStandalone) -> TxResult {
@@ -74,8 +70,7 @@ impl ExternalUser {
         .sign(&self.signer);
         let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
 
     pub fn deploy_fun_token(&self, runtime: &mut RuntimeStandalone, owner_account_id: String, total_supply: U128) -> TxResult {
@@ -94,8 +89,7 @@ impl ExternalUser {
         .sign(&self.signer);
         let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
 
     fn new_tx(&self, runtime: &RuntimeStandalone, receiver_id: AccountId) -> Transaction {
@@ -134,7 +128,7 @@ impl ExternalUser {
             if let RuntimeError::InvalidTxError(tx_err) = err {
                 let mut out = ExecutionOutcome::default();
                 out.status = ExecutionStatus::Failure(TxExecutionError::InvalidTxError(tx_err));
-                return Err(out);
+                Err(out)
             } else {
                 unreachable!();
             }
@@ -185,8 +179,7 @@ impl ExternalUser {
         .sign(&self.signer);
         let res = runtime.resolve_tx(tx).expect("resolving tx failed");
         runtime.process_all().expect("processing tx failed");
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
 	}
 
 	pub fn place_order(
@@ -218,8 +211,7 @@ impl ExternalUser {
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
 
     pub fn cancel_order(
@@ -249,8 +241,7 @@ impl ExternalUser {
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
 
     pub fn dynamic_market_sell(
@@ -280,8 +271,7 @@ impl ExternalUser {
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
 
     pub fn resolute_market(
@@ -309,8 +299,7 @@ impl ExternalUser {
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
     
     pub fn dispute_market(
@@ -338,8 +327,7 @@ impl ExternalUser {
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
 
     pub fn finalize_market(
@@ -363,8 +351,7 @@ impl ExternalUser {
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
 
     pub fn claim_earnings(
@@ -390,8 +377,7 @@ impl ExternalUser {
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
 
     pub fn withdraw_dispute_stake(
@@ -419,8 +405,7 @@ impl ExternalUser {
 		
 		let res = runtime.resolve_tx(tx).unwrap();
         runtime.process_all().unwrap();
-        let ans = outcome_into_result(res);
-        return ans;
+        outcome_into_result(res)
     }
 
     pub fn get_owner(
@@ -438,9 +423,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(res.as_slice()).unwrap();
-        let market_price = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return market_price;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
 
     pub fn get_market_price(
@@ -462,9 +445,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let market_price = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return market_price;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
 
     pub fn get_outcome_share_balance(
@@ -491,9 +472,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let share_balance = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return share_balance;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
 
     pub fn get_market_sell_depth(
@@ -520,9 +499,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return res;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
 
     // Methods for unit tests
@@ -548,9 +525,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return res;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
     
     pub fn get_filled_orders_len(
@@ -575,9 +550,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return res;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
     
     pub fn get_market_volume(
@@ -600,9 +573,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return res;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
 
     pub fn get_liquidity(
@@ -629,9 +600,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return res;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
 
     pub fn get_depth(
@@ -660,9 +629,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return res;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
 
     pub fn get_claimable(
@@ -687,9 +654,7 @@ impl ExternalUser {
 
         //TODO: UPDATE THIS CASTING
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return res;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
 
 
@@ -714,8 +679,7 @@ impl ExternalUser {
         .sign(&self.signer);
 
 		let res = runtime.resolve_tx(tx).expect("processing tx failed");
-		let ans = outcome_into_result(res);
-		return ans;
+		outcome_into_result(res)
     }
     
     pub fn transfer(
@@ -737,8 +701,7 @@ impl ExternalUser {
         .sign(&self.signer);
 
 		let res = runtime.resolve_tx(tx).expect("processing tx failed");
-		let ans = outcome_into_result(res);
-		return ans;
+		outcome_into_result(res)
     }
     
 
@@ -761,9 +724,7 @@ impl ExternalUser {
         .0;
 
         let data: serde_json::Value = serde_json::from_slice(market_price_json.as_slice()).unwrap();
-        let res = serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap();
-
-        return res;
+        serde_json::from_value(serde_json::to_value(data).unwrap()).unwrap()
     }
 
 }
@@ -774,5 +735,5 @@ pub fn init_markets_contract() -> (RuntimeStandalone, ExternalUser) {
 
     root.deploy_flux_protocol(&mut runtime).unwrap();
     
-    return (runtime, root);
+    (runtime, root)
 }

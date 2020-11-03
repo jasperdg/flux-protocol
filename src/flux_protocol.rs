@@ -45,7 +45,7 @@ type Market = market::Market;
 
 /**
  * @notice A hardcoded amount of gas that's used for external transactions
- * @dev Currently set to MAX_GAS / 3
+ * @dev Currently set to a third of the maximum gas allowed to attach to a tx
  */
 pub const SINGLE_CALL_GAS: u64 = 100000000000000;
 
@@ -141,7 +141,7 @@ impl FluxProtocol {
 	pub fn owner(
 		&self
 	) -> AccountId {
-		return self.owner.to_string();
+		self.owner.to_string()
 	}
 
 	/**
@@ -151,7 +151,7 @@ impl FluxProtocol {
 	fn fun_token_account_id(
 		&self
 	) -> AccountId {
-		return self.fun_token_account_id.to_string();
+		self.fun_token_account_id.to_string()
 	}
 
 	/**
@@ -163,11 +163,11 @@ impl FluxProtocol {
 		market_id: U64
 	) -> U128 {
 		let market_id: u64 = market_id.into();
-		return self.markets
+		self.markets
 			.get(&market_id)
 			.expect("market doesn't exist")
 			.filled_volume
-			.into();
+			.into()
 	}
 
 	/**
@@ -180,10 +180,10 @@ impl FluxProtocol {
 		outcome: u8
 	) -> u16 {
 		let market_id: u64 = market_id.into();
-		return self.markets
+		self.markets
 			.get(&market_id)
 			.expect("market doesn't exist")
-			.get_market_price(outcome);
+			.get_market_price(outcome)
 	}
 
 	/**
@@ -206,7 +206,7 @@ impl FluxProtocol {
 		/* If there is no data for this account_id return 0 */
 		if user_data.is_none() {return U128(0)}
 
-		return U128(user_data.unwrap().balance);
+		U128(user_data.unwrap().balance)
 	}
 
 	/**
@@ -215,7 +215,7 @@ impl FluxProtocol {
 	 * @return Returns a u128 integer representing the creator_fee_percentage denominated in 1e4, meaning 1 == 0.01%
 	 */
 	 fn get_creator_fee_percentage(&self, market: &Market) -> u32 {
-		return match market.winning_outcome {
+		match market.winning_outcome {
 			Some(_) => market.creator_fee_percentage,
 			None => 0
 		}
@@ -240,12 +240,9 @@ impl FluxProtocol {
 			return U128(0);
 		}
 
-		let mut validity_bond = 0;
 		/* If account_id is the market creator, and if the market was resoluted as being valid. If this is the case account_id is eligable to receive the validity bond back */ 
-		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
-			validity_bond = self.creation_bond;
-		}
-
+		let validity_bond = if account_id == market.creator && !market.validity_bond_claimed && market.winning_outcome != None { self.creation_bond } else { 0 };
+		 
 		/* Get how much would be claimable for account_id, governance earnings relates to wht we call "market governance" or the dispute resolution process */
 		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(account_id.to_string());
 		
@@ -271,7 +268,7 @@ impl FluxProtocol {
 		/* Calculate the total amount claimable */
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
 
-		return U128(to_claim);
+		U128(to_claim)
 	}
 
 	/*** Setters ***/
@@ -337,10 +334,10 @@ impl FluxProtocol {
 		assert!(creator_fee_percentage <= self.max_fee_percentage, "creator_fee_percentage too high");
 		assert!(affiliate_fee_percentage <= 10000, "affiliate_fee_percentage can't be higher than 100.00%");
 
-		if outcomes == 2 { assert!(outcome_tags.len() == 0, "If a binary markets the outcomes are always asumed to be ['NO', 'YES'] so there is no need for provide outcome_tags") }
+		if outcomes == 2 { assert!(outcome_tags.is_empty(), "If a binary markets the outcomes are always asumed to be ['NO', 'YES'] so there is no need for provide outcome_tags") }
 
 		/* Promise chain, call external token contract to transfer funds from user to flux protocol contract. Then self call proceed_market_creation. */
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), self.creation_bond.into(), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS)).then(
+		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), self.creation_bond.into(), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS)).then(
 			flux_protocol::proceed_market_creation(
 				env::predecessor_account_id(), 
 				description,
@@ -357,7 +354,7 @@ impl FluxProtocol {
 				0,
 				utils::get_gas_for_tx(&gas_arr, 1, SINGLE_CALL_GAS)
 			)
-		);
+		)
 	}
 
 	/**
@@ -423,9 +420,9 @@ impl FluxProtocol {
 		self.markets.insert(&self.nonce, &new_market);
 
 		/* Increment nonce, for next market's id */
-		self.nonce = self.nonce + 1;
+		self.nonce += 1;
 
-		return PromiseOrValue::Value(market_id);
+		PromiseOrValue::Value(market_id)
 	}
 
 	/** 
@@ -463,7 +460,7 @@ impl FluxProtocol {
 		let order_placement_gas = utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS * 10 - transfer_gas);
 
 		/* Attempt to transfer deposit the tokens from the user to this contract, then continue order placement */
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, transfer_gas)
+		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, transfer_gas)
 		.then(
 			flux_protocol::proceed_order_placement( 
 				env::predecessor_account_id(),
@@ -477,7 +474,7 @@ impl FluxProtocol {
 				0,
 				utils::get_gas_for_tx(&gas_arr, 0, order_placement_gas)
 			)
-		);
+		)
 	}
 
 	/** 
@@ -511,7 +508,7 @@ impl FluxProtocol {
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		market.place_order_internal(sender, outcome, shares, spend, price, affiliate_account_id);
 		self.markets.insert(&market.id, &market);
-		return PromiseOrValue::Value(true);
+		PromiseOrValue::Value(true)
 	}
 
 	/** 
@@ -612,10 +609,6 @@ impl FluxProtocol {
 		gas_arr: Option<Vec<U64>>,
 	) -> Promise {
 		let market_id: u64 = market_id.into();
-		let winning_outcome: Option<u8> = match winning_outcome {
-			Some(outcome) => Some(outcome.into()),
-			None => None
-		};
 		let stake_u128: u128 = stake.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
@@ -628,7 +621,7 @@ impl FluxProtocol {
 
 		let external_gas: u64 = (*gas_arr.as_ref().unwrap_or(&vec![]).get(2).unwrap_or(&U64(SINGLE_CALL_GAS))).into();
 
-		return fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS) / 2)
+		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), stake, &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS) / 2)
 		.then(
 			flux_protocol::proceed_market_resolution(
 				env::predecessor_account_id(),
@@ -640,7 +633,7 @@ impl FluxProtocol {
 				0,
 				utils::get_gas_for_tx(&gas_arr, 1, SINGLE_CALL_GAS)
 			)
-		);
+		)
 	}
 
 	/**
@@ -668,15 +661,15 @@ impl FluxProtocol {
 		let mut market = self.markets.get(&market_id).unwrap();
 		
 		/* Resolute the market, which returns how much of the stake the sender overpaid */
-		let change: u128 = market.resolute_internal(sender.to_string(), winning_outcome, stake).into();
+		let change = market.resolute_internal(sender.to_string(), winning_outcome, stake);
 		self.markets.insert(&market_id, &market);
 
 		/* If the sender overstaked return amount to the sender  */
 		if change > 0 {
 			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas / 2);
-			return PromiseOrValue::Promise(prom);
+			PromiseOrValue::Promise(prom)
 		} else {
-			return PromiseOrValue::Value(true);
+			PromiseOrValue::Value(true)
 		}
 	}
 
@@ -701,10 +694,6 @@ impl FluxProtocol {
 		gas_arr: Option<Vec<U64>>,
 	) -> Promise {
 		let market_id: u64 = market_id.into();
-		let winning_outcome: Option<u8> = match winning_outcome {
-			Some(outcome) => Some(outcome.into()),
-			None => None
-		};
 		let stake_u128: u128 = stake.into();
         let market = self.markets.get(&market_id).expect("market doesn't exist");
 		
@@ -765,9 +754,9 @@ impl FluxProtocol {
 		
 		/* If the sender overstaked return amount to the sender  */
 		if change > 0 {
-			return PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas / 2));
+			PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas / 2))
 		} else {
-			return PromiseOrValue::Value(true);
+			PromiseOrValue::Value(true)
 		}
 	}
 
@@ -786,13 +775,6 @@ impl FluxProtocol {
 		winning_outcome: Option<u8>
 	) {
 		let market_id: u64 = market_id.into();
-
-		/* Convert winning_outcome parameter into a Option<u64> */
-		let winning_outcome: Option<u8> = match winning_outcome {
-			Some(outcome) => Some(outcome.into()),
-			None => None
-		};
-		
 		let mut market = self.markets.get(&market_id).unwrap();
 		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, true, "market has to be resoluted before it can be finalized");
@@ -828,15 +810,8 @@ impl FluxProtocol {
 		gas_arr: Option<Vec<U64>>,
 	) -> Promise {
 		let market_id: u64 = market_id.into();
-		let dispute_round: u64 = dispute_round.into();
-		
+		let dispute_round: u64 = dispute_round.into();		
 		utils::assert_gas_arr_validity(&gas_arr, 1);
-		/* Convert winning_outcome parameter into a Option<u64> */
-		let outcome: Option<u8> = match outcome {
-			Some(outcome) => Some(outcome.into()),
-			None => None
-		};
-
 		let mut market = self.markets.get(&market_id).expect("invalid market");
 		let to_return = market.withdraw_resolution_stake_internal(dispute_round, outcome);
 
@@ -845,7 +820,7 @@ impl FluxProtocol {
 			/* Re-insert the market into the markets struct to update state */
 			self.markets.insert(&market_id, &market);
 			logger::log_dispute_withdraw(market_id, env::predecessor_account_id(), dispute_round, outcome);
-			return fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2);
+			fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), 0, SINGLE_CALL_GAS / 2)
 		} else {
 			panic!("user has no participation in this dispute");
 		}
@@ -884,7 +859,7 @@ impl FluxProtocol {
 
 		/* If account_id is the market creator, and if the market was resoluted as being valid. If this is the case account_id is eligable to receive the validity bond back */ 
 		let mut validity_bond = 0;
-		if account_id == market.creator && market.validity_bond_claimed == false && market.winning_outcome != None {
+		if account_id == market.creator && !market.validity_bond_claimed && market.winning_outcome != None {
 			validity_bond = self.creation_bond;
 			market.validity_bond_claimed = true;			
 		}
@@ -919,12 +894,12 @@ impl FluxProtocol {
 
 		if market_creator_fee > 0 {
 			/* If the market_creator_fee > 0; first transfer funds to the user, and after that transfer the fee to the market creator */
-			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS)).then(
+			fun_token::transfer(account_id, U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS)).then(
 				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS))
 			);
 		} else {
 			/* If the market_creator_fee == 0; Just transfer the user his earnings */
-			fun_token::transfer(account_id.to_string(), U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS));
+			fun_token::transfer(account_id, U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, SINGLE_CALL_GAS));
 		}
 	}	
 }
@@ -936,45 +911,44 @@ mod tests {
 	use super::*;
 	mod utils;
 	use utils::{ntoy, ExternalUser, init_markets_contract};
-    use near_sdk::MockedBlockchain;
-    use near_sdk::{VMContext, testing_env};
+    use near_sdk::{VMContext};
 	use near_runtime_standalone::{RuntimeStandalone};
-	use near_primitives::transaction::{ExecutionStatus, ExecutionOutcome};
+	use near_primitives::transaction::{ExecutionStatus};
 
 	fn to_dai(amt: u128) -> u128 {
-		return amt * 1e18 as u128;
+		amt * 1e18 as u128
 	}
 
 	fn flux_protocol() -> AccountId {
-		return "flux_protocol".to_string();
+		"flux_protocol".to_string()
 	}
 
 	fn judge() -> AccountId {
-		return "flux-dev".to_string();
+		"flux-dev".to_string()
 	}
 
 	fn affiliate() -> AccountId {
-		return "affiliate".to_string();
+		"affiliate".to_string()
 	}
 
 	fn alice() -> AccountId {
-		return "alice.near".to_string();
+		"alice.near".to_string()
 	}
 
 	fn carol() -> AccountId {
-		return "carol.near".to_string();
+		"carol.near".to_string()
 	}
 
 	fn bob() -> AccountId {
-		return "bob.near".to_string();
+		"bob.near".to_string()
 	}
 
 	fn empty_string() -> AccountId {
-		return "".to_string();
+		"".to_string()
 	}
 
 	fn categories () -> Vec<String> {
-		return vec![];
+		vec![]
 	}
 
 	fn outcome_tags(
@@ -984,21 +958,21 @@ mod tests {
 		for _ in 0..number_of_outcomes {
 			outcomes.push(empty_string());
 		}
-		return outcomes;
+		outcomes
 	}
 
 	fn current_block_timestamp() -> u64 {
-		return 123789;
+		123789
 	}
 	
 	fn market_creation_timestamp() -> u64 {
-		return 12378;
+		12378
 	}
 	fn market_end_timestamp_ns() -> u64 {
-		return 12379000000;
+		12379000000
 	}
 	fn market_end_timestamp_ms() -> u64 {
-		return 12379;
+		12379
 	}
 
 	fn get_context(
@@ -1017,7 +991,7 @@ mod tests {
             account_balance: 0,
 			is_view: false,
             storage_usage: 0,
-			block_timestamp: block_timestamp,
+			block_timestamp,
 			account_locked_balance: 0,
             attached_deposit: 0,
             prepaid_gas: 10u64.pow(12),
@@ -1044,7 +1018,7 @@ mod tests {
 
 		root.deploy_fun_token(&mut runtime, accounts[0].get_account_id(), U128(to_dai(100000000))).unwrap();
 
-		return (runtime, root, accounts);
+		(runtime, root, accounts)
 	}
 
 	mod init_tests;

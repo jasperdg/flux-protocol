@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn test_payout() {
-	let (mut runtime, root, accounts) = init_runtime_env();
+	let (mut runtime, _root, accounts) = init_runtime_env();
 	runtime.current_block().block_timestamp = current_block_timestamp();
 	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
@@ -21,11 +21,8 @@ fn test_payout() {
 	alice.place_order(&mut runtime, U64(0), 1, U128(10000), 10, None, None).expect("tx failed unexpectedly");
 	alice.place_order(&mut runtime, U64(0), 2, U128(10000), 10, None, None).expect("tx failed unexpectedly");
 
-	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
-	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();
-
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
-	let tx_res = carol.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5)), None).expect("tx failed unexpectedly");
+	carol.resolute_market(&mut runtime, U64(0), None, U128(to_dai(5)), None).expect("tx failed unexpectedly");
 	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	carol.finalize_market(&mut runtime, U64(0), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 
@@ -35,9 +32,8 @@ fn test_payout() {
 	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	let initial_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into();
 
-	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
-	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id(), None).expect("claim_earnigns tx failed unexpectedly");
-	let tx_res = carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id(), None).expect("claim_earnigns tx failed unexpectedly");
+	alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id(), None).expect("claim_earnigns tx failed unexpectedly");
+	carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id(), None).expect("claim_earnigns tx failed unexpectedly");
 	
 	let updated_balance_alice = alice.get_balance(&mut runtime, alice.get_account_id());
 	let updated_balance_carol = alice.get_balance(&mut runtime, carol.get_account_id());

@@ -119,7 +119,7 @@ impl Market {
 		let base: u128 = 10;
 
 		/* Create empty Vector object that will store all resolution windows */
-		let mut resolution_windows = Vector::new("market:{}:resolution_windows".as_bytes().to_vec());
+		let mut resolution_windows = Vector::new(b"market:{}:resolution_windows".to_vec());
 
 		/* Initiate first resolution window */
 		let base_resolution_window = ResolutionWindow {
@@ -127,13 +127,13 @@ impl Market {
 			participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:0", id).as_bytes().to_vec()),
 			required_bond_size: 5 * base.pow(18),
 			staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", id, 0).as_bytes().to_vec()), // Staked per outcome
-			end_time: end_time,
+			end_time,
 			outcome: None,
 		};
 		resolution_windows.push(&base_resolution_window);
 
 		/* Return market instance */
-		return Self {
+		Self {
 			id,
 			description,
 			extra_info,
@@ -160,7 +160,7 @@ impl Market {
 			resolution_windows,
 			validity_bond_claimed: false,
 			claimed_earnings: UnorderedMap::new(format!("market:{}:claimed_earnings_for", id).as_bytes().to_vec()),
-		};
+		}
 	}
 
 	/*** Trading methods ***/
@@ -251,7 +251,7 @@ impl Market {
 			share_depth = updated_share_depth;
 		}
 
-		return (spent, shares_filled);
+		(spent, shares_filled)
 	}
 
 	/**
@@ -269,7 +269,7 @@ impl Market {
 			let best_price = orderbook.price_data.max().unwrap_or(0);
 			market_price -= best_price;
 		}
-		return market_price;
+		market_price
 	}
 
 	/**
@@ -301,7 +301,7 @@ impl Market {
 
 			market_price -= best_price;
 		}
-		return (market_price, min_liquidity);
+		(market_price, min_liquidity)
 	}
 
 	/**
@@ -370,7 +370,7 @@ impl Market {
 		/* Re-insert the orderbook */
 		self.orderbooks.insert(&outcome, &orderbook);
 		
-		return sell_depth * sell_price;
+		sell_depth * sell_price
 	}
 
 	/*** Resolution methods ***/
@@ -407,7 +407,10 @@ impl Market {
 		/* Update sender's stake state */
 		let mut sender_stake_per_outcome = resolution_window.participants_to_outcome_to_stake
 		.get(&sender)
-		.unwrap_or(UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec()));
+		.unwrap_or_else(||{
+			UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec())
+		});
+		
 		let stake_in_outcome = sender_stake_per_outcome
 		.get(&outcome_id)
 		.unwrap_or(0);
@@ -442,7 +445,7 @@ impl Market {
 		/* Re-insert the resolution window after update */
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
 
-		return to_return;
+		to_return
 	}
 
 	/**
@@ -477,7 +480,9 @@ impl Market {
 		/* Add stake to user's stake state */
 		let mut sender_stake_per_outcome = resolution_window.participants_to_outcome_to_stake
 		.get(&sender)
-		.unwrap_or(UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec()));
+		.unwrap_or_else(|| {
+			UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec())
+		});
 		let stake_in_outcome = sender_stake_per_outcome
 		.get(&outcome_id)
 		.unwrap_or(0);
@@ -517,7 +522,7 @@ impl Market {
 		// Re-insert the resolution window
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
 
-		return to_return;
+		to_return
 	}
 
 	/**
@@ -591,9 +596,9 @@ impl Market {
 		}
 
 		/* Calculate governance earnings */ 
-		let governance_earnings = self.get_dispute_earnings(account_id.to_string());
+		let governance_earnings = self.get_dispute_earnings(account_id);
 
-		return (winnings, in_open_orders, governance_earnings);
+		(winnings, in_open_orders, governance_earnings)
 	}
 
 	/**
@@ -629,7 +634,7 @@ impl Market {
 		/* Re-insert updated resolution window */
 		self.resolution_windows.replace(resolution_window.round, &resolution_window);
 
-		return to_return;
+		to_return
 	}
 
 	/** 
@@ -668,10 +673,10 @@ impl Market {
 					
 					if resolution_participation.is_some() {
 						/* Check how much of the bond the user participated */
-						let correct_outcome_participation = resolution_participation
-						.unwrap()
-						.get(&self.to_numerical_outcome(self.winning_outcome))
-						.unwrap_or(0);
+						let correct_outcome_participation = match resolution_participation {
+							Some(participation) => participation.get(&self.to_numerical_outcome(self.winning_outcome)).unwrap_or(0),
+							None => 0
+						};
 
 						if correct_outcome_participation > 0 {
 							/* If a user participated < 1 / precision of the total stake in an outcome their resolution_fee distribution will be rounded down to 0 */
@@ -695,7 +700,9 @@ impl Market {
 				if window_outcome_id == winning_outcome_id {
 					let round_participation = window.participants_to_outcome_to_stake
 					.get(&account_id)
-					.unwrap_or(UnorderedMap::new(format!("market:{}:staked_per_outcome:{}:{}", self.id, window.round, account_id).as_bytes().to_vec()))
+					.unwrap_or_else(|| {
+						UnorderedMap::new(format!("market:{}:staked_per_outcome:{}:{}", self.id, window.round, account_id).as_bytes().to_vec())
+					})
 					.get(&winning_outcome_id)
 					.unwrap_or(0);
 
@@ -715,7 +722,7 @@ impl Market {
 		/* Calculate profit from participating in disputes */
 		let profit = ((total_incorrectly_staked * precision) / (total_correctly_staked / user_correctly_staked)) / precision; 
 
-		return profit + user_correctly_staked + resolution_reward;
+		profit + user_correctly_staked + resolution_reward
 	}
 
 	/**
@@ -725,7 +732,7 @@ impl Market {
 		&self, 
 		outcome: Option<u8>, 
 	) -> u8 {
-		return outcome.unwrap_or(self.outcomes);
+		outcome.unwrap_or(self.outcomes)
 	}
 }
 

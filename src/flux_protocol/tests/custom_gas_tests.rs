@@ -21,8 +21,8 @@ fn test_custom_gas_txs() {
 
     runtime.current_block().block_timestamp = market_end_timestamp_ns();
 
-    alice.resolute_market(&mut runtime, U64(0), Some(1), U128(to_dai(5)), Some(vec![U64(SINGLE_CALL_GAS), U64(SINGLE_CALL_GAS), U64(SINGLE_CALL_GAS)]));
-    alice.dispute_market(&mut runtime, U64(0), Some(0), U128(to_dai(10)), Some(vec![U64(SINGLE_CALL_GAS), U64(SINGLE_CALL_GAS)]));
+    alice.resolute_market(&mut runtime, U64(0), Some(1), U128(to_dai(5)), Some(vec![U64(SINGLE_CALL_GAS), U64(SINGLE_CALL_GAS), U64(SINGLE_CALL_GAS)])).unwrap();
+    alice.dispute_market(&mut runtime, U64(0), Some(0), U128(to_dai(10)), Some(vec![U64(SINGLE_CALL_GAS), U64(SINGLE_CALL_GAS)])).unwrap();
 	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	root.finalize_market(&mut runtime, U64(0), Some(1)).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 	alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id(), Some(vec![U64(SINGLE_CALL_GAS)])).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 

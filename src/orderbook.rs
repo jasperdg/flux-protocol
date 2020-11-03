@@ -52,8 +52,8 @@ pub struct Orderbook {
 
 impl Orderbook {
 	/**
-	 * @notice Initialize new orderbook struct
-	 */
+	* @notice Initialize new orderbook struct
+	*/
 	pub fn new(
 		market_id: u64,
 		outcome: u8
@@ -98,8 +98,8 @@ impl Orderbook {
 		&mut self
 	) -> u128 {
 		let id = self.nonce;
-		self.nonce = self.nonce + 1;
-		return id;
+		self.nonce += 1;
+		id
 	}
 
     /**
@@ -119,10 +119,12 @@ impl Orderbook {
 	){
 		let order_id = self.new_order_id();
 		/* Create new order instance */
-		let new_order = Order::new(order_id, account_id.to_string(), market_id, spend, filled, shares, shares_filled, price, affiliate_account_id.clone());
+		let new_order = Order::new(order_id, account_id.to_string(), market_id, spend, filled, shares, shares_filled, price, affiliate_account_id);
 
 		/* Get user_data and if it doesn't exist create new instance */
-		let mut user_data = self.user_data.get(&account_id).unwrap_or(self.new_account());
+		let mut user_data = self.user_data.get(&account_id).unwrap_or_else(|| {
+			self.new_account()
+		});
 
 		/* Update user data */
 		user_data.balance += shares_filled;
@@ -135,10 +137,7 @@ impl Orderbook {
 		let left_to_spend = spend - filled;
 
 		/* Calculate the average fill_price if anything was filled */
-		let mut fill_price = 0;
-		if shares_filled > 0 {
-			fill_price = filled / shares_filled;
-		}
+		let fill_price = if shares_filled > 0 {filled / shares_filled} else {0};
 		
 		self.user_data.insert(&account_id, &user_data);
 		
@@ -150,7 +149,10 @@ impl Orderbook {
 		}
 		
 		/* Store the order by updating the price data, if there were no orders at this order's price create a new order instance */
-		let mut price_data = self.price_data.get(&price).unwrap_or(self.new_price(price as u128));
+		let mut price_data = self.price_data.get(&price).unwrap_or_else(|| {
+			self.new_price(price as u128)
+		});
+
 		/* Insert order into open orders at price */
 		price_data.orders.insert(&order_id, &new_order);
 		/* Update liquidity by shares still open */
@@ -191,7 +193,7 @@ impl Orderbook {
 		logger::log_update_user_balance(order.creator.to_string(), order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
 		logger::log_order_closed(&order, self.market_id, self.outcome_id);
 
-		return to_return;
+		to_return
 	}
 
 	/**
@@ -244,7 +246,7 @@ impl Orderbook {
 			shares_to_fill -= filling;
 		}
 
-		return shares_filled;
+		shares_filled
 	}
 
 	/**
@@ -324,8 +326,8 @@ impl Orderbook {
 			best_price = self.price_data.lower(&best_price).unwrap_or(0);
 		}
 
-		if depth == 0 {return (0, 0);}
+		if depth == 0 {return (0, 0)}
 
-		return (cmp::min(max_shares, depth), depth_price_prod_sum / depth);
+		(cmp::min(max_shares, depth), depth_price_prod_sum / depth)
 	}
 }
