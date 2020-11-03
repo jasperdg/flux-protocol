@@ -869,7 +869,7 @@ impl FluxProtocol {
 		
 		if to_claim == 0 {panic!("can't claim 0 tokens")}
 
-		logger::log_earnings_claimed(market_id, &env::predecessor_account_id(), to_claim);
+		logger::log_earnings_claimed(market_id, &account_id, to_claim);
 		
 		/* Reinsert market instance to update claim state */
 		self.markets.insert(&market_id, &market);
