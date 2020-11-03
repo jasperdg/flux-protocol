@@ -19,12 +19,8 @@ use crate::orderbook::Orderbook;
 use crate::logger;
 /*** Import utils methods ***/
 use crate::utils;
-
-/* Twelve hours in mili seconds */
-const TWELVE_HOURS: u64 = 43_200_000;
-
-/* A precision of 1e9 because it won't overflow with tokens < 100b total supply at 18 decimals */
-const EARNINGS_PRECISION: u128 = 1_000_000_000;
+/*** Import constants methods ***/
+use crate::constants;
 
 /** 
  * @notice Struct of a resolution window, meant to display both resolution and dispute progression and state
@@ -436,7 +432,7 @@ impl Market {
 				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
 				required_bond_size: resolution_window.required_bond_size * 2,
 				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: utils::ns_to_ms(env::block_timestamp()) + TWELVE_HOURS, // dispute time is 12 hours for first release
+				end_time: utils::ns_to_ms(env::block_timestamp()) + constants::TWELVE_HOURS, // dispute time is 12 hours for first release
 				outcome: None,
 			};
 
@@ -514,7 +510,7 @@ impl Market {
 				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
 				required_bond_size: resolution_window.required_bond_size * 2,
 				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: utils::ns_to_ms(env::block_timestamp()) + TWELVE_HOURS,
+				end_time: utils::ns_to_ms(env::block_timestamp()) + constants::TWELVE_HOURS,
 				outcome: None,
 			};
 
@@ -671,7 +667,7 @@ impl Market {
 				};
 
 				/* Calculate how much the total fee payout will be */
-				let total_resolution_fee = u128::from(self.resolution_fee_percentage) * (self.filled_volume + claimable_if_invalid) / 10000;
+				let total_resolution_fee = u128::from(self.resolution_fee_percentage) * (self.filled_volume + claimable_if_invalid) / u128::from(constants::PERCENTAGE_PRECISION);
 		
 				/* Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome */
 				if self.winning_outcome == window.outcome {
@@ -687,8 +683,8 @@ impl Market {
 
 						if correct_outcome_participation > 0 {
 							/* If a user participated < 1 / precision of the total stake in an outcome their resolution_fee distribution will be rounded down to 0 */
-							let relative_participation = correct_outcome_participation * EARNINGS_PRECISION / window.required_bond_size;
-							let user_fee_reward = relative_participation * total_resolution_fee / EARNINGS_PRECISION;
+							let relative_participation = correct_outcome_participation * constants::EARNINGS_PRECISION / window.required_bond_size;
+							let user_fee_reward = relative_participation * total_resolution_fee / constants::EARNINGS_PRECISION;
 							/* calculate his relative share of the total_resolution_fee relative to his participation */
 							resolution_reward += user_fee_reward + correct_outcome_participation;
 						}
@@ -724,7 +720,7 @@ impl Market {
 
 		/* Declare decimals to make sure smallers stakers still are rewarded */
 		/* Calculate profit from participating in disputes */
-		let profit = ((total_incorrectly_staked * EARNINGS_PRECISION) / (total_correctly_staked / user_correctly_staked)) / EARNINGS_PRECISION; 
+		let profit = ((total_incorrectly_staked * constants::EARNINGS_PRECISION) / (total_correctly_staked / user_correctly_staked)) / constants::EARNINGS_PRECISION; 
 
 		profit + user_correctly_staked + resolution_reward
 	}

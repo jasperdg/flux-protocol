@@ -8,6 +8,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[macro_use]
 mod logger;
+mod constants;
 mod utils;
 mod order;
 mod orderbook;
