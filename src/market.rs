@@ -17,6 +17,14 @@ use near_sdk::{
 use crate::orderbook::Orderbook;
 /*** Import logger methods ***/
 use crate::logger;
+/*** Import utils methods ***/
+use crate::utils;
+
+/* Twelve hours in mili seconds */
+const TWELVE_HOURS: u64 = 43_200_000;
+
+/* A precision of 1e9 because it won't overflow with tokens < 100b total supply at 18 decimals */
+const EARNINGS_PRECISION: u128 = 1_000_000_000;
 
 /** 
  * @notice Struct of a resolution window, meant to display both resolution and dispute progression and state
@@ -62,7 +70,7 @@ pub struct Market {
 	pub api_source: String,
 	pub resolution_windows: Vector<ResolutionWindow>,
 	pub validity_bond_claimed: bool,
-	pub claimed_earnings: UnorderedMap<AccountId, bool>
+	pub claimed_earnings: UnorderedMap<AccountId, bool> // TODO: to LookupSet
 }
 
 impl Market {
@@ -77,8 +85,8 @@ impl Market {
 		description: String, 
 		extra_info: String, 
 		outcomes: u8, 
-		outcome_tags: Vec<String>, 
-		categories: Vec<String>, 
+		outcome_tags: &Vec<String>, 
+		categories: &Vec<String>, 
 		end_time: u64, 
 		creator_fee_percentage: u32, 
 		resolution_fee_percentage: u32, 
@@ -98,12 +106,12 @@ impl Market {
 		);
 
 		/* Push all outcome tags from the vec collection type to Vector collection type for gas optimization */
-		for outcome_tag in &outcome_tags {
+		for outcome_tag in outcome_tags {
 			outcome_tags_vector.push(outcome_tag);
 		}
 		
 		/* Push all categories from the vec collection type to Vector collection type for gas optimization */
-		for category in &categories {
+		for category in categories {
 			categories_vector.push(category);
 		}
 
@@ -141,7 +149,7 @@ impl Market {
 			outcomes,
 			outcome_tags: outcome_tags_vector,
 			categories: categories_vector,
-			creation_time: env::block_timestamp() / 1000000,
+			creation_time: utils::ns_to_ms(env::block_timestamp()),
 			end_time,
 			orderbooks: empty_orderbooks,
 			winning_outcome: None,
@@ -164,10 +172,9 @@ impl Market {
 	}
 
 	/*** Trading methods ***/
-
 	pub fn place_order_internal(
 		&mut self, 
-		account_id: AccountId, 
+		account_id: &AccountId, 
 		outcome: u8, 
 		shares: u128, 
 		spend: u128, 
@@ -186,7 +193,7 @@ impl Market {
 		/* Create and place a new order for the orderbook */
 		orderbook.new_order(
 			self.id,
-			account_id,
+			&account_id,
 			outcome,
 			spend,
 			shares,
@@ -225,7 +232,7 @@ impl Market {
 		/* If spendable <= 100 we can get overflows due to rounding errors */
 		while spendable > 100 && market_price <= price {
 			/* Calc the amount of shares to fill at the current price which is the min between the amount spendable / price and depth */
-			let shares_to_fill_at_market_price = cmp::min(spendable / market_price as u128, share_depth.expect("expected there to be share depth"));
+			let shares_to_fill_at_market_price = cmp::min(spendable / u128::from(market_price), share_depth.expect("expected there to be share depth"));
 
 			/* Loop through all other orderbooks and fill the shares to fill */
 			for orderbook_id in  0..self.outcomes {
@@ -243,9 +250,9 @@ impl Market {
 			}
 
 			/* Update tracking variables */
-			spendable -= shares_to_fill_at_market_price * market_price as u128;
+			spendable -= shares_to_fill_at_market_price * u128::from(market_price);
 			shares_filled += shares_to_fill_at_market_price;
-			spent += shares_to_fill_at_market_price * market_price as u128;
+			spent += shares_to_fill_at_market_price * u128::from(market_price);
 			let (updated_market_price, updated_share_depth) = self.get_market_price_and_min_liquidity(outcome);
 			market_price = updated_market_price;
 			share_depth = updated_share_depth;
@@ -275,7 +282,7 @@ impl Market {
 	/**
 	 * @notice Calculates the market price and returns depth at this market price
 	 * @dev market_price = 100 - best_price_for_each_other_outcome
-	 *  depth = min liquidity available at the oposing outcomes' best price
+	 *  depth = min liquidity available at the opposing outcomes' best price
 	 * @return the market price and returns depth at this market price
 	 */
 	pub fn get_market_price_and_min_liquidity(
@@ -362,7 +369,7 @@ impl Market {
 		user_data.to_spend -= filled * avg_buy_price;
 		user_data.spent -= filled * avg_buy_price;
 		
-		logger::log_update_user_balance(env::predecessor_account_id(), self.id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
+		logger::log_update_user_balance(&env::predecessor_account_id(), self.id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
 		
 		/* Re-insert the updated user data  */
 		orderbook.user_data.insert(&env::predecessor_account_id(), &user_data);
@@ -381,7 +388,7 @@ impl Market {
 	 */
 	pub fn resolute_internal(
 		&mut self,
-		sender: AccountId,
+		sender: &AccountId,
 		winning_outcome: Option<u8>, 
 		stake: u128
 	) -> u128 {
@@ -429,16 +436,16 @@ impl Market {
 				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
 				required_bond_size: resolution_window.required_bond_size * 2,
 				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: env::block_timestamp() / 1000000 + 43200000, // dispute time is 12 hours for first release
+				end_time: utils::ns_to_ms(env::block_timestamp()) + TWELVE_HOURS, // dispute time is 12 hours for first release
 				outcome: None,
 			};
 
-			logger::log_market_resoluted(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_market_resoluted(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
 			logger::log_new_resolution_window(self.id, new_resolution_window.round, new_resolution_window.required_bond_size, new_resolution_window.end_time);
 			self.resolution_windows.push(&new_resolution_window);
 			
 		}  else {
-			logger::log_staked_on_resolution(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_staked_on_resolution(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
 
 		}
 		
@@ -454,7 +461,7 @@ impl Market {
 	 */
 	pub fn dispute_internal(
 		&mut self, 
-		sender: AccountId,
+		sender: &AccountId,
 		winning_outcome: Option<u8>,
 		stake: u128
 	) -> u128 {
@@ -499,24 +506,24 @@ impl Market {
 			// Set last winning outcome
 			resolution_window.outcome = winning_outcome;
 
-			let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("This can't be None");
-			assert_eq!(staked_on_outcome, full_bond_size, "the total staked on outcome needs to equal full bond size if we get here");
+			let updated_staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("This can't be None");
+			assert_eq!(updated_staked_on_outcome, full_bond_size, "the total staked on outcome needs to equal full bond size if we get here");
 
 			let next_resolution_window = ResolutionWindow{
 				round: resolution_window.round + 1,
 				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
 				required_bond_size: resolution_window.required_bond_size * 2,
 				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: env::block_timestamp() / 1000000 + 43200000,
+				end_time: utils::ns_to_ms(env::block_timestamp()) + TWELVE_HOURS,
 				outcome: None,
 			};
 
-			logger::log_resolution_disputed(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_resolution_disputed(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
 			logger::log_new_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
 
 			self.resolution_windows.push(&next_resolution_window);
 		} else {
-			logger::log_staked_on_dispute(self.id, sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_staked_on_dispute(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
 		}
 
 		// Re-insert the resolution window
@@ -550,7 +557,7 @@ impl Market {
 	 */
 	pub fn get_claimable_internal(
 		&self, 
-		account_id: AccountId
+		account_id: &AccountId
 	) -> (u128, u128, u128) {
 		let invalid = self.winning_outcome.is_none();
 		let mut winnings = 0;
@@ -560,7 +567,7 @@ impl Market {
 			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
 				/* Check if the user has any paritipation in this outcome else continue to next outcome */
-				let user_data = match orderbook.user_data.get(&account_id) {
+				let user_data = match orderbook.user_data.get(account_id) {
 					Some(user) => user,
 					None => continue
 				};
@@ -574,7 +581,7 @@ impl Market {
 			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
 				/* Check if the user has any paritipation in this outcome else continue to next outcome */
-				let user_data = match orderbook.user_data.get(&account_id) {
+				let user_data = match orderbook.user_data.get(account_id) {
 					Some(user) => user,
 					None => continue
 				};
@@ -586,7 +593,7 @@ impl Market {
 			let winning_orderbook = self.orderbooks.get(&self.to_numerical_outcome(self.winning_outcome)).unwrap();
 
 			/* Check if the user traded in the winning_outcome */
-			let winning_value = match winning_orderbook.user_data.get(&account_id) {
+			let winning_value = match winning_orderbook.user_data.get(account_id) {
 				Some(user) => user.balance * 100, // Calculate user winnings: shares_owned * 100
 				None => 0
 			};
@@ -643,7 +650,7 @@ impl Market {
 	 */
 	fn get_dispute_earnings(
 		&self, 
-		account_id: AccountId
+		account_id: &AccountId
 	) -> u128 {
 		let mut user_correctly_staked = 0;
 		let mut resolution_reward = 0;
@@ -664,7 +671,7 @@ impl Market {
 				};
 
 				/* Calculate how much the total fee payout will be */
-				let total_resolution_fee = self.resolution_fee_percentage as u128 * (self.filled_volume + claimable_if_invalid) / 10000;
+				let total_resolution_fee = u128::from(self.resolution_fee_percentage) * (self.filled_volume + claimable_if_invalid) / 10000;
 		
 				/* Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome */
 				if self.winning_outcome == window.outcome {
@@ -680,10 +687,8 @@ impl Market {
 
 						if correct_outcome_participation > 0 {
 							/* If a user participated < 1 / precision of the total stake in an outcome their resolution_fee distribution will be rounded down to 0 */
-							/* * we chose for 1e11 precision because that allows it to mupltiply up to 1e27 (total supply of many tokens) without overflowing. */
-							let precision = 1e11 as u128;
-							let relative_participation = correct_outcome_participation * precision / window.required_bond_size;
-							let user_fee_reward = relative_participation * total_resolution_fee / precision;
+							let relative_participation = correct_outcome_participation * EARNINGS_PRECISION / window.required_bond_size;
+							let user_fee_reward = relative_participation * total_resolution_fee / EARNINGS_PRECISION;
 							/* calculate his relative share of the total_resolution_fee relative to his participation */
 							resolution_reward += user_fee_reward + correct_outcome_participation;
 						}
@@ -718,9 +723,8 @@ impl Market {
 		if total_correctly_staked == 0 || total_incorrectly_staked == 0 || user_correctly_staked == 0 {return resolution_reward}
 
 		/* Declare decimals to make sure smallers stakers still are rewarded */
-		let precision = 1e11 as u128;
 		/* Calculate profit from participating in disputes */
-		let profit = ((total_incorrectly_staked * precision) / (total_correctly_staked / user_correctly_staked)) / precision; 
+		let profit = ((total_incorrectly_staked * EARNINGS_PRECISION) / (total_correctly_staked / user_correctly_staked)) / EARNINGS_PRECISION; 
 
 		profit + user_correctly_staked + resolution_reward
 	}

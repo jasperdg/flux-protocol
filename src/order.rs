@@ -27,7 +27,7 @@ impl Order {
 		price: u16, 
 		affiliate_account_id: Option<AccountId>
 	) -> Self {
-		Order {
+		Self {
 			id,
 			creator,
 			market_id,

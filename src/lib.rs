@@ -1,5 +1,5 @@
-#![warn(clippy::all)]
-#![allow(dead_code, clippy::tabs_in_doc_comments, clippy::too_many_arguments)]
+#![warn(clippy::all, clippy::pedantic)]
+#![allow(dead_code, clippy::struct_excessive_bools, clippy::ptr_arg, clippy::tabs_in_doc_comments, clippy::too_many_arguments)]
 #[cfg(feature = "wee_alloc")]
 
 #[global_allocator]

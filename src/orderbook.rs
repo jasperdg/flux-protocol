@@ -23,7 +23,7 @@ use crate::logger;
 pub type Order = order::Order;
 
 /**
- * @notice PriceData is a struct that holds total liquidity denominated in shares(1e16) and an ordered Map of orders (order_id => Order) for a certain price
+ * @notice `PriceData` is a struct that holds total liquidity denominated in shares(1e16) and an ordered Map of orders (`order_id` => `Order`) for a certain price
  */
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct PriceData {
@@ -32,13 +32,23 @@ pub struct PriceData {
 }
 
 /**
- * @notice AccountData is a struct that keeps some state for each participant that purchased shares of the orderbook's outcome
+ * @notice `AccountData` is a struct that keeps some state for each participant that purchased shares of the orderbook's outcome
  */
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct AccountData {
 	pub balance: u128, // The user's balance denominated in shares (1e16)
 	pub spent: u128, // How much the user has spent (denominated in 1e18)
 	pub to_spend: u128, // How much is still to be spend (in open orders)
+}
+
+impl AccountData {
+	fn new() -> Self {
+		Self {
+			balance: 0,
+			spent: 0,
+			to_spend: 0,
+		}
+	}
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -68,22 +78,10 @@ impl Orderbook {
 	}
 
 	/**
-	 * @notice Initialize a new AccountData instance
-	 * @return Returns AccountData struct
-	 */
-	fn new_account(&self) -> AccountData {
-		AccountData {
-			balance: 0,
-			spent: 0,
-			to_spend: 0,
-		}
-	}
-
-	/**
 	 * @notice Initialize a new PriceData instance
 	 * @return Returns PriceData struct
 	 */
-	fn new_price(&self, price: u128) -> PriceData {
+	fn new_price(&self, price: u16) -> PriceData {
 		PriceData {
 			share_liquidity: 0,
 			orders: TreeMap::new(format!("price_data:{}:{}:{}", self.market_id, self.outcome_id, price).as_bytes().to_vec())
@@ -108,7 +106,7 @@ impl Orderbook {
 	pub fn new_order(
 		&mut self,
 		market_id: u64,
-		account_id: AccountId, 
+		account_id: &AccountId, 
 		outcome: u8, 
 		spend: u128, 
 		shares: u128, 
@@ -123,7 +121,7 @@ impl Orderbook {
 
 		/* Get user_data and if it doesn't exist create new instance */
 		let mut user_data = self.user_data.get(&account_id).unwrap_or_else(|| {
-			self.new_account()
+			AccountData::new()
 		});
 
 		/* Update user data */
@@ -131,7 +129,7 @@ impl Orderbook {
 		user_data.spent += filled;
 		user_data.to_spend += spend;
 		
-		logger::log_update_user_balance(account_id.to_string(), market_id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
+		logger::log_update_user_balance(&account_id, market_id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
 		
 		/* Calculate how much of the order is still open */
 		let left_to_spend = spend - filled;
@@ -150,13 +148,13 @@ impl Orderbook {
 		
 		/* Store the order by updating the price data, if there were no orders at this order's price create a new order instance */
 		let mut price_data = self.price_data.get(&price).unwrap_or_else(|| {
-			self.new_price(price as u128)
+			self.new_price(price)
 		});
 
 		/* Insert order into open orders at price */
 		price_data.orders.insert(&order_id, &new_order);
 		/* Update liquidity by shares still open */
-		price_data.share_liquidity += (spend - filled) / price as u128;
+		price_data.share_liquidity += (spend - filled) / u128::from(price);
 		/* Re-insert price_data to update state */
 		self.price_data.insert(&price, &price_data);
 
@@ -167,7 +165,7 @@ impl Orderbook {
 	 * @notice Cancel an open order for a user
 	 * @return Returns the amount of tokens to send to the user 
 	*/
-	pub fn cancel_order(&mut self, order: Order) -> u128 {
+	pub fn cancel_order(&mut self, order: &Order) -> u128 {
 		let mut price_data = self.price_data.get(&order.price).expect("There are no orders at this price");
 		let mut user_data = self.user_data.get(&order.creator).expect("There are no orders for this user");
 
@@ -175,7 +173,7 @@ impl Orderbook {
 		let to_return = order.spend - order.filled; 
 
 		/* Update price data */
-		price_data.share_liquidity -= to_return / order.price as u128;
+		price_data.share_liquidity -= to_return / u128::from(order.price);
 		price_data.orders.remove(&order.id);
 
 		/* If there are no orders left at the price remove the price_data entry for this price, else re-insert the price_data to update state */
@@ -190,7 +188,7 @@ impl Orderbook {
 		/* Re-insert user_data to update state */
 		self.user_data.insert(&order.creator, &user_data);
 
-		logger::log_update_user_balance(order.creator.to_string(), order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
+		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
 		logger::log_order_closed(&order, self.market_id, self.outcome_id);
 
 		to_return
@@ -218,12 +216,12 @@ impl Orderbook {
 		let mut shares_filled = 0;
 		
 		/* Loop through all orders at the best price */
-		for (_, order) in orders.iter() {
+		for (_, order) in &orders {
 			/* If there ano more shares to fill stop loop */
 			if shares_to_fill == 0 { break;} 
 
 			/* Calc how many shares can still be filled for this order */
-			let shares_fillable_for_order = (order.spend - order.filled) / order.price as u128;
+			let shares_fillable_for_order = (order.spend - order.filled) / u128::from(order.price);
 
 			/* Get the min amount of shares fillable between shares_to_fill and shares_fillable_for_order */
 			let filling = cmp::min(shares_fillable_for_order, shares_to_fill); 
@@ -264,7 +262,7 @@ impl Orderbook {
 
 		/* Update price and user data accordingly */
 		user_data.balance += shares_to_fill;
-		user_data.spent += shares_to_fill * order.price as u128;
+		user_data.spent += shares_to_fill * u128::from(order.price);
 		/* Re-insert user_data to update state */
 
 		self.user_data.insert(&order.creator, &user_data);
@@ -277,7 +275,7 @@ impl Orderbook {
 			price_data.orders.remove(&order.id);
 			logger::log_order_closed(&order, self.market_id, self.outcome_id);
 		}  else {
-			order.filled += shares_to_fill * order.price as u128;
+			order.filled += shares_to_fill * u128::from(order.price);
 			order.shares_filled += shares_to_fill;
 			price_data.orders.insert(&order.id, &order);
 		}
@@ -291,7 +289,7 @@ impl Orderbook {
 		}
 
 		logger::log_order_filled(&order, shares_to_fill, self.market_id, self.outcome_id);
-		logger::log_update_user_balance(order.creator, order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
+		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
 	}
 
 	/**
@@ -317,7 +315,7 @@ impl Orderbook {
 			let liquidity = cmp::min(shares_left_to_fill, price_data.share_liquidity);
 
 			/* Increment price sum by product of liquidity and price */
-			depth_price_prod_sum += liquidity * best_price as u128;
+			depth_price_prod_sum += liquidity * u128::from(best_price);
 
 			/* Increment depth by share_liquidity */
 			depth += liquidity;
