@@ -550,12 +550,12 @@ impl FluxProtocol {
 		let market_id: u64 = market_id.into();
 		let order_id: u128 = order_id.into();
 		
-		let mut market = self.markets.get(&market_id).unwrap();
+		let mut market = self.markets.get(&market_id).expect(format!("market with id: {} does not exist", market_id));
 
 		utils::assert_gas_arr_validity(&gas_arr, 1);
 		assert_eq!(market.resoluted, false);
 		/* Get corresponding outcome orderbook */
-		let mut orderbook = market.orderbooks.get(&outcome).unwrap();
+		let mut orderbook = market.orderbooks.get(&outcome).expect(format!("outcome: {} does not exist for market with id: {}", outcome, market_id));
 		let price_data = orderbook.price_data.get(&price).expect("order at this price doesn't exist");
 		let order = price_data.orders.get(&order_id).expect("order with this id doesn't exist or is already canceled");
 		assert!(env::predecessor_account_id() == order.creator, "not this user's order");
@@ -757,7 +757,7 @@ impl FluxProtocol {
 		winning_outcome: Option<u8>
 	) {
 		let market_id: u64 = market_id.into();
-		let mut market = self.markets.get(&market_id).unwrap();
+		let mut market = self.markets.get(&market_id).expect(format!("market with id: {} does not exist", market_id));
 		assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, true, "market has to be resoluted before it can be finalized");
 
