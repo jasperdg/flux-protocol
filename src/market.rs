@@ -234,13 +234,13 @@ impl Market {
 			for orderbook_id in  0..self.outcomes {
 				if orderbook_id == outcome {continue;}
 
-				let mut orderbook = self.orderbooks.get(&orderbook_id).expect("orderbook doens't exist where it should");
+				let mut orderbook = self.orderbooks.get(&orderbook_id).expect("orderbook doesn't exist where it should");
 
 				/* Check if there are orders in the orderbook */
 				if orderbook.price_data.max().is_some() {
 					/* Fill best orders up to the shares to fill */
 					orderbook.fill_best_orders(shares_to_fill_at_market_price);
-					/* Re-insert the mutaded orderbook instance */
+					/* Re-insert the mutated orderbook instance */
 					self.orderbooks.insert(&orderbook_id, &orderbook); 
 				}
 			}
@@ -308,13 +308,13 @@ impl Market {
 	}
 
 	/**
-	 * @notice Sell a certain amount of shares into the current orderbook with a min_price to prevent slipage.
+	 * @notice Sell a certain amount of shares into the current orderbook with a min_price to prevent slippage.
 	 *  For sales there are some mechanics that are unique to Flux Protocol, users can sell any shares they own but 
 	 *  will only receive tokens up to the amount the user paid no average per share. The delta will be added to claimable_if_valid
 	 *  and this will be rewarded to the user if it turns out the market was in fact valid. If the user sells the shares for less
 	 *  than what they initially paid for the share the delta will be added to claimable_if_invalid and they will be able to claim
 	 *  this delta if it turns out the market is invalid.
-	 * @return Returns the amount that needs to be transfered to the user
+	 * @return Returns the amount that needs to be transferred to the user
 	 */
 	pub fn dynamic_market_sell_internal(
 		&mut self,
@@ -335,7 +335,7 @@ impl Market {
 		/* Get the amount of shares that we can sell and the average sell price */
 		let (sell_depth, avg_sell_price) = orderbook.get_depth_down_to_price(shares_to_sell, min_price);
 		
-		/* Fill the best orders upto the amount of shares that are sellable */
+		/* Fill the best orders up to the amount of shares that are sellable */
 		let filled = orderbook.fill_best_orders(sell_depth);
 		
 		let mut user_data = orderbook.user_data.get(&env::predecessor_account_id()).expect("something went wrong while trying to retrieve the user's account id");
@@ -343,7 +343,6 @@ impl Market {
 		/* Calculate the avg price the user spent per share */
 		let avg_buy_price = user_data.spent / user_data.balance;
 
-		/* Represents how much should be added to the claimable_if_valid map,  */
 		let mut sell_price = avg_sell_price;
 
 		if avg_sell_price > avg_buy_price {
@@ -351,7 +350,7 @@ impl Market {
 			sell_price = avg_buy_price;
 			let claimable_if_valid =  (avg_sell_price - avg_buy_price) * sell_depth;
 			
-			/* The delta between avg sell price and avg buy price should still be fee'd if the market is invalid  */
+			/* The delta between avg sell price and avg buy price should still be feed if the market is invalid  */
 			self.total_feeable_if_invalid += claimable_if_valid;
 
 			self.claimable_if_valid.insert(&env::predecessor_account_id(), &(claimable_if_valid + cur_claimable_if_valid));
@@ -562,7 +561,7 @@ impl Market {
 		if invalid {
 			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
-				/* Check if the user has any paritipation in this outcome else continue to next outcome */
+				/* Check if the user has any participation in this outcome else continue to next outcome */
 				let user_data = match orderbook.user_data.get(account_id) {
 					Some(user) => user,
 					None => continue
@@ -576,7 +575,7 @@ impl Market {
 		} else {
 			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
-				/* Check if the user has any paritipation in this outcome else continue to next outcome */
+				/* Check if the user has any participation in this outcome else continue to next outcome */
 				let user_data = match orderbook.user_data.get(account_id) {
 					Some(user) => user,
 					None => continue
@@ -622,15 +621,15 @@ impl Market {
 		/* Get the target resolution window a user wants to withdraw their stake from */
 		let mut resolution_window = self.resolution_windows.get(round).expect("dispute round doesn't exist");
 		assert_ne!(outcome, resolution_window.outcome, "you cant cancel dispute stake for bonded outcome");
-		let mut sender_particiaption = resolution_window.participants_to_outcome_to_stake.get(&env::predecessor_account_id()).expect("user didn't paritcipate in this dispute round");
-		let to_return = sender_particiaption.get(&outcome_id).expect("sender didn't pariticipate in this outcome resolution");
+		let mut sender_participation = resolution_window.participants_to_outcome_to_stake.get(&env::predecessor_account_id()).expect("user didn't participate in this dispute round");
+		let to_return = sender_participation.get(&outcome_id).expect("sender didn't participate in this outcome resolution");
 		assert!(to_return > 0, "Can't withdraw 0");
 
 		/* Set senders stake to 0 and re-insert to resolution window */
-		sender_particiaption.insert(&outcome_id, &0);
-		resolution_window.participants_to_outcome_to_stake.insert(&env::predecessor_account_id(), &sender_particiaption);
+		sender_participation.insert(&outcome_id, &0);
+		resolution_window.participants_to_outcome_to_stake.insert(&env::predecessor_account_id(), &sender_participation);
 
-		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("Unexpecter error during withdraw resolution");
+		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("Unexpected error during withdraw resolution");
 		/* Decrement total stake by to_return */
 		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome - to_return));
 		
@@ -642,7 +641,7 @@ impl Market {
 
 	/** 
 	 * @notice Calculate the resolution/dispute earnings for a account_id
-	 * @return Returns total earnings from particiapting in resolution/dispute
+	 * @return Returns total earnings from participating in resolution/dispute
 	 */
 	fn get_dispute_earnings(
 		&self, 
@@ -669,7 +668,7 @@ impl Market {
 				/* Calculate how much the total fee payout will be */
 				let total_resolution_fee = u128::from(self.resolution_fee_percentage) * (self.filled_volume + claimable_if_invalid) / u128::from(constants::PERCENTAGE_PRECISION);
 		
-				/* Check if the outcome that a resolution bond was staked on coresponds with the finalized outcome */
+				/* Check if the outcome that a resolution bond was staked on corresponds with the finalized outcome */
 				if self.winning_outcome == window.outcome {
 					/* check if the user participated in this outcome */
 					let resolution_participation = window.participants_to_outcome_to_stake.get(&account_id);
@@ -691,7 +690,7 @@ impl Market {
 						
 					} 
 				} else {
-					/* If the initial resolution bond wasn't staked on the correct outcome, devide the resolution fee amongst disputors */
+					/* If the initial resolution bond wasn't staked on the correct outcome, divide the resolution fee amongst disputors */
 					total_incorrectly_staked += total_resolution_fee + window.required_bond_size;
 				}
 			} else {
@@ -718,7 +717,7 @@ impl Market {
 
 		if total_correctly_staked == 0 || total_incorrectly_staked == 0 || user_correctly_staked == 0 {return resolution_reward}
 
-		/* Declare decimals to make sure smallers stakers still are rewarded */
+		/* Declare decimals to ensure that people with up until 1/`constants::EARNINGS_PRECISION`th of total stake are rewarded */
 		/* Calculate profit from participating in disputes */
 		let profit = ((total_incorrectly_staked * constants::EARNINGS_PRECISION) / (total_correctly_staked / user_correctly_staked)) / constants::EARNINGS_PRECISION; 
 

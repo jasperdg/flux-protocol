@@ -29,11 +29,11 @@ pub fn assert_prev_promise_successful() {
  *  panics if the previous promise in the promise chain was unsuccessful
  */
 pub fn assert_gas_arr_validity(gas_arr: &Option<Vec<U64>>, num_of_promises: usize) {
-    assert!(gas_arr.is_none() || gas_arr.as_ref().unwrap().len() == num_of_promises, "if custom gas vals are provided there needs to be a specified value for each of the external transactions");
+    assert!(gas_arr.is_none() || gas_arr.as_ref().unwrap().len() == num_of_promises, "if custom gas values are provided there needs to be a specified value for each of the external transactions");
 }
 
 /**
- * @notice Check if previous promise in promise chain was executed succesfully 
+ * @notice Check if previous promise in promise chain was executed successfully 
  * @dev Panics if the previous promise in the promise chain was unsuccessful
  * @dev Taken from: <https://github.com/near/core-contracts/blob/a009f52ccf5e36db75cf31104604eaec69dd67f8/lockup/src/utils.rs#L7>
  * @dev Latest commit which is still up to date with this version: e3688c90dc01f69735fb02178b0f98297dee08c0
@@ -60,7 +60,7 @@ pub fn get_gas_for_tx(gas_arr: &Option<Vec<U64>>, index: usize, default_gas: u64
 }
 
 /** 
- * @notice Converts nano seconds to mili seconds by dividing the ns amount by `1_000_000`
+ * @notice Converts nano seconds to miliseconds by dividing the ns amount by `1_000_000`
  * @return Returns current `block_timestamp` denominated in ms
 */
 pub fn ns_to_ms(timestamp_ns: u64) -> u64 {

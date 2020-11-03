@@ -216,10 +216,10 @@ impl FluxProtocol {
 			return U128(0);
 		}
 
-		/* If account_id is the market creator, and if the market was resoluted as being valid. If this is the case account_id is eligable to receive the validity bond back */ 
+		/* If account_id is the market creator, and if the market was resolved as being valid. If this is the case account_id is eligable to receive the validity bond back */ 
 		let validity_bond = if account_id == market.creator && !market.validity_bond_claimed && market.winning_outcome != None { self.creation_bond } else { 0 };
 		 
-		/* Get how much would be claimable for account_id, governance earnings relates to wht we call "market governance" or the dispute resolution process */
+		/* Get how much would be claimable for account_id, governance earnings relates to what we call "market governance" or the dispute resolution process */
 		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(&account_id);
 		
 		let claimable_if_invalid = match market.winning_outcome {
@@ -270,9 +270,9 @@ impl FluxProtocol {
 	 * @param outcomes The number out outcomes a market has, min is 2 max is 8
 	 * @param outcome_tags A list of strings where the outcome id corresponds to the index of the outcome_tags array e.g. outcome 0 = outcome_tags[0]
 	 * @param categories A list of categories that describe the market (helps with filtering)
-	 * @param end_time Unix timestamp in miliseconds of when the market stops being tradeable and can be resoluted
+	 * @param end_time Unix timestamp in miliseconds of when the market stops being tradeable and can be resolved
 	 * @param creator_fee_percentage Percentage with two decimals so denominated in 1e4 between 0 - 500 where 1 = 0.01% and 100 = 1%
-	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range betwen 1 - 100
+	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range between 1 - 100
 	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
 	 * @return returns a promise chain - this chain tries to escrow the base currency as a validity bond from the market creation and if successful proceed the market creation
 	 * */
@@ -300,8 +300,8 @@ impl FluxProtocol {
 		}
 		
 		utils::assert_gas_arr_validity(&gas_arr, 2);
-		assert!(description.chars().count() < 201, "description can't than 200 characters");
-		assert!(extra_info.chars().count() < 401, "extra_info can't than 400 characters");
+		assert!(description.chars().count() < 201, "description can't be longer than 200 characters");
+		assert!(extra_info.chars().count() < 401, "extra_info can't be longer than 400 characters");
 		assert!(outcomes > 1, "need to have more than 2 outcomes");
 		assert!(outcomes == 2 || outcomes == outcome_tags.len() as u8, "invalid outcomes");
 		assert!(outcomes < 8, "can't have more than 8 outcomes"); // up for change
@@ -310,7 +310,7 @@ impl FluxProtocol {
 		assert!(creator_fee_percentage <= self.max_fee_percentage, "creator_fee_percentage too high");
 		assert!(affiliate_fee_percentage <= constants::PERCENTAGE_PRECISION, "affiliate_fee_percentage can't be higher than 100.00%");
 
-		if outcomes == 2 { assert!(outcome_tags.is_empty(), "If a binary markets the outcomes are always asumed to be ['NO', 'YES'] so there is no need for provide outcome_tags") }
+		if outcomes == 2 { assert!(outcome_tags.is_empty(), "If a binary markets the outcomes are always assumed to be ['NO', 'YES'] so there is no need for provide outcome_tags") }
 
 		/* Promise chain, call external token contract to transfer funds from user to flux protocol contract. Then self call proceed_market_creation. */
 		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), self.creation_bond.into(), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS)).then(
@@ -343,9 +343,9 @@ impl FluxProtocol {
 	 * @param outcomes The number out outcomes a market has, min is 2 max is 8
 	 * @param outcome_tags A list of strings where the outcome id corresponds to the index of the outcome_tags array e.g. outcome 0 = outcome_tags[0]
 	 * @param categories A list of categories that describe the market (helps with filtering)
-	 * @param end_time Unix timestamp in miliseconds of when the market stops being tradeable and can be resoluted
+	 * @param end_time Unix timestamp in miliseconds of when the market stops being tradeable and can be resolved
 	 * @param creator_fee_percentage Percentage with two decimals so denominated in 1e4 between 0 - 500 where 1 = 0.01% and 100 = 1%
-	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range betwen 1 - 100
+	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range between 1 - 100
 	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
 	 * @return Returns the newly created market_id
 	 * TODO: Just logs the vec types out instead of actually storing them, there is no filtering on chain
@@ -366,7 +366,7 @@ impl FluxProtocol {
 	) -> PromiseOrValue<u64> {
 		/* Make sure that the caller of this method is the contract itself */
 		utils::assert_self();
-		/* Make sure the previous promise in the promise chain was succesful */
+		/* Make sure the previous promise in the promise chain was successful */
 		utils::assert_prev_promise_successful();
 
 		/* Create new market instance */
@@ -479,7 +479,7 @@ impl FluxProtocol {
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
 		utils::assert_self();
-		/* Make sure the previous promise in the promise chain was succesful */
+		/* Make sure the previous promise in the promise chain was successful */
 		utils::assert_prev_promise_successful();
 		
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
@@ -528,7 +528,7 @@ impl FluxProtocol {
 	/**
 	 * @notice Cancels an order and returns outstanding open value to order creator
 	 * @dev Panics if the predecessor_account isn't the owner of the order he's trying to cancel
-	 *  Panics if market is already resoluted, open orders are included in the claimable amount 
+	 *  Panics if market is already resolved, open orders are included in the claimable amount 
 	 * @param market_id The id of the market this order was placed on before
 	 * @param outcome The outcome this order was for
 	 * @param price The price this order was placed at, this is necessary because of the way orders are stored
@@ -569,7 +569,7 @@ impl FluxProtocol {
 	/**
 	 * @notice Kicks off market resolution, supply the outcome data to the 
 	 * @dev Panics if the market hasn't ended yet
-	 *  Panics if the market doens't exist
+	 *  Panics if the market doesn't exist
 	 *  Panics if the market is already resoluted
 	 *  Panics if the market is already finalized
 	 *  Panics if the winning_outcome is invalid
@@ -632,7 +632,7 @@ impl FluxProtocol {
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
 		utils::assert_self();
-		/* Make sure the previous promise in the promise chain was succesful */
+		/* Make sure the previous promise in the promise chain was successful */
 		utils::assert_prev_promise_successful();
 
 		let mut market = self.markets.get(&market_id).unwrap();
@@ -641,7 +641,7 @@ impl FluxProtocol {
 		let change = market.resolute_internal(&sender, winning_outcome, stake);
 		self.markets.insert(&market_id, &market);
 
-		/* If the sender overstaked return amount to the sender  */
+		/* If the sender stakes more than necessary to progress to the next dispute round  */
 		if change > 0 {
 			let prom = fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas / 2);
 			PromiseOrValue::Promise(prom)
@@ -653,10 +653,10 @@ impl FluxProtocol {
 	/**
 	 * @notice Kicks of a dispute of a certain outcome
 	 * @dev Panics if the market hasn't been resoluted yet
-	 *  Panics if the market doens't exist
+	 *  Panics if the market doesn't exist
 	 *  Panics if the market is already finalized
 	 *  Panics if the winning_outcome is invalid
-	 *  Panics if the disputed outcomeis the same outcome as the previous winning outcome
+	 *  Panics if the disputed outcome is the same outcome as the previous winning outcome
 	 *  Panics if the sender doesn't have enough balance / allowance to transfer `stake`
 	 *  Panics if the dispute round is > 1. After one initial dispute the market has to be finalized by the owner ("judge")
 	 * @param market_id The id of the market to dispute
@@ -679,7 +679,7 @@ impl FluxProtocol {
 		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
 		assert_eq!(market.finalized, false, "market is already finalized");
         assert!(winning_outcome == None || winning_outcome.unwrap() < market.outcomes, "invalid winning outcome");
-        assert!(winning_outcome != market.winning_outcome, "same oucome as last resolution");
+        assert!(winning_outcome != market.winning_outcome, "same outcome as last resolution");
 		let resolution_window = market.resolution_windows.get(market.resolution_windows.len() - 1).expect("Invalid dispute window unwrap");
 		assert_eq!(resolution_window.round, 1, "for this version, there's only 1 round of dispute");
 		assert!(utils::ns_to_ms(env::block_timestamp()) < resolution_window.end_time, "dispute window is closed, market can be finalized");
@@ -702,7 +702,7 @@ impl FluxProtocol {
 	}
 
 	/**
-	 * @notice Continues the dispute proces if transfer of funds was successful
+	 * @notice Continues the dispute process if transfer of funds was successful
 	 * @dev Panics if the previous method (transfer) failed
 	 *  Panics if the predecessor_id isn't equal to the contract id itself
 	 * @param market_id The id of the market to dispute
@@ -720,7 +720,7 @@ impl FluxProtocol {
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
 		utils::assert_self();
-		/* Make sure the previous promise in the promise chain was succesful */
+		/* Make sure the previous promise in the promise chain was successful */
 		utils::assert_prev_promise_successful();
         let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		
@@ -729,7 +729,7 @@ impl FluxProtocol {
 
 		self.markets.insert(&market.id, &market);
 		
-		/* If the sender overstaked return amount to the sender  */
+		/* If the sender stakes more than necessary to progress to the next dispute round  */
 		if change > 0 {
 			PromiseOrValue::Promise(fun_token::transfer(sender, U128(change), &self.fun_token_account_id(), 0, gas / 2))
 		} else {
@@ -744,7 +744,7 @@ impl FluxProtocol {
 	 *	Panics if the dispute window is still open
 	 *	Panics if the winning_outcome is an invalid outcome
 	 * @param market_id The id of the market to finalize
-	 * @param winning_outcome Optional in case the market has been disptud, the judges ruling
+	 * @param winning_outcome Optional in case the market has been disputed, the judges ruling
 	 */
 	pub fn finalize_market(
 		&mut self, 
@@ -805,7 +805,7 @@ impl FluxProtocol {
 
 	/**
 	 * @notice Claims a users earnings in a finalized market
-	 * @dev Panics if user already claimed earnigns
+	 * @dev Panics if user already claimed earnings
 	 *  Panics if the market is not finalized
 	 *  Panics if the user has 0 tokens to claim
 	 * @param market_id The id of the market that earnings are going to be claimed for
@@ -831,7 +831,7 @@ impl FluxProtocol {
 		/* Make sure it is noted that user claimed earnings to avoid double claims */
 		market.claimed_earnings.insert(&account_id, &true);
 		
-		/* Get how much would be claimable for account_id, governance earnings relates to wht we call "market governance" or the dispute resolution process */
+		/* Get how much would be claimable for account_id, governance earnings relates to what we call "market governance" or the dispute resolution process */
 		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(&account_id);
 
 		/* If account_id is the market creator, and if the market was resoluted as being valid. If this is the case account_id is eligable to receive the validity bond back */ 
@@ -851,7 +851,7 @@ impl FluxProtocol {
 		};
 		
 		utils::assert_gas_arr_validity(&gas_arr, 1);
-		/* Calculate the sum of winnings + claimable_if_invalid to determain what amount of funds can be feed */
+		/* Calculate the sum of winnings + claimable_if_invalid to determined what amount of funds can be feed */
 		let total_feeable_amount = winnings + claimable_if_invalid;
 
 		/* Calculate total fee percentage */
