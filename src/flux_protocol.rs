@@ -244,7 +244,7 @@ impl FluxProtocol {
 		let total_fee_percentage =  market.resolution_fee_percentage + utils::get_creator_fee_percentage(&market);
 
 		/* Calculate total fee */
-		let total_fee = (total_feeable_amount * u128::from(total_fee_percentage)) / 10000;
+		let total_fee = (total_feeable_amount * u128::from(total_fee_percentage)) / PERCENTAGE_PRECISION;
 		
 		/* Calculate the total amount claimable */
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
@@ -313,7 +313,7 @@ impl FluxProtocol {
 		assert!(end_time > utils::ns_to_ms(env::block_timestamp()), "end_time has to be greater than NOW");
 		assert!(categories.len() < 8, "can't have more than 8 categories");
 		assert!(creator_fee_percentage <= self.max_fee_percentage, "creator_fee_percentage too high");
-		assert!(affiliate_fee_percentage <= 10000, "affiliate_fee_percentage can't be higher than 100.00%");
+		assert!(affiliate_fee_percentage <= PERCENTAGE_PRECISION, "affiliate_fee_percentage can't be higher than 100.00%");
 
 		if outcomes == 2 { assert!(outcome_tags.is_empty(), "If a binary markets the outcomes are always asumed to be ['NO', 'YES'] so there is no need for provide outcome_tags") }
 
@@ -432,7 +432,7 @@ impl FluxProtocol {
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		utils::assert_gas_arr_validity(&gas_arr, 2);
-		assert!(rounded_spend >= 10000, "order must be valued at > 10000");
+		assert!(rounded_spend >= TOKEN_DENOMINATION / 10, "order must be valued at > 0.1 tokens");
 		assert!(price > 0 && price < 100, "price can only be between 1 - 99");
 		assert!(outcome < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
