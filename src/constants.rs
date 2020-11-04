@@ -1,4 +1,5 @@
 pub const TOKEN_DENOMINATION: u128 = 1_000_000_000_000_000_000;
+pub const SHARE_DENOMINATION: u128 = 10_000_000_000_000_000;
 
 /**
  * @notice A hardcoded amount of gas that's used for external transactions

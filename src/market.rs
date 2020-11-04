@@ -560,6 +560,7 @@ impl Market {
 		let mut in_open_orders = 0;
 
 		if invalid {
+			env::log(b"invalid");
 			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
 				/* Check if the user has any participation in this outcome else continue to next outcome */
@@ -567,7 +568,8 @@ impl Market {
 					Some(user) => user,
 					None => continue
 				};
-
+				env::log(format!("user data for orderbook: {} {:?}", orderbook.outcome_id, user_data).as_bytes());
+				
 				/* Calculate and add money in open orders */
 				in_open_orders += user_data.to_spend - user_data.spent;
 				/* Treat filled volume as winnings */

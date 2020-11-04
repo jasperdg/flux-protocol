@@ -43,8 +43,8 @@ fn fee_distribution_test() {
 	assert_eq!(claimable_alice, expected_claimable_alice_excl_fees - market_creator_fee - resolution_fee);
 	assert_eq!(claimable_root, to_dai(10) / 100 + to_dai(5));
 	
-	alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id(), None).expect("claim_earnigns tx failed unexpectedly");
-	root.claim_earnings(&mut runtime, U64(0), root.get_account_id(), None).expect("claim_earnigns tx failed unexpectedly");
+	alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id(), None).expect("claim_earnings tx failed unexpectedly");
+	root.claim_earnings(&mut runtime, U64(0), root.get_account_id(), None).expect("claim_earnings tx failed unexpectedly");
 	
 	let after_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into(); // trader
 	let after_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into(); // creator / affiliate
@@ -56,7 +56,7 @@ fn fee_distribution_test() {
 	
 	let after_balance_carol: u128 = alice.get_balance(&mut runtime, carol.get_account_id()).into(); // creator / affiliate
 	assert_eq!(after_balance_carol, initial_balance_carol + 4 * to_dai(10) / 100);
-	carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id(), None).expect("claim_earnigns tx failed unexpectedly");
+	carol.claim_earnings(&mut runtime, U64(0), carol.get_account_id(), None).expect("claim_earnings tx failed unexpectedly");
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	assert_eq!(contract_balance, 0);
 }

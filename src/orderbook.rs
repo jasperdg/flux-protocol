@@ -34,7 +34,7 @@ pub struct PriceData {
 /**
  * @notice `AccountData` is a struct that keeps some state for each participant that purchased shares of the orderbook's outcome
  */
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct AccountData {
 	pub balance: u128, // The user's balance denominated in shares (1e16)
 	pub spent: u128, // How much the user has spent (denominated in 1e18)

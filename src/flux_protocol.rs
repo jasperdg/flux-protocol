@@ -421,6 +421,7 @@ impl FluxProtocol {
 		affiliate_account_id: Option<AccountId>,
 		gas_arr: Option<Vec<U64>>
 	) -> Promise {
+	// ) {
 		let market_id: u64 = market_id.into();
 		let shares: u128 = shares.into();
 		let rounded_spend = shares * u128::from(price);
@@ -861,7 +862,7 @@ impl FluxProtocol {
 
 		/* Calculate the total amount claimable */
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
-		
+		env::log(format!("claiming for: {} {} {}", account_id, to_claim, total_feeable_amount).as_bytes());
 		if to_claim == 0 {panic!("can't claim 0 tokens")}
 
 		logger::log_earnings_claimed(market_id, &account_id, to_claim);
@@ -896,6 +897,10 @@ mod tests {
 		amt * constants::TOKEN_DENOMINATION
 	}
 
+	fn to_shares(amt: u128) -> u128 {
+		amt * constants::SHARE_DENOMINATION
+	}
+	
 	fn flux_protocol() -> AccountId {
 		"flux_protocol".to_string()
 	}

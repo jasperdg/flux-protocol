@@ -24,15 +24,15 @@ fn test_order_placement_cancelation_and_market_prices() {
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(2000000)).expect("allowance couldn't be set");
+	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
-	accounts[0].place_order(&mut runtime, U64(0), 1, U128(1000), 50, None, None).expect("tx unexpectedly failed");
-	accounts[0].place_order(&mut runtime, U64(0), 1, U128(1000), 50, None, None).expect("tx unexpectedly failed");
+	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_shares(1)), 50, None, None).expect("tx unexpectedly failed");
+	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_shares(1)), 50, None, None).expect("tx unexpectedly failed");
 	
 	let no_market_price = accounts[0].get_market_price(&runtime, U64(0), 0);
 	assert_eq!(no_market_price, 50);
 	
-	accounts[0].place_order(&mut runtime, U64(0), 1, U128(1000), 60, None, None).expect("tx unexpectedly failed");
+	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_shares(1)), 60, None, None).expect("tx unexpectedly failed");
 
 	let no_market_price = accounts[0].get_market_price(&runtime, U64(0), 0);
 	assert_eq!(no_market_price, 40);
@@ -40,8 +40,8 @@ fn test_order_placement_cancelation_and_market_prices() {
 	accounts[0].cancel_order(&mut runtime, U64(0), 1, 60, U128(2), None).expect("order cancelation failed");
 
 	// balance checks: 
-	let expected_contract_balance = 100000;
-	let expected_account_balance = 99999969999999999999900000;
+	let expected_contract_balance = to_dai(1);
+	let expected_account_balance = 99999969000000000000000000;
 	let account_balance: u128 = accounts[0].get_balance(&mut runtime, accounts[0].get_account_id()).into();
 	let contract_balance: u128 = accounts[0].get_balance(&mut runtime, flux_protocol()).into();
 	

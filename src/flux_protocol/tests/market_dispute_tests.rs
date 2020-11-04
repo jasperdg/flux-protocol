@@ -178,7 +178,7 @@ fn test_invalid_dispute_outcome() {
 }
 
 #[test]
-#[should_panic(expected = "same oucome as last resolution")]
+#[should_panic(expected = "same outcome as last resolution")]
 fn test_dispute_with_same_outcome() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
 	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
