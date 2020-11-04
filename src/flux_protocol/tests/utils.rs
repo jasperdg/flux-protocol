@@ -380,7 +380,7 @@ impl ExternalUser {
         outcome_into_result(res)
     }
 
-    pub fn withdraw_dispute_stake(
+    pub fn withdraw_resolution_stake(
         &self,
         runtime: &mut RuntimeStandalone,
         market_id: U64,
@@ -400,7 +400,7 @@ impl ExternalUser {
         
         let tx = self
         .new_tx(runtime, flux_protocol())
-        .function_call("withdraw_dispute_stake".into(), args, 10000000000000000, 0)
+        .function_call("withdraw_resolution_stake".into(), args, 10000000000000000, 0)
         .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();

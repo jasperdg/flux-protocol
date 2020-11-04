@@ -323,7 +323,7 @@ impl Market {
 		shares_to_sell: u128,
 		min_price: u16,
 	) -> u128 {
-		let mut orderbook = self.orderbooks.get(&outcome).expect(format!("outcome: {} doesn't exist for this market", outcome));
+		let mut orderbook = self.orderbooks.get(&outcome).expect(format!("outcome: {} doesn't exist for this market", outcome).as_str());
 
 		/* Get the account balance if there is none return 0 */
 		let shares_balance = match orderbook.user_data.get(&sender) {
