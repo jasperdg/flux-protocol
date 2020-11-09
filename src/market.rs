@@ -4,7 +4,8 @@ use near_sdk::{
 	AccountId,
 	collections::{
 		UnorderedMap,
-		Vector
+		Vector,
+		LookupSet
 	},
 	borsh::{
 		self, 
@@ -46,8 +47,6 @@ pub struct Market {
 	pub extra_info: String,
 	pub creator: AccountId,
 	pub outcomes: u8,
-	pub outcome_tags: Vector<String>,
-	pub categories: Vector<String>,
 	pub creation_time: u64,
 	pub end_time: u64,
 	pub orderbooks: UnorderedMap<u8, Orderbook>,
@@ -66,7 +65,7 @@ pub struct Market {
 	pub api_source: String,
 	pub resolution_windows: Vector<ResolutionWindow>,
 	pub validity_bond_claimed: bool,
-	pub claimed_earnings: UnorderedMap<AccountId, bool> // TODO: to LookupSet
+	pub claimed_earnings: LookupSet<AccountId>
 }
 
 impl Market {
@@ -81,35 +80,12 @@ impl Market {
 		description: String, 
 		extra_info: String, 
 		outcomes: u8, 
-		outcome_tags: &Vec<String>, 
-		categories: &Vec<String>, 
 		end_time: u64, 
 		creator_fee_percentage: u32, 
 		resolution_fee_percentage: u32, 
 		affiliate_fee_percentage: u32,
 		api_source: String,
 	) -> Self {
-
-		/* Create new vector store the markets' outcome_tags in */
-		let mut outcome_tags_vector: Vector<String> = Vector::new(
-			/* format a unique storage id by adding the market id as a unique parameter to ensure there is no storage conflicts */
-			format!("market:{}:outcome_tags", id).as_bytes().to_vec()
-		);
-		/* Create new vector store the markets' categories in */
-		let mut categories_vector: Vector<String> = Vector::new(
-			/* format a unique storage id by adding the market id as a unique parameter to ensure there is no storage conflicts */
-			format!("market:{}:categories", id).as_bytes().to_vec()
-		);
-
-		/* Push all outcome tags from the vec collection type to Vector collection type for gas optimization */
-		for outcome_tag in outcome_tags {
-			outcome_tags_vector.push(outcome_tag);
-		}
-		
-		/* Push all categories from the vec collection type to Vector collection type for gas optimization */
-		for category in categories {
-			categories_vector.push(category);
-		}
 
 		/* Create an empty UnorderedMap with an unique storage pointer to store an orderbook for each outcome */
 		let mut empty_orderbooks = UnorderedMap::new(format!("market:{}:orderbooks", id).as_bytes().to_vec());
@@ -143,8 +119,6 @@ impl Market {
 			extra_info,
 			creator: account_id,
 			outcomes,
-			outcome_tags: outcome_tags_vector,
-			categories: categories_vector,
 			creation_time: utils::ns_to_ms(env::block_timestamp()),
 			end_time,
 			orderbooks: empty_orderbooks,
@@ -163,7 +137,7 @@ impl Market {
 			api_source,
 			resolution_windows,
 			validity_bond_claimed: false,
-			claimed_earnings: UnorderedMap::new(format!("market:{}:claimed_earnings_for", id).as_bytes().to_vec()),
+			claimed_earnings: LookupSet::new(format!("market:{}:claimed_earnings_for", id).as_bytes().to_vec()),
 		}
 	}
 
