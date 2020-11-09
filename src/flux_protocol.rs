@@ -211,8 +211,7 @@ impl FluxProtocol {
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		/* Check if account_id has claimed earnings in this market, if so return 0 */
-		let claimed_earnings = market.claimed_earnings.get(&account_id);
-		if claimed_earnings.is_some() {
+		if market.claimed_earnings.contains(&account_id) {
 			return U128(0);
 		}
 
@@ -371,16 +370,14 @@ impl FluxProtocol {
 
 		/* Create new market instance */
 		let new_market = Market::new(
-			self.nonce, 
-			sender, 
-			description, 
-			extra_info, 
-			outcomes, 
-			&outcome_tags, 
-			&categories, 
-			end_time, 
-			creator_fee_percentage, 
-			resolution_fee_percentage, 
+			self.nonce,
+			sender,
+			description,
+			extra_info,
+			outcomes,
+			end_time,
+			creator_fee_percentage,
+			resolution_fee_percentage,
 			affiliate_fee_percentage,
 			api_source
 		);
@@ -388,7 +385,7 @@ impl FluxProtocol {
 		/* Get the newly created market's resolution_window */
 		let resolution_window = new_market.resolution_windows.get(0).expect("something went wrong during market creation");
 
-		logger::log_market_creation(&new_market);
+		logger::log_market_creation(&new_market, outcome_tags, categories);
 		logger::log_new_resolution_window(new_market.id, resolution_window.round, resolution_window.required_bond_size, resolution_window.end_time);
 
 		let market_id = new_market.id;
@@ -421,7 +418,6 @@ impl FluxProtocol {
 		affiliate_account_id: Option<AccountId>,
 		gas_arr: Option<Vec<U64>>
 	) -> Promise {
-	// ) {
 		let market_id: u64 = market_id.into();
 		let shares: u128 = shares.into();
 		let rounded_spend = shares * u128::from(price);
@@ -823,14 +819,13 @@ impl FluxProtocol {
 		let market_creator = market.creator.to_string();
 
 		/* Check if account_id has claimed earnings in this market, if so return 0 */
-		let claimed_earnings = market.claimed_earnings.get(&account_id);
-		assert_eq!(claimed_earnings.is_none(), true, "user already claimed earnings");
+		assert!(market.claimed_earnings.contains(&account_id), "user already claimed earnings");
 		assert!(utils::ns_to_ms(env::block_timestamp()) >= market.end_time, "market hasn't ended yet");
 		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
 		assert_eq!(market.finalized, true, "market isn't finalized yet");
 
 		/* Make sure it is noted that user claimed earnings to avoid double claims */
-		market.claimed_earnings.insert(&account_id, &true);
+		market.claimed_earnings.insert(&account_id);
 		
 		/* Get how much would be claimable for account_id, governance earnings relates to what we call "market governance" or the dispute resolution process */
 		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(&account_id);
