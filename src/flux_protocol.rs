@@ -819,7 +819,7 @@ impl FluxProtocol {
 		let market_creator = market.creator.to_string();
 
 		/* Check if account_id has claimed earnings in this market, if so return 0 */
-		assert!(market.claimed_earnings.contains(&account_id), "user already claimed earnings");
+		assert!(!market.claimed_earnings.contains(&account_id), "user already claimed earnings");
 		assert!(utils::ns_to_ms(env::block_timestamp()) >= market.end_time, "market hasn't ended yet");
 		assert_eq!(market.resoluted, true, "market isn't resoluted yet");
 		assert_eq!(market.finalized, true, "market isn't finalized yet");
