@@ -384,7 +384,7 @@ impl ExternalUser {
         &self,
         runtime: &mut RuntimeStandalone,
         market_id: U64,
-        dispute_round: U64,
+        dispute_round: u8,
         outcome: Option<u8>,
         gas_arr: Option<Vec<U64>>
     ) -> TxResult {

@@ -56,7 +56,7 @@ pub struct Orderbook {
 	pub market_id: u64,
 	pub outcome_id: u8,
 	pub price_data: TreeMap<u16, PriceData>, // Ordered map where price => PriceData
-	pub user_data: UnorderedMap<AccountId, AccountData>, // Unordered map where account_id => AccountData
+	pub account_data: UnorderedMap<AccountId, AccountData>, // Unordered map where account_id => AccountData
 	pub nonce: u128, // Incrementing nonce to decide on order_ids
 }
 
@@ -71,7 +71,7 @@ impl Orderbook {
 		Self {
 			market_id,
 			price_data: TreeMap::new(format!("price_data:{}:{}", market_id, outcome).as_bytes().to_vec()),
-			user_data: UnorderedMap::new(format!("user_data:{}:{}", market_id, outcome).as_bytes().to_vec()),
+			account_data: UnorderedMap::new(format!("account_data:{}:{}", market_id, outcome).as_bytes().to_vec()),
 			nonce: 0,
 			outcome_id: outcome,
 		}
@@ -119,17 +119,17 @@ impl Orderbook {
 		/* Create new order instance */
 		let new_order = Order::new(order_id, account_id.to_string(), market_id, spend, filled, shares, shares_filled, price, affiliate_account_id);
 
-		/* Get user_data and if it doesn't exist create new instance */
-		let mut user_data = self.user_data.get(&account_id).unwrap_or_else(|| {
+		/* Get account_data and if it doesn't exist create new instance */
+		let mut account_data = self.account_data.get(&account_id).unwrap_or_else(|| {
 			AccountData::new()
 		});
 
 		/* Update user data */
-		user_data.balance += shares_filled;
-		user_data.spent += filled;
-		user_data.to_spend += spend;
+		account_data.balance += shares_filled;
+		account_data.spent += filled;
+		account_data.to_spend += spend;
 		
-		logger::log_update_user_balance(&account_id, market_id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
+		logger::log_update_user_balance(&account_id, market_id, outcome, account_data.balance, account_data.to_spend, account_data.spent);
 		
 		/* Calculate how much of the order is still open */
 		let left_to_spend = spend - filled;
@@ -137,7 +137,7 @@ impl Orderbook {
 		/* Calculate the average fill_price if anything was filled */
 		let fill_price = if shares_filled > 0 {filled / shares_filled} else {0};
 		
-		self.user_data.insert(&account_id, &user_data);
+		self.account_data.insert(&account_id, &account_data);
 		
 		/* if left_to_spend < 100 the order counts as filled to avoid rounding errors which produce overflow errors */
 		if left_to_spend < 100 {
@@ -167,7 +167,7 @@ impl Orderbook {
 	*/
 	pub fn cancel_order(&mut self, order: &Order) -> u128 {
 		let mut price_data = self.price_data.get(&order.price).expect("There are no orders at this price");
-		let mut user_data = self.user_data.get(&order.creator).expect("There are no orders for this user");
+		let mut account_data = self.account_data.get(&order.creator).expect("There are no orders for this user");
 
 		/* Calculate amount of tokens that are open on the specific order */
 		let to_return = order.spend - order.filled; 
@@ -183,12 +183,12 @@ impl Orderbook {
 			self.price_data.insert(&order.price, &price_data);
 		}
 		
-		/* Update user_data */
-		user_data.to_spend -= order.spend - order.filled;
-		/* Re-insert user_data to update state */
-		self.user_data.insert(&order.creator, &user_data);
+		/* Update account_data */
+		account_data.to_spend -= order.spend - order.filled;
+		/* Re-insert account_data to update state */
+		self.account_data.insert(&order.creator, &account_data);
 
-		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
+		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, account_data.balance, account_data.to_spend, account_data.spent);
 		logger::log_order_closed(&order, self.market_id, self.outcome_id);
 
 		to_return
@@ -257,15 +257,15 @@ impl Orderbook {
 		close_order: bool
 	) {
 
-		let mut user_data = self.user_data.get(&order.creator).expect("no user_data available for user");
+		let mut account_data = self.account_data.get(&order.creator).expect("no account_data available for user");
 		let mut price_data = self.price_data.get(&order.price).expect("no price_data available for price");
 
 		/* Update price and user data accordingly */
-		user_data.balance += shares_to_fill;
-		user_data.spent += shares_to_fill * u128::from(order.price);
-		/* Re-insert user_data to update state */
+		account_data.balance += shares_to_fill;
+		account_data.spent += shares_to_fill * u128::from(order.price);
+		/* Re-insert account_data to update state */
 
-		self.user_data.insert(&order.creator, &user_data);
+		self.account_data.insert(&order.creator, &account_data);
 
 		price_data.share_liquidity -= shares_to_fill;
 
@@ -289,7 +289,7 @@ impl Orderbook {
 		}
 
 		logger::log_order_filled(&order, shares_to_fill, self.market_id, self.outcome_id);
-		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, user_data.balance, user_data.to_spend, user_data.spent);
+		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, account_data.balance, account_data.to_spend, account_data.spent);
 	}
 
 	/**

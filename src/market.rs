@@ -22,20 +22,8 @@ use crate::logger;
 use crate::utils;
 /*** Import constants methods ***/
 use crate::constants;
-
-/** 
- * @notice Struct of a resolution window, meant to display both resolution and dispute progression and state
- * 
- * */
-#[derive(BorshDeserialize, BorshSerialize)]
-pub struct ResolutionWindow {
-	pub round: u64, // 0 = resolution round | >0 = dispute round
-	pub participants_to_outcome_to_stake: UnorderedMap<AccountId, UnorderedMap<u8, u128>>, // Maps participant account_id => outcome => stake_in_outcome
-	pub required_bond_size: u128, // Total bond_size required to move on to next round of escalation
-	pub staked_per_outcome: UnorderedMap<u8, u128>, // Staked per outcome
-	pub end_time: u64, // Unix timestamp in ms representing when Dispute round is over
-	pub outcome: Option<u8>, // Bonded outcome of this window
-}
+/*** Import constants methods ***/
+use crate::resolution_window::ResolutionWindow;
 
 /** 
  * @notice Market state struct
@@ -124,7 +112,7 @@ impl Market {
 			orderbooks: empty_orderbooks,
 			winning_outcome: None,
 			resoluted: false,
-			resolute_bond: 5 * base.pow(18),
+			resolute_bond: 5 * utils::one_token(),
 			filled_volume: 0,
 			disputed: false,
 			finalized: false,
@@ -152,7 +140,7 @@ impl Market {
 		affiliate_account_id: Option<AccountId>
 	) {
 		/* Try to fill matching orders, returns how much was eventually spent and how many shares were bought */
-		let (spent, shares_filled) = self.fill_matches(outcome, spend, price);
+		let (spent_on_shares, shares_filled) = self.fill_matches(outcome, spend, price);
 
 		/* Add the amount volume that was filled by this order to the filled_volume */
 		self.filled_volume += shares_filled * 100;
@@ -168,7 +156,7 @@ impl Market {
 			spend,
 			shares,
 			price,
-			spent,
+			spent_on_shares,
 			shares_filled,
 			affiliate_account_id,
 		);
@@ -197,32 +185,29 @@ impl Market {
 		/* Stores how much was spent on these shares */
 		let mut spent = 0;
 		/* Stores how much is left to spend */
-		let mut spendable = to_spend;
+		let mut left_to_spend = to_spend;
 		
 		/* If spendable <= 100 we can get overflows due to rounding errors */
-		while spendable > 100 && market_price <= price {
-			/* Calc the amount of shares to fill at the current price which is the min between the amount spendable / price and depth */
-			let shares_to_fill_at_market_price = cmp::min(spendable / u128::from(market_price), share_depth.expect("expected there to be share depth"));
+		while left_to_spend > 100 && market_price <= price {
+			/* Calc the amount of shares to fill at the current price which is the min between the amount left_to_spend / price and depth */
+			let shares_to_fill = cmp::min(left_to_spend / u128::from(market_price), share_depth.expect("expected there to be share depth"));
 
 			/* Loop through all other orderbooks and fill the shares to fill */
 			for orderbook_id in  0..self.outcomes {
 				if orderbook_id == outcome {continue;}
 
 				let mut orderbook = self.orderbooks.get(&orderbook_id).expect("orderbook doesn't exist where it should");
-
-				/* Check if there are orders in the orderbook */
-				if orderbook.price_data.max().is_some() {
-					/* Fill best orders up to the shares to fill */
-					orderbook.fill_best_orders(shares_to_fill_at_market_price);
-					/* Re-insert the mutated orderbook instance */
-					self.orderbooks.insert(&orderbook_id, &orderbook); 
-				}
+				/* Fill best orders up to the shares to fill */
+				orderbook.fill_best_orders(shares_to_fill);
+				/* Re-insert the mutated orderbook instance */
+				self.orderbooks.insert(&orderbook_id, &orderbook); 
 			}
 
 			/* Update tracking variables */
-			spendable -= shares_to_fill_at_market_price * u128::from(market_price);
-			shares_filled += shares_to_fill_at_market_price;
-			spent += shares_to_fill_at_market_price * u128::from(market_price);
+			left_to_spend -= shares_to_fill * u128::from(market_price);
+			shares_filled += shares_to_fill;
+			spent += shares_to_fill * u128::from(market_price);
+
 			let (updated_market_price, updated_share_depth) = self.get_market_price_and_min_liquidity(outcome);
 			market_price = updated_market_price;
 			share_depth = updated_share_depth;
@@ -300,7 +285,7 @@ impl Market {
 		let mut orderbook = self.orderbooks.get(&outcome).expect(format!("outcome: {} doesn't exist for this market", outcome).as_str());
 
 		/* Get the account balance if there is none return 0 */
-		let shares_balance = match orderbook.user_data.get(&sender) {
+		let shares_balance = match orderbook.account_data.get(&sender) {
 			Some(data) => data.balance,
 			None => return 0
 		};
@@ -313,10 +298,10 @@ impl Market {
 		/* Fill the best orders up to the amount of shares that are sellable */
 		let filled = orderbook.fill_best_orders(sell_depth);
 		
-		let mut user_data = orderbook.user_data.get(&sender).expect("something went wrong while trying to retrieve the user's account id");
+		let mut account_data = orderbook.account_data.get(&sender).expect("something went wrong while trying to retrieve the user's account id");
 
 		/* Calculate the avg price the user spent per share */
-		let avg_buy_price = user_data.spent / user_data.balance;
+		let avg_buy_price = account_data.spent / account_data.balance;
 
 		let mut sell_price = avg_sell_price;
 
@@ -335,14 +320,14 @@ impl Market {
 		}
 		
 		/* Subtract user stats according the amount of shares sold */
-		user_data.balance -= filled;
-		user_data.to_spend -= filled * avg_buy_price;
-		user_data.spent -= filled * avg_buy_price;
+		account_data.balance -= filled;
+		account_data.to_spend -= filled * avg_buy_price;
+		account_data.spent -= filled * avg_buy_price;
 		
-		logger::log_update_user_balance(&sender, self.id, outcome, user_data.balance, user_data.to_spend, user_data.spent);
+		logger::log_update_user_balance(&sender, self.id, outcome, account_data.balance, account_data.to_spend, account_data.spent);
 		
 		/* Re-insert the updated user data  */
-		orderbook.user_data.insert(&sender, &user_data);
+		orderbook.account_data.insert(&sender, &account_data);
 		
 		/* Re-insert the orderbook */
 		self.orderbooks.insert(&outcome, &orderbook);
@@ -420,7 +405,7 @@ impl Market {
 		}
 		
 		/* Re-insert the resolution window after update */
-		self.resolution_windows.replace(resolution_window.round, &resolution_window);
+		self.resolution_windows.replace(resolution_window.round.into(), &resolution_window);
 
 		to_return
 	}
@@ -497,7 +482,7 @@ impl Market {
 		}
 
 		// Re-insert the resolution window
-		self.resolution_windows.replace(resolution_window.round, &resolution_window);
+		self.resolution_windows.replace(resolution_window.round.into(), &resolution_window);
 
 		to_return
 	}
@@ -538,34 +523,34 @@ impl Market {
 			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
 				/* Check if the user has any participation in this outcome else continue to next outcome */
-				let user_data = match orderbook.user_data.get(account_id) {
+				let account_data = match orderbook.account_data.get(account_id) {
 					Some(user) => user,
 					None => continue
 				};
-				env::log(format!("user data for orderbook: {} {:?}", orderbook.outcome_id, user_data).as_bytes());
+				env::log(format!("user data for orderbook: {} {:?}", orderbook.outcome_id, account_data).as_bytes());
 				
 				/* Calculate and add money in open orders */
-				in_open_orders += user_data.to_spend - user_data.spent;
+				in_open_orders += account_data.to_spend - account_data.spent;
 				/* Treat filled volume as winnings */
-				winnings += user_data.spent;
+				winnings += account_data.spent;
 			}
 		} else {
 			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
 				/* Check if the user has any participation in this outcome else continue to next outcome */
-				let user_data = match orderbook.user_data.get(account_id) {
+				let account_data = match orderbook.account_data.get(account_id) {
 					Some(user) => user,
 					None => continue
 				};
 				/* Calculate and increment in_open_orders with open orders for each outcome */
-				in_open_orders += user_data.to_spend - user_data.spent;
+				in_open_orders += account_data.to_spend - account_data.spent;
 			}
 
 			/* Get the orderbook of the winning outcome */
 			let winning_orderbook = self.orderbooks.get(&self.to_numerical_outcome(self.winning_outcome)).unwrap();
 
 			/* Check if the user traded in the winning_outcome */
-			let winning_value = match winning_orderbook.user_data.get(account_id) {
+			let winning_value = match winning_orderbook.account_data.get(account_id) {
 				Some(user) => user.balance * 100, // Calculate user winnings: shares_owned * 100
 				None => 0
 			};
@@ -590,14 +575,14 @@ impl Market {
 	pub fn withdraw_resolution_stake_internal(
 		&mut self,
 		sender: AccountId,
-		round: u64,
+		round: u8,
 		outcome: Option<u8>
 	) -> u128{
 		/* Convert option<u64> to a number where None (invalid) = self.outcomes */
 		let outcome_id = self.to_numerical_outcome(outcome);
 
 		/* Get the target resolution window a user wants to withdraw their stake from */
-		let mut resolution_window = self.resolution_windows.get(round).expect("dispute round doesn't exist");
+		let mut resolution_window = self.resolution_windows.get(round.into()).expect("dispute round doesn't exist");
 		assert_ne!(outcome, resolution_window.outcome, "you cant cancel dispute stake for bonded outcome");
 		let mut sender_participation = resolution_window.participants_to_outcome_to_stake.get(&sender).expect("user didn't participate in this dispute round");
 		let to_return = sender_participation.get(&outcome_id).expect("sender didn't participate in this outcome resolution");
@@ -612,7 +597,7 @@ impl Market {
 		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome - to_return));
 		
 		/* Re-insert updated resolution window */
-		self.resolution_windows.replace(resolution_window.round, &resolution_window);
+		self.resolution_windows.replace(resolution_window.round.into(), &resolution_window);
 
 		to_return
 	}

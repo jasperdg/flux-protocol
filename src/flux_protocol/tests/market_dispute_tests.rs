@@ -286,11 +286,11 @@ fn test_cancel_dispute_participation() {
 
 	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	let expected_balance_after_withdrawl = initial_balance_alice + to_dai(4);
-	alice.withdraw_resolution_stake(&mut runtime, U64(0), U64(0), Some(1), None).expect("dispute stake claim failed");
+	alice.withdraw_resolution_stake(&mut runtime, U64(0), 0, Some(1), None).expect("dispute stake claim failed");
 	let balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	
 	assert_eq!(expected_balance_after_withdrawl, balance_alice);
-	alice.withdraw_resolution_stake(&mut runtime, U64(0), U64(0), Some(0), None).expect("dispute stake claim failed");
+	alice.withdraw_resolution_stake(&mut runtime, U64(0), 0, Some(0), None).expect("dispute stake claim failed");
 }
 
 #[test]
@@ -318,7 +318,7 @@ fn test_cancel_dispute_participation_non_bonded_winning_outcome() {
 
 	let initial_balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	let expected_balance_after_withdrawl = initial_balance_alice + to_dai(4);
-	alice.withdraw_resolution_stake(&mut runtime, U64(0), U64(0), Some(0), None).expect("dispute stake claim failed");
+	alice.withdraw_resolution_stake(&mut runtime, U64(0), 0, Some(0), None).expect("dispute stake claim failed");
 	let balance_alice: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 
 	assert_eq!(expected_balance_after_withdrawl, balance_alice);

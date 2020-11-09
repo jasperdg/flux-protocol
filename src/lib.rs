@@ -11,6 +11,7 @@ mod logger;
 mod constants;
 mod utils;
 mod order;
+mod resolution_window;
 mod orderbook;
 mod market;
 mod flux_protocol;

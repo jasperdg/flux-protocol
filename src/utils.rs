@@ -78,3 +78,7 @@ pub fn get_creator_fee_percentage(market: &Market) -> u32 {
         None => 0
     }
 }
+
+pub fn one_token() -> u128 {
+    10_u128.pow(18)
+}

@@ -184,15 +184,15 @@ impl FluxProtocol {
 	) -> U128 {
 		let market_id: u64 = market_id.into();
 
-		/* Get user_data for an outcome in a market */
+		/* Get account_data for an outcome in a market */
 		let market = self.markets.get(&market_id).expect("non existent market");
 		let orderbook = market.orderbooks.get(&outcome).expect("non existent outcome");
-		let user_data = orderbook.user_data.get(account_id);
+		let account_data = orderbook.account_data.get(account_id);
 
 		/* If there is no data for this account_id return 0 */
-		if user_data.is_none() {return U128(0)}
+		if account_data.is_none() {return U128(0)}
 
-		U128(user_data.unwrap().balance)
+		U128(account_data.unwrap().balance)
 	}
 
 
@@ -474,9 +474,9 @@ impl FluxProtocol {
 		price: u16,
 		affiliate_account_id: Option<AccountId>,
 	) -> PromiseOrValue<bool> {
-		/* Make sure that the caller of this method is the contract itself */
+		/* Assert that the caller of this method is the contract itself */
 		utils::assert_self();
-		/* Make sure the previous promise in the promise chain was successful */
+		/* Assert that the previous promise in the promise chain was successful */
 		utils::assert_prev_promise_successful();
 		
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
@@ -779,12 +779,11 @@ impl FluxProtocol {
 	pub fn withdraw_resolution_stake(
 		&mut self, 
 		market_id: U64,
-		dispute_round: U64,
+		dispute_round: u8,
 		outcome: Option<u8>,
 		gas_arr: Option<Vec<U64>>,
 	) -> Promise {
 		let market_id: u64 = market_id.into();
-		let dispute_round: u64 = dispute_round.into();		
 		utils::assert_gas_arr_validity(&gas_arr, 1);
 		let mut market = self.markets.get(&market_id).expect("invalid market");
 		let to_return = market.withdraw_resolution_stake_internal(env::predecessor_account_id(), dispute_round, outcome);
