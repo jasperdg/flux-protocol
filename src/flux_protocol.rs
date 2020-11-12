@@ -182,6 +182,8 @@ impl FluxProtocol {
 		market_id: U64,
 		outcome: u8,
 	) -> U128 {
+		assert!(env::is_valid_account_id(account_id.as_bytes()), "Invalid account_id");
+
 		let market_id: u64 = market_id.into();
 
 		/* Get account_data for an outcome in a market */
@@ -207,6 +209,8 @@ impl FluxProtocol {
 		market_id: U64, 
 		account_id: AccountId
 	) -> U128 {
+		assert!(env::is_valid_account_id(account_id.as_bytes()), "Invalid account_id for owner");
+
 		let market_id: u64 = market_id.into();
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
@@ -347,7 +351,6 @@ impl FluxProtocol {
 	 * @param affiliate_fee_percentage Percentage of the creator fee that should go to affiliate accounts range between 1 - 100
 	 * @param api_source For when we have validators running, these validators then use this attribute to automatically resolute / dispute the market
 	 * @return Returns the newly created market_id
-	 * TODO: Just logs the vec types out instead of actually storing them, there is no filtering on chain
 	 */
 	pub fn proceed_market_creation(
 		&mut self, 
@@ -372,8 +375,6 @@ impl FluxProtocol {
 		let new_market = Market::new(
 			self.nonce,
 			sender,
-			description,
-			extra_info,
 			outcomes,
 			end_time,
 			creator_fee_percentage,
@@ -385,7 +386,7 @@ impl FluxProtocol {
 		/* Get the newly created market's resolution_window */
 		let resolution_window = new_market.resolution_windows.get(0).expect("something went wrong during market creation");
 
-		logger::log_market_creation(&new_market, outcome_tags, categories);
+		logger::log_market_creation(&new_market, description, extra_info, outcome_tags, categories);
 		logger::log_new_resolution_window(new_market.id, resolution_window.round, resolution_window.required_bond_size, resolution_window.end_time);
 
 		let market_id = new_market.id;
@@ -418,6 +419,14 @@ impl FluxProtocol {
 		affiliate_account_id: Option<AccountId>,
 		gas_arr: Option<Vec<U64>>
 	) -> Promise {
+
+		let valid_affiliate_account_id = match &affiliate_account_id {
+			Some(account_id) => env::is_valid_account_id(account_id.as_bytes()),
+			None => true
+		};
+
+		assert!(valid_affiliate_account_id, "Invalid affiliate account_id");
+
 		let market_id: u64 = market_id.into();
 		let shares: u128 = shares.into();
 		let rounded_spend = shares * u128::from(price);
@@ -553,7 +562,7 @@ impl FluxProtocol {
 		assert!(env::predecessor_account_id() == order.creator, "not this user's order");
 
 		/* Cancel the order, this returns how much value was left in the open order */
-		let to_return = orderbook.cancel_order(&order);
+		let to_return = orderbook.cancel_order_internal(&order);
 		
 		/* Reinsert the orderbook and market to update state */
 		market.orderbooks.insert(&outcome, &orderbook);
@@ -813,6 +822,8 @@ impl FluxProtocol {
 		account_id: AccountId,
 		gas_arr: Option<Vec<U64>>,
 	) {
+		assert!(env::is_valid_account_id(account_id.as_bytes()), "Invalid account_id");
+
 		let market_id: u64 = market_id.into();
 		let mut market = self.markets.get(&market_id).expect("market doesn't exist");
 		let market_creator = market.creator.to_string();

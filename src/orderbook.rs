@@ -81,7 +81,7 @@ impl Orderbook {
 	 * @notice Initialize a new PriceData instance
 	 * @return Returns PriceData struct
 	 */
-	fn new_price(&self, price: u16) -> PriceData {
+	fn new_price_entry(&self, price: u16) -> PriceData {
 		PriceData {
 			share_liquidity: 0,
 			orders: TreeMap::new(format!("price_data:{}:{}:{}", self.market_id, self.outcome_id, price).as_bytes().to_vec())
@@ -148,7 +148,7 @@ impl Orderbook {
 		
 		/* Store the order by updating the price data, if there were no orders at this order's price create a new order instance */
 		let mut price_data = self.price_data.get(&price).unwrap_or_else(|| {
-			self.new_price(price)
+			self.new_price_entry(price)
 		});
 
 		/* Insert order into open orders at price */
@@ -165,7 +165,7 @@ impl Orderbook {
 	 * @notice Cancel an open order for a user
 	 * @return Returns the amount of tokens to send to the user 
 	*/
-	pub fn cancel_order(&mut self, order: &Order) -> u128 {
+	pub fn cancel_order_internal(&mut self, order: &Order) -> u128 {
 		let mut price_data = self.price_data.get(&order.price).expect("There are no orders at this price");
 		let mut account_data = self.account_data.get(&order.creator).expect("There are no orders for this user");
 

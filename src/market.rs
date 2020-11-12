@@ -16,14 +16,14 @@ use near_sdk::{
 
 /*** Import orderbook implementation ***/
 use crate::orderbook::Orderbook;
+/*** Import resolution_window implementation ***/
+use crate::resolution_window::ResolutionWindow;
 /*** Import logger methods ***/
 use crate::logger;
 /*** Import utils methods ***/
 use crate::utils;
-/*** Import constants methods ***/
+/*** Import constants ***/
 use crate::constants;
-/*** Import constants methods ***/
-use crate::resolution_window::ResolutionWindow;
 
 /** 
  * @notice Market state struct
@@ -31,8 +31,6 @@ use crate::resolution_window::ResolutionWindow;
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Market {
 	pub id: u64,
-	pub description: String,
-	pub extra_info: String,
 	pub creator: AccountId,
 	pub outcomes: u8,
 	pub creation_time: u64,
@@ -40,7 +38,7 @@ pub struct Market {
 	pub orderbooks: UnorderedMap<u8, Orderbook>,
 	pub winning_outcome: Option<u8>, // If market is finalized and winning_outcome == None, market is deemed invalid
 	pub resoluted: bool,
-	pub resolute_bond: u128,
+	pub resolution_bond: u128,
 	pub filled_volume: u128,
 	pub disputed: bool,
 	pub finalized: bool,
@@ -65,8 +63,8 @@ impl Market {
 	pub fn new(
 		id: u64, 
 		account_id: AccountId, 
-		description: String, 
-		extra_info: String, 
+		// description: String, 
+		// extra_info: String, 
 		outcomes: u8, 
 		end_time: u64, 
 		creator_fee_percentage: u32, 
@@ -83,28 +81,14 @@ impl Market {
 			empty_orderbooks.insert(&i, &Orderbook::new(id, i));
 		}
 
-		/* Declare base value to perform .pow operation on */
-		let base: u128 = 10;
-
 		/* Create empty Vector object that will store all resolution windows */
 		let mut resolution_windows = Vector::new(b"market:{}:resolution_windows".to_vec());
-
-		/* Initiate first resolution window */
-		let base_resolution_window = ResolutionWindow {
-			round: 0,
-			participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:0", id).as_bytes().to_vec()),
-			required_bond_size: 5 * base.pow(18),
-			staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", id, 0).as_bytes().to_vec()), // Staked per outcome
-			end_time,
-			outcome: None,
-		};
-		resolution_windows.push(&base_resolution_window);
+		let resolution_bond = 5 * utils::one_token();
+		resolution_windows.push(&ResolutionWindow::new(None, id, resolution_bond));
 
 		/* Return market instance */
 		Self {
 			id,
-			description,
-			extra_info,
 			creator: account_id,
 			outcomes,
 			creation_time: utils::ns_to_ms(env::block_timestamp()),
@@ -112,7 +96,7 @@ impl Market {
 			orderbooks: empty_orderbooks,
 			winning_outcome: None,
 			resoluted: false,
-			resolute_bond: 5 * utils::one_token(),
+			resolution_bond: resolution_bond,
 			filled_volume: 0,
 			disputed: false,
 			finalized: false,
@@ -358,9 +342,9 @@ impl Market {
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
 
 		/* Check if the total stake on this outcome >= resolution bond if so the stake will be bonded */
-		if stake + staked_on_outcome >= self.resolute_bond {
+		if stake + staked_on_outcome >= self.resolution_bond {
 			/* Calculate if anything needs to be returned to the staker */
-			to_return = stake + staked_on_outcome - self.resolute_bond;
+			to_return = stake + staked_on_outcome - self.resolution_bond;
 			/* Set winning_outcome - this is not final there could be a dispute */
 			self.winning_outcome = winning_outcome;
 			self.resoluted = true;
@@ -386,14 +370,8 @@ impl Market {
 		/* If the market is now resoluted open dispute window */
 		if self.resoluted {
 			resolution_window.outcome = winning_outcome;
-			let new_resolution_window = ResolutionWindow {
-				round: resolution_window.round + 1,
-				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				required_bond_size: resolution_window.required_bond_size * 2,
-				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: utils::ns_to_ms(env::block_timestamp()) + constants::TWELVE_HOURS, // dispute time is 12 hours for first release
-				outcome: None,
-			};
+
+			let new_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, self.resolution_bond);
 
 			logger::log_market_resoluted(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
 			logger::log_new_resolution_window(self.id, new_resolution_window.round, new_resolution_window.required_bond_size, new_resolution_window.end_time);
@@ -464,15 +442,7 @@ impl Market {
 			let updated_staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("This can't be None");
 			assert_eq!(updated_staked_on_outcome, full_bond_size, "the total staked on outcome needs to equal full bond size if we get here");
 
-			let next_resolution_window = ResolutionWindow{
-				round: resolution_window.round + 1,
-				participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				required_bond_size: resolution_window.required_bond_size * 2,
-				staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", self.id, resolution_window.round + 1).as_bytes().to_vec()), // Staked per outcome
-				end_time: utils::ns_to_ms(env::block_timestamp()) + constants::TWELVE_HOURS,
-				outcome: None,
-			};
-
+			let next_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, self.resolution_bond);
 			logger::log_resolution_disputed(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
 			logger::log_new_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
 

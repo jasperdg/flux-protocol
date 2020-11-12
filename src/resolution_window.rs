@@ -11,8 +11,10 @@ use near_sdk::{
 	}
 };
 
-/*** Import constants methods ***/
+/*** Import constants ***/
 use crate::constants;
+/*** Import util methods ***/
+use crate::utils;
 
 /** 
  * @notice Struct of a resolution window, meant to display both resolution and dispute progression and state
@@ -30,13 +32,16 @@ use crate::constants;
 
  impl ResolutionWindow {
      pub fn new(prev_round: Option<u8>, market_id: u64, resolution_bond_base: u128) -> Self {
-         let round = prev_round.unwrap_or(0);
+         let round = match prev_round {
+             Some(round) => round + 1,
+             None => 0
+         };
          Self {
             round,
             participants_to_outcome_to_stake: UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}", market_id, round).as_bytes().to_vec()),
 			required_bond_size: resolution_bond_base * 2_u128.pow(round.into()),
 			staked_per_outcome: UnorderedMap::new(format!("market:{}:staked_per_outcome:{}", market_id, round).as_bytes().to_vec()), // Staked per outcome
-			end_time: env::block_timestamp() + constants::TWELVE_HOURS,
+			end_time: utils::ns_to_ms(env::block_timestamp()) + constants::TWELVE_HOURS,
 			outcome: None,
          }
      }

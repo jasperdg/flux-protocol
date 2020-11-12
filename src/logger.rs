@@ -51,15 +51,15 @@ pub fn log_order_closed(order: &Order, market_id: u64, outcome: u8) {
 	);
 }
 
-pub fn log_market_creation(market: &Market, outcome_tags: Vec<String>, categories: Vec<String>) {
+pub fn log_market_creation(market: &Market, description: String, extra_info: String, outcome_tags: Vec<String>, categories: Vec<String>) {
 	env::log(
 		json!({
 			"type": "market_creation".to_string(),
 			"params": {
 				"id": U64(market.id),
 				"creator": market.creator,
-				"description": market.description,
-				"extra_info": market.extra_info,
+				"description": description,
+				"extra_info": extra_info,
 				"outcomes": market.outcomes,
 				"outcome_tags": outcome_tags,
 				"categories": categories,
