@@ -267,7 +267,7 @@ impl Market {
 		shares_to_sell: u128,
 		min_price: u16,
 	) -> u128 {
-		let mut orderbook = self.orderbooks.get(&outcome).expect(format!("outcome: {} doesn't exist for this market", outcome).as_str());
+		let mut orderbook = self.orderbooks.get(&outcome).unwrap_or_else(|| { panic!("outcome: {} doesn't exist for this market", outcome) });
 
 		/* Get the account balance if there is none return 0 */
 		let shares_balance = match orderbook.account_data.get(&sender) {
@@ -296,7 +296,7 @@ impl Market {
 		/* Re-insert the orderbook */
 		self.orderbooks.insert(&outcome, &orderbook);
 		
-		shares_filled * avg_buy_price
+		shares_filled * cmp::min(avg_buy_price, avg_sell_price)
 	}
 
 	/*** Resolution methods ***/

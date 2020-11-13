@@ -69,6 +69,9 @@ fn partial_buy_order_fill_through_sale(buy_price: u16) -> (Vec<ExternalUser>, Ex
 
 	let initial_balance_seller: u128 = seller.get_balance(&mut runtime, seller.get_account_id()).into();
 
+	println!("initial balance {}", initial_balance_seller);
+	println!("params balance {} bp{}", (to_shares(2) * cmp::min(buy_price, 50) as u128), buy_price);
+
 	let share_balance_seller: u128 = seller.get_outcome_share_balance(&runtime, seller.get_account_id(), U64(0), 1).into();
 	assert_eq!(to_shares(2), share_balance_seller);
 	
