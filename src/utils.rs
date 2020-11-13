@@ -67,18 +67,6 @@ pub fn ns_to_ms(timestamp_ns: u64) -> u64 {
     timestamp_ns / 1_000_000
 } 
 
-/**
- * @notice Returns the market's `creator_fee`. If the market is resoluted as invalid the creator's fee is slashed so this method returns 0. 
- * @param market A reference to the market where the `fee_percentage` should be returned from
- * @return Returns a u128 integer representing the `creator_fee_percentage` denominated in 1e4, meaning 1 == 0.01%
- */
-pub fn get_creator_fee_percentage(market: &Market) -> u32 {
-    match market.winning_outcome {
-        Some(_) => market.creator_fee_percentage,
-        None => 0
-    }
-}
-
 pub fn one_token() -> u128 {
     10_u128.pow(18)
 }

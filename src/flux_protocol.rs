@@ -21,16 +21,15 @@ use near_sdk::{
  */
 
 /*** Import market implementation ***/
-use crate::market;
+use crate::market::Market;
+/*** Import fees implementation ***/
+use crate::market::fees::Fees;
 /*** Import logger methods ***/
 use crate::logger;
 /*** Import utils ***/
 use crate::utils;
 /*** Import constants ***/
 use crate::constants;
-
-/*** Create market type ***/
-type Market = market::Market;
 
 
 /**
@@ -224,28 +223,20 @@ impl FluxProtocol {
 		 
 		/* Get how much would be claimable for account_id, governance earnings relates to what we call "market governance" or the dispute resolution process */
 		let (winnings, left_in_open_orders, governance_earnings) = market.get_claimable_internal(&account_id);
-		
-		let claimable_if_invalid = match market.winning_outcome {
-			None =>  market.claimable_if_invalid.get(&account_id).unwrap_or(0),
-			_ => 0
-		};
-
-		let claimable_if_valid = match market.winning_outcome {
-			Some(_) =>  market.claimable_if_valid.get(&account_id).unwrap_or(0),
-			_ => 0
-		};
+	
+		let validity_escrow_claimable = market.validity_escrow.get_owed(&account_id, market.winning_outcome.is_some());
 
 		/* Calculate the sum of winnings + claimable_if_invalid to determined what amount of funds can be feed */
-		let total_feeable_amount = winnings + claimable_if_invalid;
+		let total_feeable_amount = winnings + validity_escrow_claimable;
 
 		/* Calculate total fee percentage */
-		let total_fee_percentage =  market.resolution_fee_percentage + utils::get_creator_fee_percentage(&market);
+		let total_fee_percentage =  market.fees.calc_total_fee(total_feeable_amount, &market);
 
 		/* Calculate total fee */
 		let total_fee = (total_feeable_amount * u128::from(total_fee_percentage)) / u128::from(constants::PERCENTAGE_PRECISION);
 		
 		/* Calculate the total amount claimable */
-		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
+		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond - total_fee;
 
 		U128(to_claim)
 	}
@@ -371,22 +362,25 @@ impl FluxProtocol {
 		/* Make sure the previous promise in the promise chain was successful */
 		utils::assert_prev_promise_successful();
 
+		let fees = Fees {
+			creator_fee_percentage, 
+			resolution_fee_percentage, 
+			affiliate_fee_percentage,
+		};
+
 		/* Create new market instance */
 		let new_market = Market::new(
 			self.nonce,
 			sender,
 			outcomes,
 			end_time,
-			creator_fee_percentage,
-			resolution_fee_percentage,
-			affiliate_fee_percentage,
-			api_source
+			fees
 		);
 		
 		/* Get the newly created market's resolution_window */
 		let resolution_window = new_market.resolution_windows.get(0).expect("something went wrong during market creation");
 
-		logger::log_market_creation(&new_market, description, extra_info, outcome_tags, categories);
+		logger::log_market_creation(&new_market, description, extra_info, outcome_tags, categories, api_source);
 		logger::log_new_resolution_window(new_market.id, resolution_window.round, resolution_window.required_bond_size, resolution_window.end_time);
 
 		let market_id = new_market.id;
@@ -847,27 +841,18 @@ impl FluxProtocol {
 			market.validity_bond_claimed = true;			
 		}
 
-		let claimable_if_invalid = match market.winning_outcome {
-			None =>  market.claimable_if_invalid.get(&account_id).unwrap_or(0),
-			_ => 0
-		};
-		let claimable_if_valid = match market.winning_outcome {
-			Some(_) =>  market.claimable_if_valid.get(&account_id).unwrap_or(0),
-			_ => 0
-		};
+		let validity_escrow_claimable = market.validity_escrow.get_owed(&account_id, market.winning_outcome.is_some());
 		
 		utils::assert_gas_arr_validity(&gas_arr, 1);
 		/* Calculate the sum of winnings + claimable_if_invalid to determined what amount of funds can be feed */
-		let total_feeable_amount = winnings + claimable_if_invalid;
+		let total_feeable_amount = winnings + validity_escrow_claimable;
 
-		/* Calculate total fee percentage */
-		let resolution_fee = total_feeable_amount * u128::from(market.resolution_fee_percentage) / u128::from(constants::PERCENTAGE_PRECISION);
-		let market_creator_fee = total_feeable_amount * u128::from(utils::get_creator_fee_percentage(&market)) / u128::from(constants::PERCENTAGE_PRECISION);
-		let total_fee = resolution_fee + market_creator_fee;
-
+		/* Calculate total fee*/
+		let total_fee = market.fees.calc_total_fee(total_feeable_amount, &market);
+		let creator_fee = market.fees.calc_creator_fee(total_feeable_amount, &market);
+		
 		/* Calculate the total amount claimable */
-		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond + claimable_if_valid - total_fee;
-		env::log(format!("claiming for: {} {} {}", account_id, to_claim, total_feeable_amount).as_bytes());
+		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond - total_fee;
 		if to_claim == 0 {panic!("can't claim 0 tokens")}
 
 		logger::log_earnings_claimed(market_id, &account_id, to_claim);
@@ -875,13 +860,13 @@ impl FluxProtocol {
 		/* Reinsert market instance to update claim state */
 		self.markets.insert(&market_id, &market);
 
-		if market_creator_fee > 0 {
-			/* If the market_creator_fee > 0; first transfer funds to the user, and after that transfer the fee to the market creator */
+		if creator_fee > 0 {
+			/* If the creator_fee > 0; first transfer funds to the user, and after that transfer the fee to the market creator */
 			fun_token::transfer(account_id, U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS)).then(
-				fun_token::transfer(market_creator, U128(market_creator_fee), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS))
+				fun_token::transfer(market_creator, U128(creator_fee), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS))
 			);
 		} else {
-			/* If the market_creator_fee == 0; Just transfer the user his earnings */
+			/* If the creator_fee == 0; Just transfer the user his earnings */
 			fun_token::transfer(account_id, U128(to_claim), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS));
 		}
 	}	

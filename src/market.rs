@@ -14,10 +14,21 @@ use near_sdk::{
 	}
 };
 
+/*** Import fees implementation ***/
+pub mod fees;
+pub use fees::Fees;
+
+/*** Import resolution_window implementation ***/
+pub mod resolution_window;
+pub use resolution_window::ResolutionWindow;
+
+/*** Import validity_escrow implementation ***/
+pub mod validity_escrow;
+pub use validity_escrow::ValidityEscrow;
+
 /*** Import orderbook implementation ***/
 use crate::orderbook::Orderbook;
-/*** Import resolution_window implementation ***/
-use crate::resolution_window::ResolutionWindow;
+
 /*** Import logger methods ***/
 use crate::logger;
 /*** Import utils methods ***/
@@ -42,13 +53,8 @@ pub struct Market {
 	pub filled_volume: u128,
 	pub disputed: bool,
 	pub finalized: bool,
-	pub creator_fee_percentage: u32, // Denominated in 1e4 so 2 percentage point percentage
-	pub resolution_fee_percentage: u32, // Denominated in 1e4 so 2 percentage point percentage
-	pub affiliate_fee_percentage: u32, // Denominated in 1e4 so 2 percentage point percentage - this is a percentage of the creator fee not of the total amount
-	pub claimable_if_valid: UnorderedMap<AccountId, u128>,
-	pub claimable_if_invalid: UnorderedMap<AccountId, u128>,
-	pub total_feeable_if_invalid: u128,
-	pub api_source: String,
+	pub fees: Fees,
+	pub validity_escrow: ValidityEscrow,
 	pub resolution_windows: Vector<ResolutionWindow>,
 	pub validity_bond_claimed: bool,
 	pub claimed_earnings: LookupSet<AccountId>
@@ -62,15 +68,10 @@ impl Market {
 	 */
 	pub fn new(
 		id: u64, 
-		account_id: AccountId, 
-		// description: String, 
-		// extra_info: String, 
+		account_id: AccountId,
 		outcomes: u8, 
-		end_time: u64, 
-		creator_fee_percentage: u32, 
-		resolution_fee_percentage: u32, 
-		affiliate_fee_percentage: u32,
-		api_source: String,
+		end_time: u64,
+		fees: Fees,
 	) -> Self {
 
 		/* Create an empty UnorderedMap with an unique storage pointer to store an orderbook for each outcome */
@@ -86,6 +87,11 @@ impl Market {
 		let resolution_bond = 5 * utils::one_token();
 		resolution_windows.push(&ResolutionWindow::new(None, id, resolution_bond));
 
+		let validity_escrow = ValidityEscrow {
+			claimable_if_valid: UnorderedMap::new(format!("market:{}:claimable_if_valid", id).as_bytes().to_vec()),
+			claimable_if_invalid: UnorderedMap::new(format!("market:{}:feeable_if_invalid", id).as_bytes().to_vec()),
+		};
+
 		/* Return market instance */
 		Self {
 			id,
@@ -100,13 +106,8 @@ impl Market {
 			filled_volume: 0,
 			disputed: false,
 			finalized: false,
-			creator_fee_percentage,
-			resolution_fee_percentage,
-			affiliate_fee_percentage,
-			claimable_if_valid: UnorderedMap::new(format!("market:{}:claimable_if_valid", id).as_bytes().to_vec()),
-			claimable_if_invalid: UnorderedMap::new(format!("market:{}:feeable_if_invalid", id).as_bytes().to_vec()),
-			total_feeable_if_invalid: 0,
-			api_source,
+			fees,
+			validity_escrow,
 			resolution_windows,
 			validity_bond_claimed: false,
 			claimed_earnings: LookupSet::new(format!("market:{}:claimed_earnings_for", id).as_bytes().to_vec()),
@@ -280,33 +281,12 @@ impl Market {
 		let (sell_depth, avg_sell_price) = orderbook.get_depth_down_to_price(shares_to_sell, min_price);
 		
 		/* Fill the best orders up to the amount of shares that are sellable */
-		let filled = orderbook.fill_best_orders(sell_depth);
+		let shares_filled = orderbook.fill_best_orders(sell_depth);
 		
-		let mut account_data = orderbook.account_data.get(&sender).expect("something went wrong while trying to retrieve the user's account id");
-
-		/* Calculate the avg price the user spent per share */
-		let avg_buy_price = account_data.spent / account_data.balance;
-
-		let mut sell_price = avg_sell_price;
-
-		if avg_sell_price > avg_buy_price {
-			let cur_claimable_if_valid = self.claimable_if_valid.get(&sender).unwrap_or(0);
-			sell_price = avg_buy_price;
-			let claimable_if_valid =  (avg_sell_price - avg_buy_price) * sell_depth;
-			
-			/* The delta between avg sell price and avg buy price should still be feed if the market is invalid  */
-			self.total_feeable_if_invalid += claimable_if_valid;
-
-			self.claimable_if_valid.insert(&sender, &(claimable_if_valid + cur_claimable_if_valid));
-		} else if sell_price < avg_buy_price {
-			let claimable_if_invalid = self.claimable_if_invalid.get(&sender).unwrap_or(0) + (avg_buy_price - sell_price) * sell_depth;
-			self.claimable_if_invalid.insert(&sender, &(claimable_if_invalid));
-		}
-		
-		/* Subtract user stats according the amount of shares sold */
-		account_data.balance -= filled;
-		account_data.to_spend -= filled * avg_buy_price;
-		account_data.spent -= filled * avg_buy_price;
+		let mut account_data = orderbook.account_data.get(&sender).expect("something went wrong while trying to retrieve the user's account data");
+		let avg_buy_price = account_data.calc_avg_buy_price();
+		self.validity_escrow.update_escrow(&sender, sell_depth, avg_sell_price, avg_buy_price);
+		account_data.update_balances(shares_filled);
 		
 		logger::log_update_user_balance(&sender, self.id, outcome, account_data.balance, account_data.to_spend, account_data.spent);
 		
@@ -316,7 +296,7 @@ impl Market {
 		/* Re-insert the orderbook */
 		self.orderbooks.insert(&outcome, &orderbook);
 		
-		sell_depth * sell_price
+		shares_filled * avg_buy_price
 	}
 
 	/*** Resolution methods ***/
@@ -489,7 +469,6 @@ impl Market {
 		let mut in_open_orders = 0;
 
 		if invalid {
-			env::log(b"invalid");
 			/* Loop through all orderbooks */
 			for (_, orderbook) in self.orderbooks.iter() {
 				/* Check if the user has any participation in this outcome else continue to next outcome */
@@ -497,8 +476,7 @@ impl Market {
 					Some(user) => user,
 					None => continue
 				};
-				env::log(format!("user data for orderbook: {} {:?}", orderbook.outcome_id, account_data).as_bytes());
-				
+								
 				/* Calculate and add money in open orders */
 				in_open_orders += account_data.to_spend - account_data.spent;
 				/* Treat filled volume as winnings */
@@ -592,14 +570,14 @@ impl Market {
 			/* check if round = 0 - which is the resolution round */
 			if window.round == 0 {
 				
-				/* If the market is invalid, if so total_feeable_if_invalid needs to be considered in the calculation */
-				let claimable_if_invalid = match self.winning_outcome {
-					None => self.total_feeable_if_invalid,
-					_ => 0
-				};
+				// /* If the market is invalid, if so feeable_if_invalid needs to be considered in the calculation */
+				// let claimable_if_invalid = match self.winning_outcome {
+				// 	None => self.feeable_if_invalid,
+				// 	_ => 0
+				// };
 
 				/* Calculate how much the total fee payout will be */
-				let total_resolution_fee = u128::from(self.resolution_fee_percentage) * (self.filled_volume + claimable_if_invalid) / u128::from(constants::PERCENTAGE_PRECISION);
+				let total_resolution_fee = self.fees.calc_fee(self.filled_volume, self.fees.resolution_fee_percentage);
 		
 				/* Check if the outcome that a resolution bond was staked on corresponds with the finalized outcome */
 				if self.winning_outcome == window.outcome {

@@ -14,13 +14,15 @@ use std::{
 	cmp,
 };
 
+/* Import `account_outcome_data` impl */
+mod account_outcome_data;
+pub use account_outcome_data::AccountOutcomeData;
+
 /* Import order impl */
-use crate::order;
+use crate::order::Order;
 /* Import logger impl */
 use crate::logger;
 
-/* Declare order type */
-pub type Order = order::Order;
 
 /**
  * @notice `PriceData` is a struct that holds total liquidity denominated in shares(1e16) and an ordered Map of orders (`order_id` => `Order`) for a certain price
@@ -31,32 +33,12 @@ pub struct PriceData {
 	pub orders: TreeMap<u128, Order>
 }
 
-/**
- * @notice `AccountData` is a struct that keeps some state for each participant that purchased shares of the orderbook's outcome
- */
-#[derive(BorshDeserialize, BorshSerialize, Debug)]
-pub struct AccountData {
-	pub balance: u128, // The user's balance denominated in shares (1e16)
-	pub spent: u128, // How much the user has spent (denominated in 1e18)
-	pub to_spend: u128, // How much is still to be spend (in open orders)
-}
-
-impl AccountData {
-	fn new() -> Self {
-		Self {
-			balance: 0,
-			spent: 0,
-			to_spend: 0,
-		}
-	}
-}
-
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Orderbook {
 	pub market_id: u64,
 	pub outcome_id: u8,
 	pub price_data: TreeMap<u16, PriceData>, // Ordered map where price => PriceData
-	pub account_data: UnorderedMap<AccountId, AccountData>, // Unordered map where account_id => AccountData
+	pub account_data: UnorderedMap<AccountId, AccountOutcomeData>, // Unordered map where account_id => AccountOutcomeData
 	pub nonce: u128, // Incrementing nonce to decide on order_ids
 }
 
@@ -121,7 +103,7 @@ impl Orderbook {
 
 		/* Get account_data and if it doesn't exist create new instance */
 		let mut account_data = self.account_data.get(&account_id).unwrap_or_else(|| {
-			AccountData::new()
+			AccountOutcomeData::new()
 		});
 
 		/* Update user data */

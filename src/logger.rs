@@ -51,7 +51,7 @@ pub fn log_order_closed(order: &Order, market_id: u64, outcome: u8) {
 	);
 }
 
-pub fn log_market_creation(market: &Market, description: String, extra_info: String, outcome_tags: Vec<String>, categories: Vec<String>) {
+pub fn log_market_creation(market: &Market, description: String, extra_info: String, outcome_tags: Vec<String>, categories: Vec<String>, api_source: String) {
 	env::log(
 		json!({
 			"type": "market_creation".to_string(),
@@ -64,10 +64,10 @@ pub fn log_market_creation(market: &Market, description: String, extra_info: Str
 				"outcome_tags": outcome_tags,
 				"categories": categories,
 				"end_time": U64(market.end_time),
-				"creator_fee_percentage": market.creator_fee_percentage,
-				"resolution_fee_percentage": market.resolution_fee_percentage,
-				"affiliate_fee_percentage": market.affiliate_fee_percentage,
-				"api_source": market.api_source,
+				"creator_fee_percentage": market.fees.creator_fee_percentage,
+				"resolution_fee_percentage": market.fees.resolution_fee_percentage,
+				"affiliate_fee_percentage": market.fees.affiliate_fee_percentage,
+				"api_source": api_source,
 			}
 		})
 		.to_string()
