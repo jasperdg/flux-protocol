@@ -7,9 +7,9 @@ fn fee_distribution_test() {
 	let carol = &accounts[1];
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 	alice.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	root.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	carol.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = carol.create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 400, 50, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -68,9 +68,9 @@ fn valid_market_fee_distribution_with_sales_test() {
 	let creator = &accounts[1];
 	trader.transfer(&mut runtime, creator.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 	trader.transfer(&mut runtime, resolver.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	resolver.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
-	creator.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
-	trader.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
+	resolver.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
+	creator.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
+	trader.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
 	
 	let tx_res = creator.create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 100, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
@@ -119,9 +119,9 @@ fn invalid_market_fee_distribution_with_sales_test() {
 	let creator = &accounts[1];
 	trader.transfer(&mut runtime, creator.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 	trader.transfer(&mut runtime, resolver.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	resolver.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
-	creator.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
-	trader.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
+	resolver.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
+	creator.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
+	trader.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30000))).expect("allowance couldn't be set");
 	
 	let tx_res = creator.create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 100, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));

@@ -660,22 +660,22 @@ impl ExternalUser {
 
     // external token runtime helper methods
     
-    pub fn set_allowance(
+    pub fn inc_allowance(
 		&self,
 		runtime: &mut RuntimeStandalone,
         escrow_account_id: AccountId, 
-        allowance: U128
+        amount: U128
 	) -> TxResult {
 		let args = json!({
             "escrow_account_id": escrow_account_id,
-            "allowance": allowance
+            "amount": amount
         })
         .to_string()
         .as_bytes()
         .to_vec();
 		
 		let tx = self.new_tx(runtime, fun_token())
-        .function_call("set_allowance".into(), args, GAS_STANDARD, 0)
+        .function_call("inc_allowance".into(), args, GAS_STANDARD, 25700000000000000000000)
         .sign(&self.signer);
 
 		let res = runtime.resolve_tx(tx).expect("processing tx failed");
@@ -697,7 +697,7 @@ impl ExternalUser {
         .to_vec();
 		
 		let tx = self.new_tx(runtime, fun_token())
-        .function_call("transfer".into(), args, GAS_STANDARD, 0)
+        .function_call("transfer".into(), args, GAS_STANDARD, 13300000000000000000000)
         .sign(&self.signer);
 
 		let res = runtime.resolve_tx(tx).expect("processing tx failed");

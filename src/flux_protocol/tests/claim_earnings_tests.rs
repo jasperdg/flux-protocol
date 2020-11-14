@@ -4,7 +4,7 @@ use super::*;
 fn test_payout() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
 	runtime.current_block().block_timestamp = current_block_timestamp();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(300_000))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(300_000))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -12,8 +12,8 @@ fn test_payout() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(300_000).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(300_000))).expect("allowance couldn't be set");
-	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(300_000))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(300_000))).expect("allowance couldn't be set");
+	carol.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(300_000))).expect("allowance couldn't be set");
 	
 	
 	carol.place_order(&mut runtime, U64(0), 0, U128(to_shares(1)), 70, None, None).expect("tx failed unexpectedly");

@@ -4,11 +4,11 @@ use super::*;
 fn simplest_binary_order_matching_test() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
 
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30_000))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30_000))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(110_000))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(110_000))).expect("allowance couldn't be set");
 	accounts[0].place_order(&mut runtime, U64(0), 0, U128(to_dai(1000)), 50, None, None).expect("order placement tx failed unexpectedly");
 	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_dai(1000)), 50, None, None).expect("order placement tx failed unexpectedly");
 
@@ -21,11 +21,11 @@ fn simplest_binary_order_matching_test() {
 #[test]
 fn partial_binary_order_matching_test() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30_000))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30_000))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(10_000_000_000))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(10_000_000_000))).expect("allowance couldn't be set");
 
 	
 	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_dai(1000)), 50, None, None).expect("order placement tx failed unexpectedly");

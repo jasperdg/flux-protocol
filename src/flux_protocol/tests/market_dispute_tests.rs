@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn test_dispute_valid() {
 	let (mut runtime, root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -11,8 +11,8 @@ fn test_dispute_valid() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	carol.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	alice.place_order(&mut runtime, U64(0), 0, U128(to_dai(1) / 10), 70, None, None).expect("order placement failed unexpectedly");
 	alice.place_order(&mut runtime, U64(0), 3, U128(to_dai(1) / 10), 10, None, None).expect("order placement failed unexpectedly");
@@ -59,7 +59,7 @@ fn test_dispute_valid() {
 #[should_panic(expected = "market isn't resoluted yet")]
 fn test_market_not_resoluted() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -67,7 +67,7 @@ fn test_market_not_resoluted() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	alice.dispute_market(&mut runtime, U64(0), Some(0), U128(to_dai(5)), None).expect("dispute failed");
 }
 
@@ -75,7 +75,7 @@ fn test_market_not_resoluted() {
 #[should_panic(expected = "market is already finalized")]
 fn test_finalized_market() {
 	let (mut runtime, root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -83,7 +83,7 @@ fn test_finalized_market() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(0), U128(to_dai(5)), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
@@ -98,7 +98,7 @@ fn test_finalized_market() {
 #[should_panic(expected = "dispute window still open")]
 fn test_market_finalization_pre_dispute_window_close() {
 	let (mut runtime, root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -106,7 +106,7 @@ fn test_market_finalization_pre_dispute_window_close() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(0), U128(to_dai(5)), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
@@ -119,7 +119,7 @@ fn test_market_finalization_pre_dispute_window_close() {
 #[should_panic(expected = "dispute window is closed, market can be finalized")]
 fn test_dispute_after_dispute_window() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -127,21 +127,20 @@ fn test_dispute_after_dispute_window() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(0), U128(to_dai(5)), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns() + 43200000000000;
 	let dispute_res = alice.dispute_market(&mut runtime, U64(0), Some(1), U128(to_dai(5)), None).expect("dispute failed");
-	println!("dispute res: {:?}", dispute_res);
 }
 
 #[test]
 #[should_panic(expected = "only the judge can resolute disputed markets")]
 fn test_finalize_as_not_owner() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -149,7 +148,7 @@ fn test_finalize_as_not_owner() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(0), U128(to_dai(5)), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
@@ -163,7 +162,7 @@ fn test_finalize_as_not_owner() {
 #[should_panic(expected = "invalid winning outcome")]
 fn test_invalid_dispute_outcome() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -171,7 +170,7 @@ fn test_invalid_dispute_outcome() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(4), U128(to_dai(5)), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
@@ -181,7 +180,7 @@ fn test_invalid_dispute_outcome() {
 #[should_panic(expected = "same outcome as last resolution")]
 fn test_dispute_with_same_outcome() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -189,7 +188,7 @@ fn test_dispute_with_same_outcome() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(0), U128(to_dai(5)), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
@@ -200,7 +199,7 @@ fn test_dispute_with_same_outcome() {
 #[should_panic(expected = "for this version, there's only 1 round of dispute")]
 fn test_dispute_escalation_failure() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -208,7 +207,7 @@ fn test_dispute_escalation_failure() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(0), U128(to_dai(5)), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
@@ -219,7 +218,7 @@ fn test_dispute_escalation_failure() {
 #[test]
 fn test_stake_refund() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
@@ -227,7 +226,7 @@ fn test_stake_refund() {
 	let carol = &accounts[1];
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	let pre_resolution_balance: u128 = alice.get_balance(&mut runtime, alice.get_account_id()).into();
 	
@@ -250,13 +249,13 @@ fn test_stake_refund() {
 #[should_panic(expected = "previous promise failed")]
 fn test_insufficient_balance() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	let alice = &accounts[0];
 
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(ntoy(101))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(ntoy(101))).expect("allowance couldn't be set");
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	alice.resolute_market(&mut runtime, U64(0), Some(0), U128(ntoy(101)), None).expect("market resolution failed unexpectedly"); // carol resolutes correctly - should have 1 % of 10 dai as claimable 
 } 
@@ -266,13 +265,13 @@ fn test_insufficient_balance() {
 fn test_cancel_dispute_participation() {
 
 	let (mut runtime, root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	let alice = &accounts[0];
 
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	
@@ -297,13 +296,13 @@ fn test_cancel_dispute_participation() {
 fn test_cancel_dispute_participation_non_bonded_winning_outcome() {
 
 	let (mut runtime, root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	let alice = &accounts[0];
 
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	
@@ -327,23 +326,23 @@ fn test_cancel_dispute_participation_non_bonded_winning_outcome() {
 #[test]
 fn test_crowdsourced_dispute_correct_resolution() {
 	let (mut runtime, root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	let alice = &accounts[0];
 	let carol = &accounts[1];
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	carol.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 	alice.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 
-	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	root.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	root.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), 50, None, None).expect("order placement failed unexpectedly");
 	root.place_order(&mut runtime, U64(0), 0, U128(to_dai(5) / 50), 50, None, None).expect("order placement failed unexpectedly");
 
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	
@@ -371,23 +370,23 @@ fn test_crowdsourced_dispute_correct_resolution() {
 fn test_crowdsourced_dispute_incorrect_resolution() {
 
 	let (mut runtime, root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
 	let alice = &accounts[0];
 	let carol = &accounts[1];
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	carol.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	carol.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	alice.transfer(&mut runtime, carol.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 	alice.transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
 
-	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	root.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	root.place_order(&mut runtime, U64(0), 1, U128(to_dai(5) / 50), 50, None, None).expect("order placement failed unexpectedly");
 	root.place_order(&mut runtime, U64(0), 0, U128(to_dai(5) / 50), 50, None, None).expect("order placement failed unexpectedly");
 
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	runtime.current_block().block_timestamp = market_end_timestamp_ns();
 	

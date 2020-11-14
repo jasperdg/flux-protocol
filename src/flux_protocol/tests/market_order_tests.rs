@@ -3,11 +3,11 @@ use super::*;
 #[test]
 fn test_place_order_insufficient_funds() {
 	let (mut runtime, _root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 	
-	accounts[1].set_allowance(&mut runtime, flux_protocol(), U128(5000)).expect("allowance couldn't be set");
+	accounts[1].inc_allowance(&mut runtime, flux_protocol(), U128(5000)).expect("allowance couldn't be set");
 
 	let account_1_res = accounts[1].place_order(&mut runtime, U64(0), 0, U128(50000), 50, None, None);
 	assert_eq!(account_1_res.is_err(), true);
@@ -16,15 +16,15 @@ fn test_place_order_insufficient_funds() {
 #[test]
 fn test_order_placement_cancelation_and_market_prices() {
 	let (mut runtime, root, accounts) = init_runtime_env();
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	accounts[0].transfer(&mut runtime, root.get_account_id(), to_dai(30).into()).expect("transfer failed couldn't be set");
-	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	root.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 	
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 2, outcome_tags(0), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
 
-	accounts[0].set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_shares(1)), 50, None, None).expect("tx unexpectedly failed");
 	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_shares(1)), 50, None, None).expect("tx unexpectedly failed");

@@ -14,8 +14,8 @@ fn test_validity_market_payout_calc_valid_market() {
 	let alice = &accounts[0];
 
 	alice.transfer(&mut runtime, root.get_account_id(), U128(to_dai(30))).expect("allowance couldn't be set");
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	root.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	let tx_res = alice.create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
@@ -35,7 +35,6 @@ fn test_validity_market_payout_calc_valid_market() {
 	// assert_eq!(claimable_alice, validity_bond);
 
 	let tx_res = alice.claim_earnings(&mut runtime, U64(0), alice.get_account_id(), None).expect("claim earnings failed");
-	println!("{:?}", tx_res);
 
 	let contract_balance: u128 = alice.get_balance(&mut runtime, flux_protocol()).into();
 	assert_eq!(contract_balance, to_dai(5));
@@ -52,8 +51,8 @@ fn test_validity_market_payout_calc_invalid_market() {
 
 	alice.transfer(&mut runtime, root.get_account_id(), U128(to_dai(30))).expect("allowance couldn't be set");
 
-	alice.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
-	root.set_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	alice.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
+	root.inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(30))).expect("allowance couldn't be set");
 
 	let tx_res = accounts[0].create_market(&mut runtime, empty_string(), empty_string(), 4, outcome_tags(4), categories(), U64(market_end_timestamp_ms()), 0, 0, "test".to_string(), None).unwrap();
 	assert_eq!(tx_res.status, ExecutionStatus::SuccessValue(b"0".to_vec()));
