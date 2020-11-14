@@ -282,6 +282,8 @@ impl Market {
 		
 		/* Fill the best orders up to the amount of shares that are sellable */
 		let shares_filled = orderbook.fill_best_orders(sell_depth);
+
+		self.filled_volume += avg_sell_price * shares_filled;
 		
 		let mut account_data = orderbook.account_data.get(&sender).expect("something went wrong while trying to retrieve the user's account data");
 		let avg_buy_price = account_data.calc_avg_buy_price();
@@ -569,15 +571,9 @@ impl Market {
 		for window in self.resolution_windows.iter() {
 			/* check if round = 0 - which is the resolution round */
 			if window.round == 0 {
-				
-				// /* If the market is invalid, if so feeable_if_invalid needs to be considered in the calculation */
-				// let claimable_if_invalid = match self.winning_outcome {
-				// 	None => self.feeable_if_invalid,
-				// 	_ => 0
-				// };
 
 				/* Calculate how much the total fee payout will be */
-				let total_resolution_fee = self.fees.calc_fee(self.filled_volume, self.fees.resolution_fee_percentage);
+				let total_resolution_fee = utils::calc_fee(self.filled_volume, self.fees.resolution_fee_percentage);
 		
 				/* Check if the outcome that a resolution bond was staked on corresponds with the finalized outcome */
 				if self.winning_outcome == window.outcome {

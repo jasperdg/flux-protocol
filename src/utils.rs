@@ -5,8 +5,9 @@ use near_sdk::{
 };
 
 /*** Import market implementation ***/
-use crate::market;
-type Market = market::Market;
+use crate::market::Market;
+/*** Import constants ***/
+use crate::constants;
 
 /**
  * @dev Checks if the method called is the contract itself
@@ -69,4 +70,25 @@ pub fn ns_to_ms(timestamp_ns: u64) -> u64 {
 
 pub fn one_token() -> u128 {
     10_u128.pow(18)
+}
+
+/**
+ * @notice Returns the market's `creator_fee`. If the market is resoluted as invalid the creator's fee is slashed so this method returns 0. 
+ * @param market A reference to the market where the `fee_percentage` should be returned from
+ * @return Returns a u128 integer representing the `creator_fee_percentage` denominated in 1e4, meaning 1 == 0.01%
+ */
+pub fn get_creator_fee_percentage(
+    market: &Market
+) -> u32 {
+    match market.winning_outcome {
+        Some(_) => market.fees.creator_fee_percentage,
+        None => 0
+    }
+}
+
+pub fn calc_fee(
+    feeable: u128, 
+    fee_percentage: u32
+) -> u128 {
+    feeable * u128::from(fee_percentage) / u128::from(constants::PERCENTAGE_PRECISION)
 }

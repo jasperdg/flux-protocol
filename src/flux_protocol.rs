@@ -88,6 +88,7 @@ impl Default for FluxProtocol {
 
 /**
  * @notice Flux Protocol implementation
+ * TODO: Add claim_creator_fee fn
  */
 #[near_bindgen]
 impl FluxProtocol {
@@ -516,10 +517,11 @@ impl FluxProtocol {
 		let mut market = self.markets.get(&market_id).expect("non existent market");
 		assert_eq!(market.finalized, false, "can't sell shares after market is finalized");
 		let earnings = market.dynamic_market_sell_internal(env::predecessor_account_id(), outcome, shares, min_price);
+		let total_fees = market.fees.calc_total_fee(earnings, &market);
 		assert!(earnings > 0, "no matching orders");
 		self.markets.insert(&market_id, &market);
 		
-		fun_token::transfer(env::predecessor_account_id(), U128(earnings), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS));
+		fun_token::transfer(env::predecessor_account_id(), U128(earnings - total_fees), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS));
 	}
 
 	/**
@@ -852,6 +854,8 @@ impl FluxProtocol {
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond - total_fee;
 		if to_claim == 0 {panic!("can't claim 0 tokens")}
 
+		env::log(format!("fee: {} gov. earn.: {} total_feeable_amount: {}, left_in_open_orders: {}, val. bond: {}", total_fee, governance_earnings, total_feeable_amount, left_in_open_orders, validity_bond).as_bytes());
+		env::log(format!("winnings: {} validity_escrow_claimable: {}", winnings, validity_escrow_claimable).as_bytes());
 		logger::log_earnings_claimed(market_id, &account_id, to_claim);
 		
 		/* Reinsert market instance to update claim state */
@@ -868,6 +872,7 @@ impl FluxProtocol {
 		}
 	}	
 }
+
 
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -990,17 +995,16 @@ mod tests {
 		(runtime, root, accounts)
 	}
 
-	// mod init_tests;
-	// mod binary_order_matching_tests;
-	// mod categorical_market_tests;
-	// mod market_order_tests;
-	// mod validity_bond_tests;
-	// mod custom_gas_tests;
-	// mod fee_payout_tests;
-	// mod claim_earnings_tests;
-	// mod market_dispute_tests;
-	// mod market_resolution_tests; 
-
+	mod init_tests;
+	mod binary_order_matching_tests;
+	mod categorical_market_tests;
+	mod market_order_tests;
+	mod validity_bond_tests;
+	mod custom_gas_tests;
+	mod market_dispute_tests;
+	mod market_resolution_tests; 
 	
+	mod claim_earnings_tests;
+	mod fee_payout_tests;
 	mod order_sale_tests;
 }

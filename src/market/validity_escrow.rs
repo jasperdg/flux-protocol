@@ -7,7 +7,7 @@ use near_sdk::{
 		BorshSerialize
 	}
 };
-
+use std::cmp::Ordering;
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct ValidityEscrow {
@@ -21,11 +21,13 @@ impl ValidityEscrow {
         account_id: &AccountId,
         valid_market: bool
     ) -> u128 {
-        match valid_market {
-            true => self.claimable_if_valid.get(account_id).unwrap_or(0),  
-            false => self.claimable_if_invalid.get(account_id).unwrap_or(0),  
+        if valid_market {
+            self.claimable_if_valid.get(account_id).unwrap_or(0)
+        } else {
+            self.claimable_if_invalid.get(account_id).unwrap_or(0)
         }
     }
+
 
     pub fn update_escrow(
         &mut self,
@@ -34,19 +36,23 @@ impl ValidityEscrow {
         avg_sell_price: u128,
         avg_buy_price: u128
     ) {
-        if avg_sell_price > avg_buy_price {
-            let to_add_to_escrow = shares_filled * (avg_sell_price - avg_buy_price);
-            let curr_claimable_if_valid = self.claimable_if_valid.get(account_id).unwrap_or(0);
-            let new_claimable_if_valid = to_add_to_escrow + curr_claimable_if_valid;
+        match avg_sell_price.cmp(&avg_buy_price) {
+            Ordering::Greater => {
+                let to_add_to_escrow = shares_filled * (avg_sell_price - avg_buy_price);
+                let curr_claimable_if_valid = self.claimable_if_valid.get(account_id).unwrap_or(0);
+                let new_claimable_if_valid = to_add_to_escrow + curr_claimable_if_valid;
+    
+                self.claimable_if_valid.insert(account_id, &new_claimable_if_valid);
+            },
+            Ordering::Less => {
+                let to_add_to_escrow = shares_filled * (avg_buy_price - avg_sell_price);
+                let curr_claimable_if_invalid = self.claimable_if_invalid.get(account_id).unwrap_or(0);
+                let new_claimable_if_invalid = to_add_to_escrow + curr_claimable_if_invalid;
+    
+                self.claimable_if_invalid.insert(account_id, &new_claimable_if_invalid);
+            },
+            _ => ()
 
-            self.claimable_if_valid.insert(account_id, &new_claimable_if_valid);
-        } else if avg_sell_price < avg_buy_price {
-            let to_add_to_escrow = shares_filled * (avg_buy_price - avg_sell_price);
-            let curr_claimable_if_invalid = self.claimable_if_invalid.get(account_id).unwrap_or(0);
-            let new_claimable_if_invalid = to_add_to_escrow + curr_claimable_if_invalid;
-
-            self.claimable_if_invalid.insert(account_id, &new_claimable_if_invalid);
-
-        }
+        };
     }
 }
