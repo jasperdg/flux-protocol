@@ -187,7 +187,7 @@ impl Market {
 				/* Re-insert the mutated orderbook instance */
 				self.orderbooks.insert(&orderbook_id, &orderbook); 
 			}
-
+			
 			/* Update tracking variables */
 			left_to_spend -= shares_to_fill * u128::from(market_price);
 			shares_filled += shares_to_fill;

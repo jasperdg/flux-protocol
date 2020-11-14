@@ -249,8 +249,18 @@ impl FluxProtocol {
 		&mut self, 
 		new_owner: AccountId
 	) {
+		assert!(env::is_valid_account_id(new_owner.as_bytes()), "Invalid account_id for owner");
 		assert_eq!(env::predecessor_account_id(), self.owner, "Owner can only be changed by previous owner");
 		self.owner = new_owner;
+	}
+
+	pub fn set_fun_token(
+		&mut self,
+		new_token_account_id: AccountId
+	) {
+		assert_eq!(env::predecessor_account_id(), self.owner, "Owner can only be changed by previous owner");
+		assert!(env::is_valid_account_id(new_token_account_id.as_bytes()), "Invalid account_id for owner");
+		self.fun_token_account_id = new_token_account_id;
 	}
 	
 	/**
@@ -421,11 +431,11 @@ impl FluxProtocol {
 
 		let market_id: u64 = market_id.into();
 		let shares: u128 = shares.into();
-		let rounded_spend = shares * u128::from(price);
+		let to_spend = shares * u128::from(price);
 		let market = self.markets.get(&market_id).expect("market doesn't exist");
 
 		utils::assert_gas_arr_validity(&gas_arr, 2);
-		assert!(rounded_spend >= constants::TOKEN_DENOMINATION / 10, "order must be valued at > 0.1 tokens");
+		assert!(to_spend >= constants::TOKEN_DENOMINATION / 10, "order must be valued at > 0.1 tokens");
 		assert!(price > 0 && price < 100, "price can only be between 1 - 99");
 		assert!(outcome < market.outcomes, "invalid outcome");
 		assert_eq!(market.resoluted, false, "market has already been resoluted");
@@ -435,14 +445,14 @@ impl FluxProtocol {
 		let order_placement_gas = utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS * 10 - transfer_gas);
 
 		/* Attempt to transfer deposit the tokens from the user to this contract, then continue order placement */
-		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), rounded_spend.into(), &self.fun_token_account_id(), 0, transfer_gas)
+		fun_token::transfer_from(env::predecessor_account_id(), env::current_account_id(), to_spend.into(), &self.fun_token_account_id(), 0, transfer_gas)
 		.then(
 			flux_protocol::proceed_order_placement( 
 				env::predecessor_account_id(),
 				market_id,
 				outcome,
 				shares,
-				rounded_spend,
+				to_spend,
 				price,
 				affiliate_account_id,
 				&env::current_account_id(), 
@@ -487,7 +497,7 @@ impl FluxProtocol {
 	}
 
 	/** 
-	 * @notice Sells owned shares at market prices
+	 * @notice Sells owned shares at market prices, only takes resolution fee not market_creator fee since we don't know if the market is valid at this point.
 	 * @dev Panics if the min_price provided is 0
 	 *  panics if the min_price > 99
 	 *  panics if shares < 1
@@ -517,11 +527,12 @@ impl FluxProtocol {
 		let mut market = self.markets.get(&market_id).expect("non existent market");
 		assert_eq!(market.finalized, false, "can't sell shares after market is finalized");
 		let earnings = market.dynamic_market_sell_internal(env::predecessor_account_id(), outcome, shares, min_price);
-		let total_fees = market.fees.calc_total_fee(earnings, &market);
+
+		let resolution_fee = utils::calc_fee(earnings, market.fees.resolution_fee_percentage);
 		assert!(earnings > 0, "no matching orders");
 		self.markets.insert(&market_id, &market);
 		
-		fun_token::transfer(env::predecessor_account_id(), U128(earnings - total_fees), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS));
+		fun_token::transfer(env::predecessor_account_id(), U128(earnings - resolution_fee), &self.fun_token_account_id(), 0, utils::get_gas_for_tx(&gas_arr, 0, constants::SINGLE_CALL_GAS));
 	}
 
 	/**
@@ -854,8 +865,6 @@ impl FluxProtocol {
 		let to_claim = total_feeable_amount + governance_earnings + left_in_open_orders + validity_bond - total_fee;
 		if to_claim == 0 {panic!("can't claim 0 tokens")}
 
-		env::log(format!("fee: {} gov. earn.: {} total_feeable_amount: {}, left_in_open_orders: {}, val. bond: {}", total_fee, governance_earnings, total_feeable_amount, left_in_open_orders, validity_bond).as_bytes());
-		env::log(format!("winnings: {} validity_escrow_claimable: {}", winnings, validity_escrow_claimable).as_bytes());
 		logger::log_earnings_claimed(market_id, &account_id, to_claim);
 		
 		/* Reinsert market instance to update claim state */
@@ -1002,8 +1011,7 @@ mod tests {
 	mod validity_bond_tests;
 	mod custom_gas_tests;
 	mod market_dispute_tests;
-	mod market_resolution_tests; 
-	
+	mod market_resolution_tests;
 	mod claim_earnings_tests;
 	mod fee_payout_tests;
 	mod order_sale_tests;
