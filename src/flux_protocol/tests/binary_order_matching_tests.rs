@@ -28,7 +28,8 @@ fn partial_binary_order_matching_test() {
 	accounts[0].inc_allowance(&mut runtime, flux_protocol(), U128(to_dai(10_000_000_000))).expect("allowance couldn't be set");
 
 	
-	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_dai(1000)), 50, None, None).expect("order placement tx failed unexpectedly");
+	let res = accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_dai(1000)), 50, None, None).expect("order placement tx failed unexpectedly");
+	println!("res: {:?}", res);
 	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_dai(1000)), 50, None, None).expect("order placement tx failed unexpectedly");
 	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_dai(550)), 50, None, None).expect("order placement tx failed unexpectedly");
 	accounts[0].place_order(&mut runtime, U64(0), 1, U128(to_dai(200)), 50, None, None).expect("order placement tx failed unexpectedly");

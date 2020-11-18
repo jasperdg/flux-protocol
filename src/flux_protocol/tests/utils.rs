@@ -12,6 +12,7 @@ use serde_json::json;
 use near_sdk::json_types::{U128, U64};
 
 const GAS_STANDARD: u64 = 10000000000000000;
+const NEAR_DEPOSIT: u128 = 30000000000000000000000;
 
 fn fun_token() -> String {
 	"fun_token".to_string()
@@ -175,7 +176,7 @@ impl ExternalUser {
         .to_vec();
         let tx = self
         .new_tx(runtime, flux_protocol())
-        .function_call("create_market".into(), args, GAS_STANDARD, 0)
+        .function_call("create_market".into(), args, GAS_STANDARD, NEAR_DEPOSIT)
         .sign(&self.signer);
         let res = runtime.resolve_tx(tx).expect("resolving tx failed");
         runtime.process_all().expect("processing tx failed");
@@ -206,7 +207,7 @@ impl ExternalUser {
         			
         let tx = self
         .new_tx(runtime, flux_protocol())
-        .function_call("place_order".into(), args, 10000000000000000, 0)
+        .function_call("place_order".into(), args, 300000000000000, NEAR_DEPOSIT)
         .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
@@ -236,7 +237,7 @@ impl ExternalUser {
         
         let tx = self
         .new_tx(runtime, flux_protocol())
-        .function_call("cancel_order".into(), args, 10000000000000000, 0)
+        .function_call("cancel_order".into(), args, 10000000000000000, NEAR_DEPOSIT)
         .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
@@ -266,7 +267,7 @@ impl ExternalUser {
         
         let tx = self
         .new_tx(runtime, flux_protocol())
-        .function_call("dynamic_market_sell".into(), args, 10000000000000000, 0)
+        .function_call("dynamic_market_sell".into(), args, 10000000000000000, NEAR_DEPOSIT)
         .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
@@ -294,7 +295,7 @@ impl ExternalUser {
         
         let tx = self
         .new_tx(runtime, flux_protocol())
-        .function_call("resolute_market".into(), args, 10000000000000000, 0)
+        .function_call("resolute_market".into(), args, 10000000000000000, NEAR_DEPOSIT)
         .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
@@ -322,7 +323,7 @@ impl ExternalUser {
         
         let tx = self
         .new_tx(runtime, flux_protocol())
-        .function_call("dispute_market".into(), args, 10000000000000000, 0)
+        .function_call("dispute_market".into(), args, 10000000000000000, NEAR_DEPOSIT)
         .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
@@ -372,7 +373,7 @@ impl ExternalUser {
         
         let tx = self
         .new_tx(runtime, flux_protocol())
-        .function_call("claim_earnings".into(), args, 10000000000000000, 0)
+        .function_call("claim_earnings".into(), args, 10000000000000000, NEAR_DEPOSIT)
         .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
@@ -400,7 +401,7 @@ impl ExternalUser {
         
         let tx = self
         .new_tx(runtime, flux_protocol())
-        .function_call("withdraw_resolution_stake".into(), args, 10000000000000000, 0)
+        .function_call("withdraw_resolution_stake".into(), args, 10000000000000000, NEAR_DEPOSIT)
         .sign(&self.signer);
 		
 		let res = runtime.resolve_tx(tx).unwrap();
