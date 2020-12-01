@@ -89,7 +89,8 @@ impl Default for FluxProtocol {
 /**
  * @notice Flux Protocol implementation
  * TODO: Add claim_creator_fee fn
- * TODO: Add dynamic transfer NEAR attachement
+ * TODO: Consistently store winning outcome as a number where market.outcomes == invalid
+ * TODO: try to clean up as much storage as possible on order fill etc. 
  */
 #[near_bindgen]
 impl FluxProtocol {
@@ -640,10 +641,10 @@ impl FluxProtocol {
 	#[payable]
 	pub fn proceed_market_resolution(
 		&mut self,
+		sender: AccountId,
 		market_id: u64,
 		winning_outcome: Option<u8>,
 		stake: u128,
-		sender: AccountId,
 		gas: u64,
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */
@@ -730,10 +731,10 @@ impl FluxProtocol {
 	#[payable]
 	pub fn proceed_market_dispute(		
 		&mut self,
+		sender: AccountId,
 		market_id: u64,
 		winning_outcome: Option<u8>,
 		stake: u128,
-		sender: AccountId,
 		gas: u64,
 	) -> PromiseOrValue<bool> {
 		/* Make sure that the caller of this method is the contract itself */

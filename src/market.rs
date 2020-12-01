@@ -83,7 +83,7 @@ impl Market {
 		}
 
 		/* Create empty Vector object that will store all resolution windows */
-		let mut resolution_windows = Vector::new(b"market:{}:resolution_windows".to_vec());
+		let mut resolution_windows = Vector::new(format!("market:{}:resolution_windows", id).as_bytes().to_vec());
 		let resolution_bond = 5 * utils::one_token();
 		resolution_windows.push(&ResolutionWindow::new(None, id, resolution_bond));
 
@@ -424,7 +424,8 @@ impl Market {
 			let updated_staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).expect("This can't be None");
 			assert_eq!(updated_staked_on_outcome, full_bond_size, "the total staked on outcome needs to equal full bond size if we get here");
 
-			let next_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, self.resolution_bond);
+			let bond_base = if resolution_window.round == utils::max_rounds() { 0 } else { self.resolution_bond };
+			let next_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, bond_base);
 			logger::log_resolution_disputed(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
 			logger::log_new_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
 
@@ -623,6 +624,7 @@ impl Market {
 		}
 
 		if total_correctly_staked == 0 || total_incorrectly_staked == 0 || user_correctly_staked == 0 {return resolution_reward}
+
 
 		/* Declare decimals to ensure that people with up until 1/`constants::EARNINGS_PRECISION`th of total stake are rewarded */
 		/* Calculate profit from participating in disputes */

@@ -90,5 +90,12 @@ pub fn calc_fee(
     feeable: u128, 
     fee_percentage: u32
 ) -> u128 {
-    feeable * u128::from(fee_percentage) / u128::from(constants::PERCENTAGE_PRECISION)
+    match feeable {
+        0 => 0,
+        _ => feeable * u128::from(fee_percentage) / u128::from(constants::PERCENTAGE_PRECISION)
+    }
+}
+
+pub fn max_rounds() -> u8 {
+    1
 }
