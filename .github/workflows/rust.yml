@@ -1,0 +1,20 @@
+name: Rust
+
+on:
+  push:
+    branches: [ develop, master ]
+  pull_request:
+    branches: [ develop, master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install required dependencies
+      run: rustup install nightly-2020-05-15 && rustup target add wasm32-unknown-unknown --toolchain stable && rustup target add wasm32-unknown-unknown --toolchain nightly-2020-05-15
+    - name: Run tests
+      run: mkdir res && sh scripts/test.sh
