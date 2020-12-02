@@ -196,7 +196,7 @@ impl FluxProtocol {
 		/* If there is no data for this account_id return 0 */
 		if account_data.is_none() {return U128(0)}
 
-		U128(account_data.unwrap().balance)
+		U128(account_data.unwrap().shares_balance)
 	}
 
 	/**

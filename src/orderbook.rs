@@ -109,11 +109,11 @@ impl Orderbook {
 		});
 
 		/* Update user data */
-		account_data.balance += shares_filled;
+		account_data.shares_balance += shares_filled;
 		account_data.spent += filled;
 		account_data.to_spend += spend;
 		
-		logger::log_update_user_balance(&account_id, market_id, outcome, account_data.balance, account_data.to_spend, account_data.spent);
+		logger::log_update_user_balance(&account_id, market_id, outcome, account_data.shares_balance, account_data.to_spend, account_data.spent);
 		
 		/* Calculate how much of the order is still open */
 		let left_to_spend = spend - filled;
@@ -172,7 +172,7 @@ impl Orderbook {
 		/* Re-insert account_data to update state */
 		self.account_data.insert(&order.creator, &account_data);
 
-		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, account_data.balance, account_data.to_spend, account_data.spent);
+		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, account_data.shares_balance, account_data.to_spend, account_data.spent);
 		logger::log_order_closed(&order, self.market_id, self.outcome_id);
 
 		to_return
@@ -245,7 +245,7 @@ impl Orderbook {
 		let mut price_data = self.price_data.get(&order.price).expect("no price_data available for price");
 
 		/* Update price and user data accordingly */
-		account_data.balance += shares_to_fill;
+		account_data.shares_balance += shares_to_fill;
 		account_data.spent += shares_to_fill * u128::from(order.price);
 		/* Re-insert account_data to update state */
 
@@ -273,7 +273,7 @@ impl Orderbook {
 		}
 
 		logger::log_order_filled(&order, shares_to_fill, self.market_id, self.outcome_id);
-		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, account_data.balance, account_data.to_spend, account_data.spent);
+		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, account_data.shares_balance, account_data.to_spend, account_data.spent);
 	}
 
 	/**

@@ -271,7 +271,7 @@ impl Market {
 
 		/* Get the account balance if there is none return 0 */
 		let shares_balance = match orderbook.account_data.get(&sender) {
-			Some(data) => data.balance,
+			Some(data) => data.shares_balance,
 			None => return 0
 		};
 		
@@ -290,7 +290,7 @@ impl Market {
 		self.validity_escrow.update_escrow(&sender, sell_depth, avg_sell_price, avg_buy_price);
 		account_data.update_balances(shares_filled);
 		
-		logger::log_update_user_balance(&sender, self.id, outcome, account_data.balance, account_data.to_spend, account_data.spent);
+		logger::log_update_user_balance(&sender, self.id, outcome, account_data.shares_balance, account_data.to_spend, account_data.spent);
 		
 		/* Re-insert the updated user data  */
 		orderbook.account_data.insert(&sender, &account_data);
@@ -476,7 +476,7 @@ impl Market {
 
 			// Return the amount the user has won
 		 	match winning_orderbook.account_data.get(account_id) {
-				Some(user) => user.balance * 100,
+				Some(user) => user.shares_balance * 100,
 				None => 0
 			}
 		};
