@@ -27,7 +27,7 @@ pub mod validity_escrow;
 pub use validity_escrow::ValidityEscrow;
 
 /*** Import orderbook implementation ***/
-use crate::orderbook::Orderbook;
+use crate::orderbook::{ Orderbook, services };
 
 /*** Import logger methods ***/
 use crate::logger;
@@ -73,7 +73,6 @@ impl Market {
 		end_time: u64,
 		fees: Fees,
 	) -> Self {
-
 		/* Create an empty UnorderedMap with an unique storage pointer to store an orderbook for each outcome */
 		let mut empty_orderbooks = UnorderedMap::new(format!("market:{}:orderbooks", id).as_bytes().to_vec());
 
@@ -248,6 +247,7 @@ impl Market {
 
 			market_price -= best_price;
 		}
+
 		(market_price, min_liquidity)
 	}
 
@@ -460,60 +460,30 @@ impl Market {
 	/*** After finalization ***/
 
 	/**
-	 * @notice Calculates the amount a participant can claim in the market
+	 * Calculates the amount a participant can claim in the market. Gives back all the user has spend when a market in invalid.
 	 * @return returns a tuple containing: amount claimable through trading, amount still left in open orders, amount claimable through resolution participation
 	 */
 	pub fn get_claimable_internal(
 		&self, 
 		account_id: &AccountId
 	) -> (u128, u128, u128) {
-		let invalid = self.winning_outcome.is_none();
-		let mut winnings = 0;
-		let mut in_open_orders = 0;
-
-		if invalid {
-			/* Loop through all orderbooks */
-			for (_, orderbook) in self.orderbooks.iter() {
-				/* Check if the user has any participation in this outcome else continue to next outcome */
-				let account_data = match orderbook.account_data.get(account_id) {
-					Some(user) => user,
-					None => continue
-				};
-								
-				/* Calculate and add money in open orders */
-				in_open_orders += account_data.to_spend - account_data.spent;
-				/* Treat filled volume as winnings */
-				winnings += account_data.spent;
-			}
+		let is_market_invalid = self.winning_outcome.is_none();
+		let (in_open_orders, total_spent) = services::get_money_left_in_open_orders(account_id, &self.orderbooks);
+		let total_amount_won = if is_market_invalid {
+			total_spent
 		} else {
-			/* Loop through all orderbooks */
-			for (_, orderbook) in self.orderbooks.iter() {
-				/* Check if the user has any participation in this outcome else continue to next outcome */
-				let account_data = match orderbook.account_data.get(account_id) {
-					Some(user) => user,
-					None => continue
-				};
-				/* Calculate and increment in_open_orders with open orders for each outcome */
-				in_open_orders += account_data.to_spend - account_data.spent;
-			}
-
-			/* Get the orderbook of the winning outcome */
 			let winning_orderbook = self.orderbooks.get(&self.to_numerical_outcome(self.winning_outcome)).unwrap();
 
-			/* Check if the user traded in the winning_outcome */
-			let winning_value = match winning_orderbook.account_data.get(account_id) {
-				Some(user) => user.balance * 100, // Calculate user winnings: shares_owned * 100
+			// Return the amount the user has won
+		 	match winning_orderbook.account_data.get(account_id) {
+				Some(user) => user.balance * 100,
 				None => 0
-			};
+			}
+		};
 
-			/* Set winnings to the amount of participation */
-			winnings = winning_value;
-		}
-
-		/* Calculate governance earnings */ 
 		let governance_earnings = self.get_dispute_earnings(account_id);
 
-		(winnings, in_open_orders, governance_earnings)
+		(total_amount_won, in_open_orders, governance_earnings)
 	}
 
 	/**

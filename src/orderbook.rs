@@ -18,6 +18,8 @@ use std::{
 mod account_outcome_data;
 pub use account_outcome_data::AccountOutcomeData;
 
+pub mod services;
+
 /* Import order impl */
 use crate::order::Order;
 /* Import logger impl */
