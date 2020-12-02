@@ -196,7 +196,7 @@ impl FluxProtocol {
 		/* If there is no data for this account_id return 0 */
 		if account_data.is_none() {return U128(0)}
 
-		U128(account_data.unwrap().balance)
+		U128(account_data.unwrap().shares_balance)
 	}
 
 	/**
@@ -809,14 +809,14 @@ impl FluxProtocol {
 		let market_id: u64 = market_id.into();
 		utils::assert_gas_arr_validity(&gas_arr, 1);
 		let mut market = self.markets.get(&market_id).expect("invalid market");
-		let to_return = market.withdraw_resolution_stake_internal(env::predecessor_account_id(), dispute_round, outcome);
+		let stake_to_refund = market.withdraw_resolution_stake_internal(env::predecessor_account_id(), dispute_round, outcome);
 
 		/* If the user has stake to withdraw transfer the stake back to the user */
-		if to_return > 0 {
+		if stake_to_refund > 0 {
 			/* Re-insert the market into the markets struct to update state */
 			self.markets.insert(&market_id, &market);
 			logger::log_dispute_withdraw(market_id, &env::predecessor_account_id(), dispute_round, outcome);
-			fun_token::transfer(env::predecessor_account_id(), U128(to_return), &self.fun_token_account_id(), env::attached_deposit(), constants::SINGLE_CALL_GAS / 2)
+			fun_token::transfer(env::predecessor_account_id(), U128(stake_to_refund), &self.fun_token_account_id(), env::attached_deposit(), constants::SINGLE_CALL_GAS / 2)
 		} else {
 			panic!("user has no participation in this dispute");
 		}
