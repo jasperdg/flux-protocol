@@ -22,8 +22,8 @@ pub fn get_money_left_in_open_orders(account_id: &AccountId, orderbooks: &Unorde
             None => continue,
         };
 
-        money_in_open_orders += account_data.to_spend - account_data.spent;
-        total_spent += account_data.spent;
+        money_in_open_orders += account_data.tokens_to_spend - account_data.tokens_spent;
+        total_spent += account_data.tokens_spent;
     }
 
     (money_in_open_orders, total_spent)

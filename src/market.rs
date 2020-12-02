@@ -290,7 +290,7 @@ impl Market {
 		self.validity_escrow.update_escrow(&sender, sell_depth, avg_sell_price, avg_buy_price);
 		account_data.update_balances(shares_filled);
 		
-		logger::log_update_user_balance(&sender, self.id, outcome, account_data.shares_balance, account_data.to_spend, account_data.spent);
+		logger::log_update_user_balance(&sender, self.id, outcome, account_data.shares_balance, account_data.tokens_to_spend, account_data.tokens_spent);
 		
 		/* Re-insert the updated user data  */
 		orderbook.account_data.insert(&sender, &account_data);
@@ -318,7 +318,7 @@ impl Market {
 
 		/* Get the most recent resolution window */
 		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Something went wrong during market creation");
-		let mut to_return = 0;
+		let mut stake_to_refund = 0;
 
 		/* Get how much is currently is staked on the target outcome */
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
@@ -326,7 +326,7 @@ impl Market {
 		/* Check if the total stake on this outcome >= resolution bond if so the stake will be bonded */
 		if stake + staked_on_outcome >= self.resolution_bond {
 			/* Calculate if anything needs to be returned to the staker */
-			to_return = stake + staked_on_outcome - self.resolution_bond;
+			stake_to_refund = stake + staked_on_outcome - self.resolution_bond;
 			/* Set winning_outcome - this is not final there could be a dispute */
 			self.winning_outcome = winning_outcome;
 			self.resoluted = true;
@@ -342,12 +342,12 @@ impl Market {
 		let stake_in_outcome = sender_stake_per_outcome
 		.get(&outcome_id)
 		.unwrap_or(0);
-		let new_stake = stake_in_outcome + stake - to_return;
+		let new_stake = stake_in_outcome + stake - stake_to_refund;
 		sender_stake_per_outcome.insert(&outcome_id, &new_stake);
 		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
 		/* Update resolution_window's stake state */
-		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - to_return));
+		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - stake_to_refund));
 		
 		/* If the market is now resoluted open dispute window */
 		if self.resoluted {
@@ -355,19 +355,19 @@ impl Market {
 
 			let new_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, self.resolution_bond);
 
-			logger::log_market_resoluted(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_market_resoluted(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
 			logger::log_new_resolution_window(self.id, new_resolution_window.round, new_resolution_window.required_bond_size, new_resolution_window.end_time);
 			self.resolution_windows.push(&new_resolution_window);
 			
 		}  else {
-			logger::log_staked_on_resolution(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_staked_on_resolution(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
 
 		}
 		
 		/* Re-insert the resolution window after update */
 		self.resolution_windows.replace(resolution_window.round.into(), &resolution_window);
 
-		to_return
+		stake_to_refund
 	}
 
 	/**
