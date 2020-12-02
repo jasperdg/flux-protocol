@@ -385,7 +385,7 @@ impl Market {
 		
 		/* Get the most recent resolution window */
 		let mut resolution_window = self.resolution_windows.get(self.resolution_windows.len() - 1).expect("Something went wrong during market creation");
-		let mut to_return = 0;
+		let mut stake_to_refund = 0;
 		let full_bond_size = resolution_window.required_bond_size;
 		let mut bond_filled = false;
 		let staked_on_outcome = resolution_window.staked_per_outcome.get(&outcome_id).unwrap_or(0);
@@ -393,7 +393,7 @@ impl Market {
 		/* Check if this stake adds up to an amount >= the bond_size if so dispute will be bonded */
 		if staked_on_outcome + stake >= full_bond_size  {
 			bond_filled = true;
-			to_return = staked_on_outcome + stake - full_bond_size;
+			stake_to_refund = staked_on_outcome + stake - full_bond_size;
 			self.disputed = true;
 			/* Set winning_outcome to current outcome - will be finalized by Judge */
 			self.winning_outcome = winning_outcome;
@@ -405,16 +405,15 @@ impl Market {
 		.unwrap_or_else(|| {
 			UnorderedMap::new(format!("market:{}:participants_to_outcome_to_stake:{}:{}", self.id, resolution_window.round, sender).as_bytes().to_vec())
 		});
-		let stake_in_outcome = sender_stake_per_outcome
-		.get(&outcome_id)
-		.unwrap_or(0);
-		let new_stake = stake_in_outcome + stake - to_return;
+
+		let stake_in_outcome = sender_stake_per_outcome.get(&outcome_id).unwrap_or(0);
+		let new_stake = stake_in_outcome + stake - stake_to_refund;
 		sender_stake_per_outcome.insert(&outcome_id, &new_stake);
 		resolution_window.participants_to_outcome_to_stake.insert(&sender, &sender_stake_per_outcome);
 
-		/* Add stake to the window's stake state */
-		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - to_return));
 
+		/* Add stake to the window's stake state */
+		resolution_window.staked_per_outcome.insert(&outcome_id, &(staked_on_outcome + stake - stake_to_refund));
 		
 		// Check if this order fills the bond - if so open a new resolution window
 		if bond_filled {
@@ -426,18 +425,18 @@ impl Market {
 
 			let bond_base = if resolution_window.round == utils::max_rounds() { 0 } else { self.resolution_bond };
 			let next_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, bond_base);
-			logger::log_resolution_disputed(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_resolution_disputed(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
 			logger::log_new_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
 
 			self.resolution_windows.push(&next_resolution_window);
 		} else {
-			logger::log_staked_on_dispute(self.id, &sender, resolution_window.round, stake - to_return, outcome_id);
+			logger::log_staked_on_dispute(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
 		}
 
 		// Re-insert the resolution window
 		self.resolution_windows.replace(resolution_window.round.into(), &resolution_window);
 
-		to_return
+		stake_to_refund
 	}
 
 	/**
@@ -593,8 +592,9 @@ impl Market {
 			}
 		}
 
-		if total_correctly_staked == 0 || total_incorrectly_staked == 0 || user_correctly_staked == 0 {return resolution_reward}
-
+		if total_correctly_staked == 0 || total_incorrectly_staked == 0 || user_correctly_staked == 0 {
+			return resolution_reward;
+		}
 
 		/* Declare decimals to ensure that people with up until 1/`constants::EARNINGS_PRECISION`th of total stake are rewarded */
 		/* Calculate profit from participating in disputes */

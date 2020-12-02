@@ -202,7 +202,7 @@ impl Orderbook {
 		/* Loop through all orders at the best price */
 		for (_, order) in &orders {
 			/* If there ano more shares to fill stop loop */
-			if shares_to_fill == 0 { break;} 
+			if shares_to_fill == 0 { break; } 
 
 			/* Calc how many shares can still be filled for this order */
 			let shares_fillable_for_order = (order.spend - order.filled) / u128::from(order.price);
