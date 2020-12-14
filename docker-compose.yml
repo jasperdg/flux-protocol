@@ -1,0 +1,11 @@
+version: '3'
+services:
+    node:
+        build: .
+        tty: true
+        stdin_open: true
+        working_dir: /var/www/
+        ports:
+            - "3000:3000"
+        volumes:
+            - ./:/var/www
