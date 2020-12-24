@@ -82,6 +82,26 @@ pub fn log_order(order: &Order, outcome: u8, closed: bool, fill_price: u128) {
 	);
 }
 
+pub fn log_user_balance(account_id: &AccountId, market_id: u64, outcome: u8, balance: u128, to_spend: u128, spent: u128) {
+	env::log(
+		json!({
+			"type": "user_balances".to_string(),
+			"params": {
+				"id": format!("ub_{}_{}_{}", account_id, market_id, outcome),
+				"account_id": account_id,
+				"market_id": U64(market_id),
+				"outcome": outcome,
+				"shares_balance": U128(balance),
+				"tokens_to_spend": U128(to_spend),
+				"tokens_spent": U128(spent),
+			}
+		})
+		.to_string()
+		.as_bytes()
+	);
+}
+
+
 
 // TODO convert these to logical data objects
 pub fn log_order_filled(order: &Order, shares_to_fill: u128, market_id: u64, outcome: u8) {
@@ -249,23 +269,23 @@ pub fn log_finalized_market(market_id: u64, winning_outcome: u8) {
 	);
 }
 
-pub fn log_update_user_balance(account_id: &AccountId, market_id: u64, outcome: u8, balance: u128, to_spend: u128, spent: u128) {
-	env::log(
-		json!({
-			"type": "updated_user_balance".to_string(),
-			"params": {
-				"account_id": account_id,
-				"market_id": U64(market_id),
-				"outcome": outcome,
-				"balance": U128(balance),
-				"to_spend": U128(to_spend),
-				"spent": U128(spent),
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
+// pub fn log_update_user_balance(account_id: &AccountId, market_id: u64, outcome: u8, balance: u128, to_spend: u128, spent: u128) {
+// 	env::log(
+// 		json!({
+// 			"type": "updated_user_balance".to_string(),
+// 			"params": {
+// 				"account_id": account_id,
+// 				"market_id": U64(market_id),
+// 				"outcome": outcome,
+// 				"balance": U128(balance),
+// 				"to_spend": U128(to_spend),
+// 				"spent": U128(spent),
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	);
+// }
 
 pub fn log_order_filled_at_placement(order: &Order, outcome: u8, fill_price: u128) {
 	env::log(

@@ -293,7 +293,7 @@ impl Market {
 		self.validity_escrow.update_escrow(&sender, sell_depth, avg_sell_price, avg_buy_price);
 		account_data.update_balances(shares_filled);
 		
-		logger::log_update_user_balance(&sender, self.id, outcome, account_data.shares_balance, account_data.tokens_to_spend, account_data.tokens_spent);
+		logger::log_user_balance(&sender, self.id, outcome, account_data.shares_balance, account_data.tokens_to_spend, account_data.tokens_spent);
 		
 		/* Re-insert the updated user data  */
 		orderbook.account_data.insert(&sender, &account_data);
