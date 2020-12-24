@@ -10,10 +10,80 @@ use serde_json::json;
 
 use crate::order;
 use crate::market;
+use crate::orderbook;
 
 type Order = order::Order;
 type Market = market::Market;
+type Orderbook = orderbook::Orderbook;
 
+pub fn log_market(market: &Market, description: String, extra_info: String, outcome_tags: Vec<String>, categories: Vec<String>, api_source: String) {
+	env::log(
+		json!({
+			"type": "markets".to_string(),
+			"params": {
+				"id": U64(market.id),
+				"creator": market.creator,
+				"description": description,
+				"extra_info": extra_info,
+				"outcomes": market.outcomes,
+				"outcome_tags": outcome_tags,
+				"categories": categories,
+				"end_time": U64(market.end_time),
+				"creator_fee_percentage": market.fees.creator_fee_percentage,
+				"resolution_fee_percentage": market.fees.resolution_fee_percentage,
+				"affiliate_fee_percentage": market.fees.affiliate_fee_percentage,
+				"api_source": api_source,
+				"block_height": U64(env::block_index())
+			}
+		})
+		.to_string()
+		.as_bytes()
+	);
+}
+
+pub fn log_orderbook(orderbook: &Orderbook) {
+	env::log(
+		json!({
+			"type": "orderbooks".to_string(),
+			"params": {
+				"id": format!("ob_{}_{}", orderbook.market_id, orderbook.outcome_id),
+				"market_id": U64(orderbook.market_id),
+				"outcome_id": orderbook.outcome_id,
+			}
+		})
+		.to_string()
+		.as_bytes()
+	);
+}
+
+pub fn log_order(order: &Order, outcome: u8, closed: bool, fill_price: u128) {
+	env::log(
+		json!({
+			"type": "orders".to_string(),
+			"params": {
+				"id": format!("o_{}_{}_{}", order.market_id, outcome, order.id),
+				"creator": order.creator,
+				"order_id": U128(order.id),
+				"market_id": U64(order.market_id),
+				"outcome": outcome,
+				"spend": U128(order.spend),
+				"filled": U128(order.filled),
+				"fill_price": U128(fill_price),
+				"shares": U128(order.shares),
+				"shares_filled": U128(order.shares_filled),
+				"price": order.price,
+				"affiliate_account_id": order.affiliate_account_id,
+				"closed": closed,
+				"block_height": U64(env::block_index())
+			}
+		})
+		.to_string()
+		.as_bytes()
+	);
+}
+
+
+// TODO convert these to logical data objects
 pub fn log_order_filled(order: &Order, shares_to_fill: u128, market_id: u64, outcome: u8) {
 	env::log(
 		json!({
@@ -29,45 +99,6 @@ pub fn log_order_filled(order: &Order, shares_to_fill: u128, market_id: u64, out
 				"fill_price": order.price,
 				"shares_filled": U128(order.shares_filled),
 				"block_height": U64(env::block_index())
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
-
-pub fn log_order_closed(order: &Order, market_id: u64, outcome: u8) {
-	env::log(
-		json!({
-		"type": "order_closed".to_string(),
-			"params": {
-				"market_id": U64(market_id),
-				"outcome": outcome,
-				"order_id": U128(order.id),
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
-
-pub fn log_market_creation(market: &Market, description: String, extra_info: String, outcome_tags: Vec<String>, categories: Vec<String>, api_source: String) {
-	env::log(
-		json!({
-			"type": "market_creation".to_string(),
-			"params": {
-				"id": U64(market.id),
-				"creator": market.creator,
-				"description": description,
-				"extra_info": extra_info,
-				"outcomes": market.outcomes,
-				"outcome_tags": outcome_tags,
-				"categories": categories,
-				"end_time": U64(market.end_time),
-				"creator_fee_percentage": market.fees.creator_fee_percentage,
-				"resolution_fee_percentage": market.fees.resolution_fee_percentage,
-				"affiliate_fee_percentage": market.fees.affiliate_fee_percentage,
-				"api_source": api_source,
 			}
 		})
 		.to_string()

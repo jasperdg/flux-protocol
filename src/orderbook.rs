@@ -127,6 +127,7 @@ impl Orderbook {
 		if left_to_spend < 100 {
 			/* Return if filled */
 			logger::log_order_filled_at_placement(&new_order, outcome, fill_price);
+			logger::log_order(&new_order, outcome, false, fill_price);
 			return;
 		}
 		
@@ -142,6 +143,7 @@ impl Orderbook {
 		/* Re-insert price_data to update state */
 		self.price_data.insert(&price, &price_data);
 
+		logger::log_order(&new_order, outcome, false, fill_price);
 		logger::log_order_placed(&new_order, outcome, fill_price);
 	}
 
@@ -173,7 +175,7 @@ impl Orderbook {
 		self.account_data.insert(&order.creator, &account_data);
 
 		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, account_data.shares_balance, account_data.tokens_to_spend, account_data.tokens_spent);
-		logger::log_order_closed(&order, self.market_id, self.outcome_id);
+		logger::log_order(&order, self.outcome_id, true, 0);
 
 		to_return
 	}
@@ -257,7 +259,6 @@ impl Orderbook {
 		/* Else update order and re-insert it to update price_data */
 		if close_order {
 			price_data.orders.remove(&order.id);
-			logger::log_order_closed(&order, self.market_id, self.outcome_id);
 		}  else {
 			order.filled += shares_to_fill * u128::from(order.price);
 			order.shares_filled += shares_to_fill;
@@ -273,6 +274,7 @@ impl Orderbook {
 		}
 
 		logger::log_order_filled(&order, shares_to_fill, self.market_id, self.outcome_id);
+		logger::log_order(&order, self.outcome_id, close_order, 0);
 		logger::log_update_user_balance(&order.creator, order.market_id, self.outcome_id, account_data.shares_balance, account_data.tokens_to_spend, account_data.tokens_spent);
 	}
 

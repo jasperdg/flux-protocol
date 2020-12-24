@@ -78,7 +78,10 @@ impl Market {
 
 		/* For each of the outcomes insert a new orderbook into the empty_orderbooks map */
 		for i in 0..outcomes {
-			empty_orderbooks.insert(&i, &Orderbook::new(id, i));
+			let orderbook = Orderbook::new(id, i);
+
+			logger::log_orderbook(&orderbook);
+			empty_orderbooks.insert(&i, &orderbook);
 		}
 
 		/* Create empty Vector object that will store all resolution windows */

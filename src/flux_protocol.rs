@@ -109,6 +109,7 @@ impl FluxProtocol {
 		assert!(!env::state_exists(), "Already initialized");
 		assert!(env::is_valid_account_id(owner.as_bytes()), "Invalid account_id for owner");
 		assert!(env::is_valid_account_id(fun_token_account_id.as_bytes()), "Invalid account_id for FunToken");
+
 		Self {
 			owner,
 			markets: UnorderedMap::new(b"markets".to_vec()),
@@ -390,7 +391,7 @@ impl FluxProtocol {
 		/* Get the newly created market's resolution_window */
 		let resolution_window = new_market.resolution_windows.get(0).expect("something went wrong during market creation");
 
-		logger::log_market_creation(&new_market, description, extra_info, outcome_tags, categories, api_source);
+		logger::log_market(&new_market, description, extra_info, outcome_tags, categories, api_source);
 		logger::log_new_resolution_window(new_market.id, resolution_window.round, resolution_window.required_bond_size, resolution_window.end_time);
 
 		let market_id = new_market.id;
