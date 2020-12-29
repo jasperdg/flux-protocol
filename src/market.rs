@@ -359,7 +359,7 @@ impl Market {
 			let new_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, self.resolution_bond);
 
 			logger::log_market_resoluted(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
-			logger::log_new_resolution_window(self.id, new_resolution_window.round, new_resolution_window.required_bond_size, new_resolution_window.end_time);
+			logger::log_resolution_window(self.id, new_resolution_window.round, new_resolution_window.required_bond_size, new_resolution_window.end_time);
 			self.resolution_windows.push(&new_resolution_window);
 			
 		}  else {
@@ -429,7 +429,7 @@ impl Market {
 			let bond_base = if resolution_window.round == utils::max_rounds() { 0 } else { self.resolution_bond };
 			let next_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, bond_base);
 			logger::log_resolution_disputed(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
-			logger::log_new_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
+			logger::log_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
 
 			self.resolution_windows.push(&next_resolution_window);
 		} else {

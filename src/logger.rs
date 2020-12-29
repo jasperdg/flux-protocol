@@ -56,7 +56,7 @@ pub fn log_orderbook(orderbook: &Orderbook) {
 	);
 }
 
-pub fn log_order(order: &Order, outcome: u8, closed: bool, fill_price: u128) {
+pub fn log_order(order: &Order, outcome: u8, closed: bool, fill_price: u128, shares_to_fill: Option<u128>) {
 	env::log(
 		json!({
 			"type": "orders".to_string(),
@@ -70,6 +70,7 @@ pub fn log_order(order: &Order, outcome: u8, closed: bool, fill_price: u128) {
 				"filled": U128(order.filled),
 				"fill_price": U128(fill_price),
 				"shares": U128(order.shares),
+				"shares_filling": U128(shares_to_fill.unwrap_or(order.shares_filled)),
 				"shares_filled": U128(order.shares_filled),
 				"price": order.price,
 				"affiliate_account_id": order.affiliate_account_id,
@@ -188,10 +189,10 @@ pub fn log_market_resoluted(market_id: u64, sender: &AccountId, round: u8, stake
 	);
 }
 
-pub fn log_new_resolution_window(market_id: u64, round: u8, bond_size: u128, end_time: u64) {
+pub fn log_resolution_window(market_id: u64, round: u8, bond_size: u128, end_time: u64) {
 	env::log(
 		json!({
-			"type": "new_resolution_window".to_string(),
+			"type": "resolution_windows".to_string(),
 			"params": {
 				"market_id": U64(market_id),
 				"round": round,
@@ -312,27 +313,27 @@ pub fn log_order_filled_at_placement(order: &Order, outcome: u8, fill_price: u12
 	);
 }
 
-pub fn log_order_placed(order: &Order, outcome: u8, fill_price: u128) {
-	env::log(
-		json!({
-			"type": "order_placed".to_string(),
-			"params": {
-				"order_id": U128(order.id),
-				"market_id": U64(order.market_id),
-				"account_id": order.creator, 
-				"outcome": outcome, 
-				"spend":  U128(order.spend),
-				"shares":  U128(order.shares),
-				"fill_price": fill_price as u16,
-				"price":  order.price,
-				"filled": U128(order.filled), 
-				"shares_filling": U128(order.shares_filled),
-				"shares_filled": U128(order.shares_filled),
-				"affiliate_account_id": order.affiliate_account_id,
-				"block_height": U64(env::block_index())
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
+// pub fn log_order_placed(order: &Order, outcome: u8, fill_price: u128) {
+// 	env::log(
+// 		json!({
+// 			"type": "order_placed".to_string(),
+// 			"params": {
+// 				"order_id": U128(order.id),
+// 				"market_id": U64(order.market_id),
+// 				"account_id": order.creator, 
+// 				"outcome": outcome, 
+// 				"spend":  U128(order.spend),
+// 				"shares":  U128(order.shares),
+// 				"fill_price": fill_price as u16,
+// 				"price":  order.price,
+// 				"filled": U128(order.filled), 
+// 				"shares_filling": U128(order.shares_filled),
+// 				"shares_filled": U128(order.shares_filled),
+// 				"affiliate_account_id": order.affiliate_account_id,
+// 				"block_height": U64(env::block_index())
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	);
+// }
