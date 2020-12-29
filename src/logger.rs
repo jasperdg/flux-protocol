@@ -41,6 +41,23 @@ pub fn log_market(market: &Market, description: String, extra_info: String, outc
 	);
 }
 
+pub fn log_market_state(market_id: u64, winning_outcome: u8, finalized: bool, disputed: bool, resoluted: bool) {
+	env::log(
+		json!({
+			"type": "market_states".to_string(),
+			"params": {
+				"market_id": U64(market_id),
+				"winning_outcome": winning_outcome,
+				"finalized": finalized,
+				"disputed": disputed,
+				"resoluted": resoluted,
+			}
+		})
+		.to_string()
+		.as_bytes()
+	);
+}
+
 pub fn log_orderbook(orderbook: &Orderbook) {
 	env::log(
 		json!({
@@ -102,7 +119,38 @@ pub fn log_user_balance(account_id: &AccountId, market_id: u64, outcome: u8, bal
 	);
 }
 
+pub fn log_resolution_window(market_id: u64, round: u8, bond_size: u128, end_time: u64) {
+	env::log(
+		json!({
+			"type": "resolution_windows".to_string(),
+			"params": {
+				"market_id": U64(market_id),
+				"round": round,
+				"required_bond_size": U128(bond_size),
+				"end_time": U64(end_time),	
+			}
+		})
+		.to_string()
+		.as_bytes()
+	);
+}
 
+pub fn log_stake(market_id: u64, account_id: &AccountId, round: u8, staked: u128, outcome: u8) {
+	env::log(
+		json!({
+		"type": "stakes".to_string(),
+			"params": {
+				"market_id": U64(market_id),
+				"account_id": account_id,
+				"round": round,
+				"staked": U128(staked),
+				"outcome": outcome,
+			}
+		})
+		.to_string()
+		.as_bytes()
+	);
+}
 
 // TODO convert these to logical data objects
 pub fn log_order_filled(order: &Order, shares_to_fill: u128, market_id: u64, outcome: u8) {
@@ -172,103 +220,87 @@ pub fn log_affiliate_earnings_claimed(sender: &AccountId, amount: u128) {
 	);		
 }
 
-pub fn log_market_resoluted(market_id: u64, sender: &AccountId, round: u8, staked: u128, outcome: u8) {
-	env::log(
-		json!({
-			"type": "market_resoluted".to_string(),
-			"params": {
-				"market_id": U64(market_id),
-				"sender": sender,
-				"round": round,
-				"staked": U128(staked),
-				"outcome": outcome,
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
+// pub fn log_market_resoluted(market_id: u64, sender: &AccountId, round: u8, staked: u128, outcome: u8) {
+// 	env::log(
+// 		json!({
+// 			"type": "market_resoluted".to_string(),
+// 			"params": {
+// 				"market_id": U64(market_id),
+// 				"sender": sender,
+// 				"round": round,
+// 				"staked": U128(staked),
+// 				"outcome": outcome,
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	);
+// }
 
-pub fn log_resolution_window(market_id: u64, round: u8, bond_size: u128, end_time: u64) {
-	env::log(
-		json!({
-			"type": "resolution_windows".to_string(),
-			"params": {
-				"market_id": U64(market_id),
-				"round": round,
-				"required_bond_size": U128(bond_size),
-				"end_time": U64(end_time),	
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
+// pub fn log_staked_on_resolution(market_id: u64, sender: &AccountId, round: u8, staked: u128, outcome: u8) {
+// 	env::log(
+// 		json!({
+// 			"type": "staked_on_resolution".to_string(),
+// 			"params": {
+// 				"market_id": U64(market_id),
+// 				"sender": sender,
+// 				"round": round,
+// 				"staked": U128(staked),
+// 				"outcome": outcome,
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	)
+// }
 
-pub fn log_staked_on_resolution(market_id: u64, sender: &AccountId, round: u8, staked: u128, outcome: u8) {
-	env::log(
-		json!({
-			"type": "staked_on_resolution".to_string(),
-			"params": {
-				"market_id": U64(market_id),
-				"sender": sender,
-				"round": round,
-				"staked": U128(staked),
-				"outcome": outcome,
-			}
-		})
-		.to_string()
-		.as_bytes()
-	)
-}
+// pub fn log_resolution_disputed(market_id: u64, sender: &AccountId, round: u8, staked: u128, outcome: u8) {
+// 	env::log(
+// 		json!({
+// 			"type": "resolution_disputed".to_string(),
+// 			"params": {
+// 				"market_id": U64(market_id),
+// 				"sender": sender,
+// 				"round": round,
+// 				"staked": U128(staked),
+// 				"outcome": outcome,
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	);
+// }
 
-pub fn log_resolution_disputed(market_id: u64, sender: &AccountId, round: u8, staked: u128, outcome: u8) {
-	env::log(
-		json!({
-			"type": "resolution_disputed".to_string(),
-			"params": {
-				"market_id": U64(market_id),
-				"sender": sender,
-				"round": round,
-				"staked": U128(staked),
-				"outcome": outcome,
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
+// pub fn log_staked_on_dispute(market_id: u64, sender: &AccountId, round: u8, staked: u128, outcome: u8) {
+// 	env::log(
+// 		json!({
+// 			"type": "staked_on_dispute".to_string(),
+// 			"params": {
+// 				"market_id": U64(market_id),
+// 				"sender": sender,
+// 				"round": round,
+// 				"staked": U128(staked),
+// 				"outcome": outcome,
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	)
+// }
 
-pub fn log_staked_on_dispute(market_id: u64, sender: &AccountId, round: u8, staked: u128, outcome: u8) {
-	env::log(
-		json!({
-			"type": "staked_on_dispute".to_string(),
-			"params": {
-				"market_id": U64(market_id),
-				"sender": sender,
-				"round": round,
-				"staked": U128(staked),
-				"outcome": outcome,
-			}
-		})
-		.to_string()
-		.as_bytes()
-	)
-}
-
-pub fn log_finalized_market(market_id: u64, winning_outcome: u8) {
-	env::log(
-		json!({
-			"type": "market_finalized".to_string(),
-			"params": {
-				"market_id": U64(market_id),
-				"winning_outcome": winning_outcome
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
+// pub fn log_finalized_market(market_id: u64, winning_outcome: u8) {
+// 	env::log(
+// 		json!({
+// 			"type": "market_finalized".to_string(),
+// 			"params": {
+// 				"market_id": U64(market_id),
+// 				"winning_outcome": winning_outcome
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	);
+// }
 
 // pub fn log_update_user_balance(account_id: &AccountId, market_id: u64, outcome: u8, balance: u128, to_spend: u128, spent: u128) {
 // 	env::log(

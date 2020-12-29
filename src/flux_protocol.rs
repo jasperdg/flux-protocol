@@ -392,7 +392,7 @@ impl FluxProtocol {
 		let resolution_window = new_market.resolution_windows.get(0).expect("something went wrong during market creation");
 
 		logger::log_market(&new_market, description, extra_info, outcome_tags, categories, api_source);
-		logger::log_new_resolution_window(new_market.id, resolution_window.round, resolution_window.required_bond_size, resolution_window.end_time);
+		logger::log_resolution_window(new_market.id, resolution_window.round, resolution_window.required_bond_size, resolution_window.end_time);
 
 		let market_id = new_market.id;
 		

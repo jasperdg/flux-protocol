@@ -358,13 +358,15 @@ impl Market {
 
 			let new_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, self.resolution_bond);
 
-			logger::log_market_resoluted(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
+			// logger::log_market_resoluted(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
+			logger::log_market_state(self.id, outcome_id, self.finalized, self.disputed, self.resoluted);
+			logger::log_stake(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
 			logger::log_resolution_window(self.id, new_resolution_window.round, new_resolution_window.required_bond_size, new_resolution_window.end_time);
 			self.resolution_windows.push(&new_resolution_window);
 			
 		}  else {
-			logger::log_staked_on_resolution(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
-
+			// logger::log_staked_on_resolution(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
+			logger::log_stake(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
 		}
 		
 		/* Re-insert the resolution window after update */
@@ -428,12 +430,15 @@ impl Market {
 
 			let bond_base = if resolution_window.round == utils::max_rounds() { 0 } else { self.resolution_bond };
 			let next_resolution_window = ResolutionWindow::new(Some(resolution_window.round), self.id, bond_base);
-			logger::log_resolution_disputed(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
+			// logger::log_resolution_disputed(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
+			logger::log_market_state(self.id, outcome_id, self.finalized, self.disputed, self.resoluted);
+			logger::log_stake(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
 			logger::log_resolution_window(self.id, next_resolution_window.round, next_resolution_window.required_bond_size, next_resolution_window.end_time);
 
 			self.resolution_windows.push(&next_resolution_window);
 		} else {
-			logger::log_staked_on_dispute(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
+			// logger::log_staked_on_dispute(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
+			logger::log_stake(self.id, &sender, resolution_window.round, stake - stake_to_refund, outcome_id);
 		}
 
 		// Re-insert the resolution window
@@ -454,9 +459,10 @@ impl Market {
             self.winning_outcome = winning_outcome;
 		}
 
-		logger::log_finalized_market(self.id, self.to_numerical_outcome(self.winning_outcome));
+		// logger::log_finalized_market(self.id, self.to_numerical_outcome(self.winning_outcome));
 		
-	    self.finalized = true;
+		self.finalized = true;
+		logger::log_market_state(self.id, self.to_numerical_outcome(self.winning_outcome), self.finalized, self.disputed, self.resoluted);
 	}
 
 	/*** After finalization ***/
