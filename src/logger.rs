@@ -140,49 +140,11 @@ pub fn log_stake(market_id: u64, account_id: &AccountId, round: u8, staked: u128
 		json!({
 		"type": "stakes".to_string(),
 			"params": {
+				"id": format!("s_{}_{}_{}_{}", market_id, account_id, round, outcome),
 				"market_id": U64(market_id),
 				"account_id": account_id,
 				"round": round,
 				"staked": U128(staked),
-				"outcome": outcome,
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
-
-// TODO convert these to logical data objects
-pub fn log_order_filled(order: &Order, shares_to_fill: u128, market_id: u64, outcome: u8) {
-	env::log(
-		json!({
-		"type": "order_filled".to_string(),
-			"params": {
-				"market_id": U64(market_id),
-				"outcome": outcome,
-				"order_id": U128(order.id),
-				"account_id": order.creator,
-				"shares_filling": U128(shares_to_fill),
-				"filled": U128(order.filled),
-				"price": order.price,
-				"fill_price": order.price,
-				"shares_filled": U128(order.shares_filled),
-				"block_height": U64(env::block_index())
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
-
-pub fn log_dispute_withdraw(market_id: u64, sender: &AccountId, dispute_round: u8, outcome: Option<u8>) {
-	env::log(
-		json!({
-			"type": "withdrawn_unbounded_dispute_stake".to_string(),
-			"params": {
-				"market_id": U64(market_id),
-				"sender": sender,
-				"dispute_round": dispute_round,
 				"outcome": outcome,
 			}
 		})
@@ -206,19 +168,60 @@ pub fn log_earnings_claimed(market_id: u64, sender: &AccountId, amount: u128) {
 	);		
 }
 
-pub fn log_affiliate_earnings_claimed(sender: &AccountId, amount: u128) {
-	env::log(
-		json!({
-			"type": "affiliate_earnings_claimed".to_string(),
-			"params": {
-				"account_id": sender,
-				"earned": U128(amount),
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);		
-}
+// TODO convert these to logical data objects
+// pub fn log_order_filled(order: &Order, shares_to_fill: u128, market_id: u64, outcome: u8) {
+// 	env::log(
+// 		json!({
+// 		"type": "order_filled".to_string(),
+// 			"params": {
+// 				"market_id": U64(market_id),
+// 				"outcome": outcome,
+// 				"order_id": U128(order.id),
+// 				"account_id": order.creator,
+// 				"shares_filling": U128(shares_to_fill),
+// 				"filled": U128(order.filled),
+// 				"price": order.price,
+// 				"fill_price": order.price,
+// 				"shares_filled": U128(order.shares_filled),
+// 				"block_height": U64(env::block_index())
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	);
+// }
+
+// pub fn log_dispute_withdraw(market_id: u64, sender: &AccountId, dispute_round: u8, outcome: Option<u8>) {
+// 	env::log(
+// 		json!({
+// 			"type": "withdrawn_unbounded_dispute_stake".to_string(),
+// 			"params": {
+// 				"market_id": U64(market_id),
+// 				"sender": sender,
+// 				"dispute_round": dispute_round,
+// 				"outcome": outcome,
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	);
+// }
+
+
+
+// pub fn log_affiliate_earnings_claimed(sender: &AccountId, amount: u128) {
+// 	env::log(
+// 		json!({
+// 			"type": "affiliate_earnings_claimed".to_string(),
+// 			"params": {
+// 				"account_id": sender,
+// 				"earned": U128(amount),
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	);		
+// }
 
 // pub fn log_market_resoluted(market_id: u64, sender: &AccountId, round: u8, staked: u128, outcome: u8) {
 // 	env::log(
@@ -320,30 +323,30 @@ pub fn log_affiliate_earnings_claimed(sender: &AccountId, amount: u128) {
 // 	);
 // }
 
-pub fn log_order_filled_at_placement(order: &Order, outcome: u8, fill_price: u128) {
-	env::log(
-		json!({
-			"type": "order_filled_at_placement".to_string(),
-			"params": {
-				"order_id": U128(order.id),
-				"market_id": U64(order.market_id),
-				"account_id": order.creator, 
-				"outcome": outcome, 
-				"spend":  U128(order.spend),
-				"shares":  U128(order.shares),
-				"fill_price": fill_price as u16,
-				"price": order.price,
-				"filled": U128(order.filled), 
-				"shares_filling": U128(order.shares_filled),
-				"shares_filled": U128(order.shares_filled),
-				"affiliate_account_id": order.affiliate_account_id,
-				"block_height": U64(env::block_index())
-			}
-		})
-		.to_string()
-		.as_bytes()
-	);
-}
+// pub fn log_order_filled_at_placement(order: &Order, outcome: u8, fill_price: u128) {
+// 	env::log(
+// 		json!({
+// 			"type": "order_filled_at_placement".to_string(),
+// 			"params": {
+// 				"order_id": U128(order.id),
+// 				"market_id": U64(order.market_id),
+// 				"account_id": order.creator, 
+// 				"outcome": outcome, 
+// 				"spend":  U128(order.spend),
+// 				"shares":  U128(order.shares),
+// 				"fill_price": fill_price as u16,
+// 				"price": order.price,
+// 				"filled": U128(order.filled), 
+// 				"shares_filling": U128(order.shares_filled),
+// 				"shares_filled": U128(order.shares_filled),
+// 				"affiliate_account_id": order.affiliate_account_id,
+// 				"block_height": U64(env::block_index())
+// 			}
+// 		})
+// 		.to_string()
+// 		.as_bytes()
+// 	);
+// }
 
 // pub fn log_order_placed(order: &Order, outcome: u8, fill_price: u128) {
 // 	env::log(

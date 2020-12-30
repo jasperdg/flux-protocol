@@ -126,7 +126,7 @@ impl Orderbook {
 		/* if left_to_spend < 100 the order counts as filled to avoid rounding errors which produce overflow errors */
 		if left_to_spend < 100 {
 			/* Return if filled */
-			logger::log_order_filled_at_placement(&new_order, outcome, fill_price);
+			// logger::log_order_filled_at_placement(&new_order, outcome, fill_price);
 			logger::log_order(&new_order, outcome, false, fill_price, None);
 			return;
 		}
@@ -272,7 +272,7 @@ impl Orderbook {
 			self.price_data.insert(&order.price, &price_data);
 		}
 
-		logger::log_order_filled(&order, shares_to_fill, self.market_id, self.outcome_id);
+		// logger::log_order_filled(&order, shares_to_fill, self.market_id, self.outcome_id);
 		logger::log_order(&order, self.outcome_id, close_order, 0, Some(shares_to_fill));
 		logger::log_user_balance(&order.creator, order.market_id, self.outcome_id, account_data.shares_balance, account_data.tokens_to_spend, account_data.tokens_spent);
 	}

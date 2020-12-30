@@ -816,7 +816,8 @@ impl FluxProtocol {
 		if stake_to_refund > 0 {
 			/* Re-insert the market into the markets struct to update state */
 			self.markets.insert(&market_id, &market);
-			logger::log_dispute_withdraw(market_id, &env::predecessor_account_id(), dispute_round, outcome);
+			// logger::log_dispute_withdraw(market_id, &env::predecessor_account_id(), dispute_round, outcome);
+			logger::log_stake(market_id, &env::predecessor_account_id(), dispute_round, 0, market.to_numerical_outcome(outcome));
 			fun_token::transfer(env::predecessor_account_id(), U128(stake_to_refund), &self.fun_token_account_id(), env::attached_deposit(), constants::SINGLE_CALL_GAS / 2)
 		} else {
 			panic!("user has no participation in this dispute");
